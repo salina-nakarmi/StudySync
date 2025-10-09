@@ -15,8 +15,8 @@ Before you start, make sure you have these installed on your computer:
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repository-url>
-cd <project-folder-name>
+git clone https://github.com/salina-nakarmi/StudySync.git
+cd auth
 ```
 
 ### 2. Backend Setup (FastAPI)
@@ -170,5 +170,10 @@ npm test
 
 
 ---
+
+## Authentication try
+    
+        http://localhost:5173/sign-in
+        
 
 **Happy Coding! 🎉**
