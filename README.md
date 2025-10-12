@@ -84,32 +84,6 @@ cd auth
    
    The frontend should now be running at: `http://localhost:3000`
 
-## 🗂️ Project Structure
-
-```
-project-root/
-│
-├── backend/              # FastAPI backend
-│   ├── venv/            # Virtual environment
-│   ├── src/             # Source code
-│   │   ├── database/    # Database models
-│   │   ├── routes/      # API routes
-│   │   └── auth/        # Authentication logic
-│   ├── app.py           # Main application file
-│   ├── utils.py         # Utility functions
-│   └── requirements.txt # Python dependencies
-│
-├── frontend/            # React frontend
-│   ├── node_modules/    # NPM packages
-│   ├── public/          # Public assets
-│   ├── src/             # Source code
-│   │   ├── auth/        # Auth components
-│   │   ├── layout/      # Layout components
-│   │   └── utils/       # Utility functions
-│   └── package.json     # NPM dependencies
-│
-└── README.md           # This file
-```
 
 ## 👥 Team Workflow
 
@@ -175,5 +149,6 @@ npm test
     
         http://localhost:5173/sign-in
         
+
 
 **Happy Coding! 🎉**
