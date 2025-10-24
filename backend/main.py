@@ -9,9 +9,8 @@ def main():
     database_url = os.getenv("DATABASE_URL")
 
     if database_url:
-        print(" DATABASE_URL Loaded successfully.")
-        print(f" Using database:{database_url.split('@'[-1])}")
-
+        print("Database is connection to online sever NEON")
+        
 
     else:
         print("CRITICAL ERROR : DATABASE_URL not found!")

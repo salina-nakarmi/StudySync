@@ -2,7 +2,7 @@ import { ClerkProviderWithRoutes } from './auth/ClerkProviderWithRoutes.jsx'
 import { Routes, Route } from 'react-router-dom'
 import { AuthenticationPage } from './auth/AuthenticationPage.jsx'
 import { Layout } from './layout/layout.jsx'
-import { Dashboard } from './Dashboard/Dashboard.jsx'
+import  Dashboard  from './pages/Dashboard.jsx'
 import './App.css'
 
 function App() {
