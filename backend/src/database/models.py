@@ -6,14 +6,18 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum
 
 class GroupRole(enum.Enum):
-    MEMBER= "member"
-    ADMIN=  "admin"
+    MEMBER="member"
+    ADMIN= "admin"
 
 class ResourceType(enum.Enum):
     IMAGE="image"
     VIDEO="video"
     FILE="file"
     FOLDER="folder"
+
+class MessageType(enum.Enum):
+    IMAGE="image"
+    TEXT = "text"
 
 
 class Users(Base):
@@ -87,7 +91,25 @@ class TimeSpends(Base):
 class Messages(Base):
     __tablename__='messages'
 
-    id:Mapped[int]=p
+    id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
+    user_id:Mapped[int]=mapped_column(ForeignKey('users.user_id'))
+    group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
+    content:Mapped[str]
+    message_type:Mapped[str]=mapped_column(enum(MessageType, default=MessageType.TEXT))
+    created_at:Mapped[datetime]=mapped_column(default=func.now())
+    updated_at:Mapped[datetime]=mapped_column(default=func.now(),updated_at=func.now())
+
+
+
+class notifications(Base):
+    __tablename__ = 'notifications'
+
+    id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
+    user_id:Mapped[int]=mapped_column(ForeignKey('users.user_id'))
+    notification_message:Mapped[str]
+    is_read:Mapped[bool]=mapped_column(Boolean, default=False) 
+    created_at:Mapped[datetime]=mapped_column(default=func.now())  
+
 
     
  
