@@ -91,6 +91,7 @@ cd auth
 - Work in the `backend/` directory
 - Create API endpoints in `backend/src/routes/`
 - Handle database operations in `backend/src/database/`
+- Manage the logic in `backend/src/services/`
 - Test your endpoints at `http://localhost:8000/docs` (FastAPI auto-generates API docs!)
 
 ### Frontend Team
