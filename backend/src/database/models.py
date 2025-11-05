@@ -67,13 +67,19 @@ class Resources(Base):
     
 
 class Streaks(Base):
-    __tablename__='streaks'
+    __tablename__ = 'streaks'
 
-    id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
-    user_id:Mapped[int]=mapped_column(ForeignKey('users.user_id'))
-    value:Mapped[int]
-    created_at:Mapped[datetime]=mapped_column(default=func.now())
-    updated_at:Mapped[datetime]=mapped_column(default=func.now(),updated_at=func.now())
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(unique=True)
+
+    current_streak: Mapped[int] = mapped_column(default=0)
+    longest_streak: Mapped[int] = mapped_column(default=0)
+    last_active_date: Mapped[datetime | None]
+    streak_start_date: Mapped[datetime | None]
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
 
 
 class TimeSpends(Base):
