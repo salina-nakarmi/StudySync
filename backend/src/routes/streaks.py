@@ -1,12 +1,3 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
-from sqlalchemy.orm import Session
-from ..database.database import get_db
-from ..services.streak_service import update_streak as update_streak_logic
-from ..database.models import Streaks
-
-router = APIRouter(prefix="/streaks", tags=["streaks"])
-
-
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from services.streak_service import update_streak as update_streak_logic
