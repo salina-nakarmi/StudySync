@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard
+from .routes import Dashboard, streaks
 
 app = FastAPI()
 
@@ -14,3 +14,5 @@ app.add_middleware(
 
 
 app.include_router(Dashboard.router, prefix="/api")
+app.include_router(streaks.router)
+
