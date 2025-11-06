@@ -36,13 +36,15 @@ class Users(Base):
 class Groups(Base):
     __tablename__ = 'groups'
 
-    id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
-    leader_id:Mapped[int]= mapped_column(ForeignKey('users.user_id'))
-    group_name:Mapped[str]
-    image:Mapped[str]
-    description:Mapped[str]
-    created_at:Mapped[datetime] = mapped_column(default=func.now())
-    updated_at:Mapped[datetime]= mapped_column(default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    leader_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    group_name: Mapped[str]
+    image: Mapped[str | None]
+    description: Mapped[str | None]
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=False)  # so that at the time of creation we can know if the creator wants to form group as leader or shared group
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
 
 class Groupings(Base):
     __tablename__='groupings'
