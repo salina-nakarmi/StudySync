@@ -45,15 +45,16 @@ class Groups(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
-
 class Groupings(Base):
-    __tablename__='groupings'
+    __tablename__ = 'groupings'
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'))
+    role: Mapped[GroupRole] = mapped_column(Enum(GroupRole), default=GroupRole.MEMBER)
+    joined_at: Mapped[datetime] = mapped_column(default=func.now())
+    is_connected: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    user_id:Mapped[int]= mapped_column(primary_key=True, autoincrement=True)
-    group_id:Mapped[int]= mapped_column(ForeignKey('groups.id'))
-    roles:Mapped[str]=mapped_column(enum(GroupRole, default=GroupRole.MEMBER))
-    joined_at:Mapped[datetime]=mapped_column(default=func.now())
-    is_connected:Mapped[datetime]=mapped_column(Boolean,default=False)
+    __table_args__ = (PrimaryKeyConstraint('user_id', 'group_id'),)
+
 
 
 class Resources(Base):
