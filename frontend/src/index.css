@@ -26,6 +26,7 @@ button:focus-visible {
 } */
 
 @import "tailwindcss";
+
  html {
   scroll-behavior: smooth;
 }

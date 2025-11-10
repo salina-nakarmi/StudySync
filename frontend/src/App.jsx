@@ -1,4 +1,5 @@
-// import { ClerkProviderWithRoutes } from './auth/ClerkProviderWithRoutes.jsx'
+// import { ClerkProviderWithRoutes } from '../auth/ClerkProviderWithRoutes.jsx'
+
 // import { Routes, Route } from 'react-router-dom'
 // import { AuthenticationPage } from './auth/AuthenticationPage.jsx'
 // import { Layout } from './layout/layout.jsx'
@@ -21,8 +22,12 @@
 
 import React, { useState } from "react";
 import barImg from "./assets/bar.png";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import LoginPage from "./pages/LoginPage.jsx";
 
-function App() {
+
+
+function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -60,9 +65,14 @@ function App() {
               <a href="#about" className="text-gray-500 hover:text-gray-900">
                 About
               </a>
-              <button className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium">
+
+               <Link
+                to="/login"
+                className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium"
+              >
                 Login
-              </button>
+              </Link>
+             
               <button className="px-5 py-2 text-gray-900 hover:text-gray-600 font-medium">
                 Sign up
               </button>
@@ -90,9 +100,14 @@ function App() {
               >
                 About
               </a>
-              <button className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">
+           
+                 <Link
+                to="/login"
+                className="block w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+              >
                 Login
-              </button>
+              </Link>
+             
               <button className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-100 rounded">
                 Sign up
               </button>
@@ -422,5 +437,17 @@ function App() {
     </div>
   );
 }
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />   {/* Home Page */}
+        <Route path="/login" element={<LoginPage />} /> {/* Login Page */}
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
 
 export default App;
