@@ -31,7 +31,7 @@ function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white ">
       {/* Navbar */}
       <nav className="bg-white  sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -55,27 +55,36 @@ function Home() {
             </button>
 
             {/* Desktop menu */}
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#home" className="text-gray-900 hover:text-gray-600 font-medium">
+            <div className="hidden md:flex items-center  space-x-8">
+              <a href="#home" className="text-gray-500 hover:text-gray-900 font-medium">
                 Home
               </a>
-              <a href="#features" className="text-gray-500 hover:text-gray-900">
+              <a href="#features" className="text-gray-500 hover:text-gray-900 font-medium">
                 Features
               </a>
-              <a href="#about" className="text-gray-500 hover:text-gray-900">
+              <a href="#about" className="text-gray-500 hover:text-gray-900 font-medium">
                 About
               </a>
 
-               <Link
-                to="/login"
-                className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium"
-              >
-                Login
-              </Link>
-             
-              <button className="px-5 py-2 text-gray-900 hover:text-gray-600 font-medium">
-                Sign up
-              </button>
+              <div className="space-x-4">
+  <Link
+    to="/login"
+    state={{ mode: "login" }}
+    className="px-5 py-2 bg-black text-white rounded-lg font-semibold"
+  >
+    Login
+  </Link>
+
+  <Link
+    to="/login"
+    state={{ mode: "signup" }}
+    className="px-5 py-2  text-gray-500 font-medium  hover:text-gray-900"
+  >
+    Sign Up
+  </Link>
+</div>
+
+              
             </div>
           </div>
 
@@ -108,9 +117,10 @@ function Home() {
                 Login
               </Link>
              
-              <button className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-100 rounded">
-                Sign up
-              </button>
+             <Link 
+             to="/login"
+             className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-100 rounded">
+             </Link>
             </div>
           )}
         </div>
@@ -130,7 +140,7 @@ function Home() {
               <p className="text-base sm:text-lg text-gray-700 mb-8 sm:mb-10 max-w-xl mx-auto">
                 Efficiently manage your task and boost productivity.
               </p>
-              <button className="px-8 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition">
+              <button className="px-8 py-3 bg-gradient-to-r from-gray-900 to-gray-700 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition">
                 Get Started
               </button>
             </div>
@@ -354,7 +364,7 @@ function Home() {
       </section>
 
       {/* Free Trial Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-gray-900">
+      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-r from-gray-900 to-gray-700">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             Ready to Transform Your Study Habits?
@@ -377,7 +387,9 @@ function Home() {
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-xl">S</span>
+               
                 </div>
+                   <p className="text-gray-900 font-semibold text-lg" >StudySync</p>
               </div>
             </div>
 

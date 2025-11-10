@@ -25,8 +25,14 @@ button:focus-visible {
   outline-offset: 2px;
 } */
 
+
+
 @import "tailwindcss";
 
  html {
   scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter';
 }
