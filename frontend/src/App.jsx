@@ -20,23 +20,49 @@
 
 // export default App
 
-import React, { useState } from "react";
-import barImg from "./assets/bar.png";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage.jsx";
-
-
+import barImg from "./assets/bar.png";
 
 function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
+  const navigate = useNavigate();
+
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const featuresTop = document.getElementById("features")?.offsetTop ?? 0;
+      const aboutTop = document.getElementById("about")?.offsetTop ?? 0;
+      const scrollPos = window.scrollY + 120; 
+
+      if (scrollPos >= aboutTop) setActiveSection("about");
+      else if (scrollPos >= featuresTop) setActiveSection("features");
+      else setActiveSection("home");
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  
+  const handleScrollTo = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+    setMenuOpen(false); 
+  };
+
 
   return (
-    <div className="min-h-screen bg-white ">
+    <div className="min-h-screen bg-white">
       {/* Navbar */}
-      <nav className="bg-white  sticky top-0 z-50">
+      <nav className="bg-white sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Left: Logo + Name */}
+            {/* Logo */}
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg sm:text-xl">S</span>
@@ -55,72 +81,73 @@ function Home() {
             </button>
 
             {/* Desktop menu */}
-            <div className="hidden md:flex items-center  space-x-8">
-              <a href="#home" className="text-gray-500 hover:text-gray-900 font-medium">
-                Home
-              </a>
-              <a href="#features" className="text-gray-500 hover:text-gray-900 font-medium">
-                Features
-              </a>
-              <a href="#about" className="text-gray-500 hover:text-gray-900 font-medium">
-                About
-              </a>
+            <div className="hidden md:flex items-center space-x-8">
+              {["home", "features", "about"].map((section) => (
+                <button
+                  key={section}
+                  onClick={() => handleScrollTo(section)}
+                  className={`font-medium ${
+                    activeSection === section
+                      ? "font-bold text-gray-900"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  {section.charAt(0).toUpperCase() + section.slice(1)}
+                </button>
+              ))}
 
-              <div className="space-x-4">
-  <Link
-    to="/login"
-    state={{ mode: "login" }}
-    className="px-5 py-2 bg-black text-white rounded-lg font-semibold"
-  >
-    Login
-  </Link>
+              <button
+                onClick={() => navigate("/login", { state: { mode: "login" } })}
+                className="px-5 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition"
+              >
+                Login
+              </button>
 
-  <Link
-    to="/login"
-    state={{ mode: "signup" }}
-    className="px-5 py-2  text-gray-500 font-medium  hover:text-gray-900"
-  >
-    Sign Up
-  </Link>
-</div>
-
-              
+              <button
+                onClick={() => navigate("/login", { state: { mode: "signup" } })}
+                className="px-5 py-2 text-gray-500 font-medium hover:text-gray-900 transition"
+              >
+                Sign Up
+              </button>
             </div>
           </div>
 
-          {/* Mobile menu dropdown */}
+          {/* Mobile menu */}
           {menuOpen && (
             <div className="md:hidden pb-4 space-y-2">
-              <a
-                href="#home"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
-              >
-                Home
-              </a>
-              <a
-                href="#features"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
-              >
-                Features
-              </a>
-              <a
-                href="#about"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
-              >
-                About
-              </a>
-           
-                 <Link
-                to="/login"
+              {["home", "features", "about"].map((section) => (
+                <button
+                  key={section}
+                  onClick={() => handleScrollTo(section)}
+                  className={`block w-full text-left px-4 py-2 rounded ${
+                    activeSection === section
+                      ? "font-bold text-gray-900"
+                      : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  {section.charAt(0).toUpperCase() + section.slice(1)}
+                </button>
+              ))}
+
+              <button
+                onClick={() => {
+                  navigate("/login", { state: { mode: "login" } });
+                  setMenuOpen(false);
+                }}
                 className="block w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
               >
                 Login
-              </Link>
-             
-             <Link 
-             to="/login"
-             className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-100 rounded">
-             </Link>
+              </button>
+
+              <button
+                onClick={() => {
+                  navigate("/login", { state: { mode: "signup" } });
+                  setMenuOpen(false);
+                }}
+                className="block w-full px-4 py-2 text-gray-900 hover:bg-gray-100 rounded-lg"
+              >
+                Sign Up
+              </button>
             </div>
           )}
         </div>
@@ -140,12 +167,19 @@ function Home() {
               <p className="text-base sm:text-lg text-gray-700 mb-8 sm:mb-10 max-w-xl mx-auto">
                 Efficiently manage your task and boost productivity.
               </p>
-              <button className="px-8 py-3 bg-gradient-to-r from-gray-900 to-gray-700 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition">
+
+              <button className="px-8 py-3 bg-gradient-to-r from-gray-900 to-gray-700 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition"
                 Get Started
+                onClick={() => navigate("/login", { state: { mode: "login" } })}
+              
+              >
+               Get Started
               </button>
+
+             
             </div>
 
-            {/* Floating icons - Top Left Calendar */}
+            {/* { Top Left Calendar */} 
             <div className="hidden lg:block absolute top-16 left-12 w-24 h-24 bg-white rounded-2xl shadow-xl p-4 transform -rotate-6">
               <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
                 <rect x="10" y="20" width="80" height="70" stroke="black" strokeWidth="3" fill="white"/>
@@ -161,7 +195,7 @@ function Home() {
               </svg>
             </div>
 
-            {/* Floating icons - Top Right Clock */}
+            {/* { Top Right Clock */} 
             <div className="hidden lg:block absolute top-20 right-12 w-28 h-28 bg-white rounded-full shadow-xl p-5">
               <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
                 <circle cx="50" cy="50" r="45" stroke="#3B82F6" strokeWidth="8" fill="white"/>
@@ -173,7 +207,7 @@ function Home() {
               </svg>
             </div>
 
-            {/* Floating icons - Bottom Left Goal Card */}
+            {/* {/ Bottom Left Goal Card */} 
             <div className="hidden lg:block absolute bottom-10 left-16 w-40 h-28 bg-white rounded-xl shadow-xl p-4" style={{ transform: 'rotate(330deg)' }}>
               <div className="text-xs font-semibold text-blue-600 mb-1">Today's Focus Goal</div>
               <div className="text-lg font-bold text-gray-900 mb-2"></div>
@@ -183,7 +217,7 @@ function Home() {
               <div className="text-xs text-gray-500">60% completed</div>
             </div>
 
-            {/* Floating icons - Bottom Right Bar Chart */}
+            {/* { Bottom Right Bar Chart */} 
             <div className="hidden lg:block absolute bottom-0 right-16 w-48 h-32 bg-white  shadow-xl p-4">
               <div className="flex items-end justify-around h-full space-x-2">
                 <div className="flex flex-col items-center flex-1">
@@ -343,7 +377,7 @@ function Home() {
               <div className="flex flex-col items-center text-center">
                 <div className="w-48 h-48 sm:w-56 sm:h-56 mb-6 relative flex items-center justify-center">
                   <svg viewBox="0 0 200 200" className="w-full h-full">
-                    {/* Target/Goal Icon */}
+                   
                     <circle cx="100" cy="100" r="85" stroke="#E5E7EB" strokeWidth="3" fill="none"/>
                     <circle cx="100" cy="100" r="65" stroke="#D1D5DB" strokeWidth="3" fill="none"/>
                     <circle cx="100" cy="100" r="45" stroke="#9CA3AF" strokeWidth="3" fill="none"/>
@@ -364,7 +398,7 @@ function Home() {
       </section>
 
       {/* Free Trial Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-r from-gray-900 to-gray-700">
+      <section id="about" className="py-16 sm:py-20 lg:py-24 bg-gradient-to-r from-gray-900 to-gray-700">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             Ready to Transform Your Study Habits?
