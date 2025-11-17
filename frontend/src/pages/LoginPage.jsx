@@ -1,9 +1,22 @@
 import React, { useState , useEffect} from "react";
 import { useLocation } from "react-router-dom";
+import Dashboard from "./Dashboard.jsx";
+import { useNavigate } from "react-router-dom";
+
+
 
 const Login = () => {
      const location = useLocation();
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const[name, setName]=useState("");
+  const[email, setEmail]=useState("");
+  const[password, setPassword]=useState("");
+  const[confirmPassword, setConfirmPassword]=useState("");
+  const[error, setError]=useState("");  
+
+    const Navigate = useNavigate();
+    
+
 
     useEffect(() => {
     if (location.state?.mode === "signup") {
@@ -12,6 +25,51 @@ const Login = () => {
       setIsLoginMode(true);
     }
   }, [location.state]);
+
+
+   const checkPasswordStrength = (pw) => {
+    const minLength = 8;
+    const hasUpper = /[A-Z]/.test(pw);
+    const hasLower = /[a-z]/.test(pw);
+    const hasNumber = /[0-9]/.test(pw);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pw);
+
+    if (pw.length < minLength) return "Password must be at least 8 characters.";
+    if (!hasUpper) return "Password must contain an uppercase letter.";
+    if (!hasLower) return "Password must contain a lowercase letter.";
+    if (!hasNumber) return "Password must contain a number.";
+    if (!hasSpecial) return "Password must contain a special character.";
+
+    return ""; // password is strong
+  };
+
+
+  const handleSubmit = () => {
+    setError("");
+
+    if (!email || !password || (!isLoginMode && !name) || (!isLoginMode && !confirmPassword)) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (!isLoginMode) {
+      const passwordError = checkPasswordStrength(password);
+      if(passwordError){
+        setError(passwordError);
+        return;
+      }
+
+    if (!isLoginMode && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+  }
+    Navigate("/dashboard");
+   
+  };
+    
+
+  
 
 
   return (
@@ -60,6 +118,8 @@ const Login = () => {
             type="text"
             placeholder="Name"
             required
+              value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full p-3 border-b-2 border-gray-300 outline-none focus:border-gray-600 placeholder-gray-400"
           />
         )}
@@ -69,6 +129,8 @@ const Login = () => {
           type="email"
           placeholder="Email Address"
           required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           className="w-full p-3 border-b-2 border-gray-300 outline-none focus:border-gray-600 placeholder-gray-400"
         />
 
@@ -76,6 +138,8 @@ const Login = () => {
           type="password"
           placeholder="Password"
           required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           className="w-full p-3 border-b-2 border-gray-300 outline-none focus:border-gray-600 placeholder-gray-400"
         />
 
@@ -85,9 +149,13 @@ const Login = () => {
             type="password"
             placeholder="Confirm Password"
             required
+            value={confirmPassword}
+            onChange={(e) =>setConfirmPassword(e.target.value)}
             className="w-full p-3 border-b-2 border-gray-300 outline-none focus:border-gray-600 placeholder-gray-400"
           />
         )}
+
+        {error && <p className="text-red-500 text-sm">{error}</p> }
 
         {/* Forget password (only for login) */}
         {isLoginMode && (
@@ -99,12 +167,15 @@ const Login = () => {
         )}
 
         {/* Submit Button */}
-        <button
-          type="submit"
-          className="w-full p-3 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 text-white text-lg font-medium hover:opacity-90 transition"
-        >
-          {isLoginMode ? "Login" : "Sign Up"}
-        </button>
+      <button
+  type="button"
+  onClick={handleSubmit}
+  className="w-full p-3 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 text-white text-lg font-medium hover:opacity-90 transition"
+>
+  {isLoginMode ? "Login" : "Sign Up"}
+</button>
+
+
 
         {/* Switch link */}
         <div className="text-center mt-3">
