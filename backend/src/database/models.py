@@ -29,7 +29,6 @@ class Users(Base):
     first_name: Mapped[str]
     last_name: Mapped[str]
     email:Mapped[str]= mapped_column(unique=True)
-    phone_no: Mapped[str]
 
     created_at:Mapped[datetime] = mapped_column(default=func.now())
     updated_at:Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
