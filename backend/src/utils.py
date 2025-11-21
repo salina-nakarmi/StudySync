@@ -1,3 +1,4 @@
+# Clerk Authentication for Backend
 from fastapi import HTTPException
 from clerk_backend_api import Clerk, AuthenticateRequestOptions
 import os
