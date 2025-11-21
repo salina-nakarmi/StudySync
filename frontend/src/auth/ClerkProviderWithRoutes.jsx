@@ -1,3 +1,4 @@
+import React from "react";
 import { ClerkProvider } from '@clerk/clerk-react'
 import { BrowserRouter } from 'react-router-dom';
 
