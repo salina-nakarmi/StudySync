@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: EmailStr
-    phone_no:Optional[str]=None
+    
 
 # user creation through clerk
 class UserCreate(UserBase):
