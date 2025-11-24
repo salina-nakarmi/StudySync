@@ -20,3 +20,9 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 async_session_local =async_sessionmaker(engine, expire_on_commit=False
 )
+
+# dependency function for FastAPI routes
+async def get_db():
+    """Database session dependency for FastAPI routes"""
+    async with async_session_local() as session:
+        yield session
