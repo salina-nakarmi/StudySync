@@ -108,7 +108,7 @@ class Messages(Base):
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
     group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
     content:Mapped[str]
-    message_type:Mapped[str]=mapped_column(enum(MessageType, default=MessageType.TEXT))
+    message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))
     created_at:Mapped[datetime]=mapped_column(default=func.now())
     updated_at:Mapped[datetime]=mapped_column(default=func.now(),updated_at=func.now())
 
