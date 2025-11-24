@@ -4,7 +4,7 @@ from src.database.models import Streaks, Users
 
 today = datetime.now(timezone.utc).date()
 
-def update_streak(session: Session, user_id:int):
+async def update_streak(session: Session, user_id:int):
     """Update the streak for a user based on their last activity date.
 
     Args:
