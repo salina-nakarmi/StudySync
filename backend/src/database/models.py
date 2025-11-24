@@ -228,7 +228,7 @@ class Messages(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at:Mapped[datetime]=mapped_column(default=func.now())
-    updated_at:Mapped[datetime]=mapped_column(default=func.now(),updated_at=func.now())
+    updated_at:Mapped[datetime]=mapped_column(default=func.now(), onupdate=func.now())
 
 
 
@@ -243,7 +243,7 @@ class Notifications(Base):
 
     notification_message:Mapped[str]
     notification_type: Mapped[str]  # e.g., 'invitation', 'mention', 'resource_added'
-    
+
     is_read:Mapped[bool]=mapped_column(Boolean, default=False) 
     created_at:Mapped[datetime]=mapped_column(default=func.now())  
 
