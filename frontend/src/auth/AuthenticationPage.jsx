@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSignUp, useSignIn } from "@clerk/clerk-react";
+import { useSignUp, useSignIn,  SignInButton, 
+  SignUpButton, 
+  SignedIn, 
+  SignedOut } from "@clerk/clerk-react";
 
 export default function AuthenticationPage() {
   const location = useLocation();
@@ -83,7 +86,18 @@ export default function AuthenticationPage() {
     }
   };
 
+
+  function NavigateToDashboard() {
+    const navigate = useNavigate();
+    React.useEffect(() => {
+      navigate("/dashboard");
+    }, [navigate]);
+    return null;
+  }
+
   return (
+    <>
+    <SignedOut>
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Left Side */}
@@ -201,6 +215,17 @@ export default function AuthenticationPage() {
             {error && <p className="text-red-500 text-sm">{error}</p>}
             {message && <p className="text-green-500 text-sm">{message}</p>}
 
+            {isLoginMode && (
+              <SignInButton mode="redirect">
+                <button
+                  type="button"
+                  className="w-full py-3 rounded-full border border-gray-300 font-semibold hover:bg-gray-100 transition-colors"
+                >
+                  Continue with Google
+                </button>
+              </SignInButton>
+            )}
+
             <button
               type="button"
               onClick={handleSubmit}
@@ -212,5 +237,11 @@ export default function AuthenticationPage() {
         </div>
       </div>
     </div>
+   </SignedOut>
+
+   <SignedIn>
+     <NavigateToDashboard />
+   </SignedIn>
+   </> 
   );
 }
