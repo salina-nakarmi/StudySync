@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -16,17 +16,16 @@ class UserCreate(UserBase):
 
 # response model returned by api
 class UserResponse(UserBase):
+    total_study_time: int = Field(default=0, description="Total study time in seconds")
     created_at: datetime
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# for /users/me response
+# for /users/me endpoint
 class CurrentUserResponse(UserResponse):
-    user_id: str
-    email: EmailStr
-    username: str
+    preferences: Optional[str] = Field(None, description="JSON string of user preferences")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
