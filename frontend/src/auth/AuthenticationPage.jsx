@@ -63,10 +63,10 @@ export default function AuthenticationPage() {
           firstName: name,
         });
 
-        // Send verification email
+        
         await signUp.prepareEmailAddressVerification();
 
-        // Show message instead of auto-login
+      
         setMessage(
           "Account created! Please check your email to verify your account before logging in."
         );
