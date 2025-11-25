@@ -3,8 +3,8 @@ from typing import Optional
 from datetime import datetime
 
 class UserBase(BaseModel):
-    user_id: str
-    username: str
+    user_id: str = Field(..., description="Unique user ID from Clerk")
+    username: str = Field(..., min_length=3, max_length=50, description="Username of the user")
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: EmailStr
