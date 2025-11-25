@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSignUp, useSignIn } from "@clerk/clerk-react";
+import { useSignUp, useSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
 
 export default function AuthenticationPage() {
   const location = useLocation();
@@ -18,7 +18,7 @@ export default function AuthenticationPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const { signUp } = useSignUp();
-  const { signIn, setSession } = useSignIn();
+  const { signIn, setActive } = useSignIn();
 
   useEffect(() => {
     if (location.state?.mode === "signup") {
@@ -35,11 +35,12 @@ export default function AuthenticationPage() {
     try {
       if (isLoginMode) {
         // Login flow
-        const { createdSessionId } = await signIn.create({
+        const result = await signIn.create({
           identifier: email,
           password,
         });
-        await setSession(createdSessionId);
+        
+        await setActive({ session: result.createdSessionId });
         navigate("/dashboard");
       } else {
         // Signup validation
@@ -63,27 +64,42 @@ export default function AuthenticationPage() {
           firstName: name,
         });
 
-        
-        await signUp.prepareEmailAddressVerification();
+        // Send verification email
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });;
 
-      
-        setMessage(
-          "Account created! Please check your email to verify your account before logging in."
-        );
-
-        // Clear form
-        setName("");
-        setEmail("");
-        setPassword("");
-        setConfirmPassword("");
-        setAgreedToTerms(false);
+         // Redirect to verification page
+         navigate("/verify-email");
+        }
+      } catch (err) {
+        setError(err.errors?.[0]?.longMessage || err.message || "Something went wrong");
       }
+    };
+
+   // Handle Google OAuth
+  const handleGoogleSignIn = async () => {
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/dashboard",
+      });
     } catch (err) {
-      setError(err.errors?.[0]?.longMessage || err.message || "Something went wrong");
+      setError("Google sign-in failed. Please try again.");
     }
   };
 
+
+  function NavigateToDashboard() {
+    const navigate = useNavigate();
+    React.useEffect(() => {
+      navigate("/dashboard");
+    }, [navigate]);
+    return null;
+  }
+
   return (
+    <>
+    <SignedOut>
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Left Side */}
@@ -201,6 +217,15 @@ export default function AuthenticationPage() {
             {error && <p className="text-red-500 text-sm">{error}</p>}
             {message && <p className="text-green-500 text-sm">{message}</p>}
 
+
+            <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full py-3 rounded-full border border-gray-300 font-semibold hover:bg-gray-100 transition-colors"
+                >
+                  Continue with Google
+                </button>
+
             <button
               type="button"
               onClick={handleSubmit}
@@ -212,5 +237,11 @@ export default function AuthenticationPage() {
         </div>
       </div>
     </div>
+   </SignedOut>
+
+   <SignedIn>
+     <NavigateToDashboard />
+   </SignedIn>
+   </> 
   );
 }

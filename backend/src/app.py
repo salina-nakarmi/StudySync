@@ -1,18 +1,35 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard, streaks
+from .routes import Dashboard, streaks, users
 
-app = FastAPI()
+app = FastAPI(
+    title="StudySync API",
+    description="Backend API for StudySync Application",
+    version="1.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # In production, specify exact origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
 
+# Include routers
 app.include_router(Dashboard.router, prefix="/api")
-app.include_router(streaks.router)
+app.include_router(streaks.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to StudySync API",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}

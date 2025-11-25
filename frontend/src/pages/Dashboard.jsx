@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+// Dashboard page
+import React, { useState } from "react";
+import { SignedIn, SignedOut, RedirectToSignIn} from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -96,6 +98,10 @@ function Dashboard() {
   };
 
   return (
+
+    <>
+      <SignedIn>
+
     <div className="min-h-screen bg-white flex flex-col">
       {/* ---------------- NAVBAR ---------------- */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
@@ -270,6 +276,12 @@ function Dashboard() {
 
 
     </div>
+
+  </SignedIn>
+  <SignedOut>
+      <RedirectToSignIn />
+    </SignedOut>
+  </>
   );
 }
 
