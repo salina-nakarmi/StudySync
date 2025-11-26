@@ -1,5 +1,5 @@
 // Dashboard page
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SignedIn, SignedOut, RedirectToSignIn} from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
@@ -20,6 +20,7 @@ import TimeTracker from "../components/TimeTracker";
 function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const { isLoaded, isSignedIn, user } = useUser(); 
 
   const navItems = [
     "Dashboard",
@@ -97,10 +98,24 @@ function Dashboard() {
     );
   };
 
-  return (
+    // Show loading state while Clerk is initializing
+    if (!isLoaded) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+    
+  // If not signed in, redirect
+  if (!isSignedIn) {
+    return <RedirectToSignIn />;
+  }
 
-    <>
-      <SignedIn>
+  return (
 
     <div className="min-h-screen bg-white flex flex-col">
       {/* ---------------- NAVBAR ---------------- */}
@@ -277,11 +292,6 @@ function Dashboard() {
 
     </div>
 
-  </SignedIn>
-  <SignedOut>
-      <RedirectToSignIn />
-    </SignedOut>
-  </>
   );
 }
 
