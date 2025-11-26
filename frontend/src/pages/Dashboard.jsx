@@ -1,6 +1,6 @@
 // Dashboard page
 import React, { useState, useEffect } from "react";
-import { SignedIn, SignedOut, RedirectToSignIn} from "@clerk/clerk-react";
+import { useUser, SignedIn, SignedOut, RedirectToSignIn} from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -109,7 +109,7 @@ function Dashboard() {
         </div>
       );
     }
-    
+
   // If not signed in, redirect
   if (!isSignedIn) {
     return <RedirectToSignIn />;
