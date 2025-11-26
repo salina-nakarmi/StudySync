@@ -282,16 +282,10 @@ function Dashboard() {
     <h2 className="text-gray-800 font-bold text-md ">Progress</h2>
     </div>
 
-
-
   
-</div> 
-
-
-
+</div>
 
     </div>
-
   );
 }
 

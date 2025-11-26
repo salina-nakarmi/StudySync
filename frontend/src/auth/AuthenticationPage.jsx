@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSignUp, useSignIn} from "@clerk/clerk-react";
+import { useSignUp, useSignIn, useUser} from "@clerk/clerk-react";
 
 export default function AuthenticationPage() {
   const location = useLocation();
@@ -48,6 +48,7 @@ export default function AuthenticationPage() {
         // Login flow
         if (!signInLoaded) {
           setError("Authentication not ready. Please wait...");
+          setIsLoading(false);
           return;
         }
         
@@ -64,14 +65,17 @@ export default function AuthenticationPage() {
         // Signup validation
         if (!name || !email || !password || !confirmPassword) {
           setError("Please fill in all fields");
+          setIsLoading(false);
           return;
         }
         if (password !== confirmPassword) {
           setError("Passwords do not match");
+          setIsLoading(false);
           return;
         }
         if (!agreedToTerms) {
           setError("Please agree to the terms and privacy policy");
+          setIsLoading(false);
           return;
         }
 
@@ -83,7 +87,7 @@ export default function AuthenticationPage() {
         });
 
         // Send verification email
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });;
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
 
          // Redirect to verification page
          navigate("/verify-email");
@@ -100,8 +104,13 @@ export default function AuthenticationPage() {
       }
     };
 
-   // Handle Google OAuth
+  // Handle Google OAuth
   const handleGoogleSignIn = async () => {
+    if (!signInLoaded) {
+      setError("Please wait...");
+      return;
+    }
+
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
@@ -109,9 +118,11 @@ export default function AuthenticationPage() {
         redirectUrlComplete: "/dashboard",
       });
     } catch (err) {
+      console.error("Google sign-in error:", err);
       setError("Google sign-in failed. Please try again.");
     }
   };
+
 
 
 
@@ -176,7 +187,7 @@ export default function AuthenticationPage() {
             </p>
           </div>
 
-          <form className="space-y-4 mb-6">
+          <form onSubmit={handleSubmit} className="space-y-4 mb-6">
             {!isLoginMode && (
               <input
                 type="text"
