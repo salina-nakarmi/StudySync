@@ -7,6 +7,10 @@ Usage:
     python -m backend.init_db
 """
 import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables
+
 from src.database.database import engine, Base
 from src.database.models import (
     Users, Groups, Groupings, Resources, 
