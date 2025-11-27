@@ -1,5 +1,5 @@
 // Dashboard page
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SignedIn, SignedOut, RedirectToSignIn} from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,

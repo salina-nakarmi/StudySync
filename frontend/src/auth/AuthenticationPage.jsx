@@ -70,12 +70,12 @@ export default function AuthenticationPage() {
          // Redirect to verification page
          navigate("/verify-email");
         }
-      } catch (err) {
-        setError(err.errors?.[0]?.longMessage || err.message || "Something went wrong");
+      } catch (error) {
+        setError(error?.errors?.[0]?.longMessage || error?.message || "Something went wrong");
       }
     };
 
-   // Handle Google OAuth
+  // Handle Google OAuth
   const handleGoogleSignIn = async () => {
     try {
       await signIn.authenticateWithRedirect({
@@ -83,8 +83,11 @@ export default function AuthenticationPage() {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/dashboard",
       });
-    } catch (err) {
-      setError("Google sign-in failed. Please try again.");
+    } catch (e) {
+      setError(
+        "Google sign-in failed. Please try again." +
+        (e?.message ? ` (${e.message})` : "")
+      );
     }
   };
 
