@@ -19,7 +19,7 @@ export default function AuthenticationPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const { signUp, isLoaded: signUpLoaded } = useSignUp();
+  const { signUp } = useSignUp();
   const { signIn, setActive, isLoaded: signInLoaded } = useSignIn();
 
     // Redirect if already signed in
