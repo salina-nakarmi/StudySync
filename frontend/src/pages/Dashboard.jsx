@@ -20,7 +20,7 @@ import TimeTracker from "../components/TimeTracker";
 function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const { isLoaded, isSignedIn, user } = useUser(); 
+  const { isLoaded, isSignedIn } = useUser(); 
 
   const navItems = [
     "Dashboard",
