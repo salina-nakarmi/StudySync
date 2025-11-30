@@ -1,7 +1,12 @@
 # Async SQLAlchemy Setup for PostgreSQL
 import os
+import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncAttrs, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 database_url =os.getenv("DATABASE_URL")
 
