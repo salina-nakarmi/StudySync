@@ -22,7 +22,9 @@ async def get_or_create_user(
         session:AsyncSession,
         user_id:str,
         username:str,
-        email:str
+        email:str,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None
         ) -> Users:
         '''
         Get existing user or create new one if doesn't exist 
@@ -36,8 +38,10 @@ async def get_or_create_user(
         
         new_user = Users(
              user_id = user_id,
-             username = username or f"user_{user_id[:8]}",  # default username if not provided
+             username = username[:50], #enforce max length
              email = email,
+             first_name = first_name,
+             last_name = last_name,
              total_study_time = 0,
              preferences = None
         )
@@ -56,6 +60,8 @@ async def update_user(
           user_id: str,
           username: Optional[str] = None,
           email: Optional[str] = None,
+          first_name: Optional[str] = None,
+          last_name: Optional[str] = None,
           total_study_time: Optional[int] = None,
           preferences: Optional[str] = None
           ) -> Optional[Users]:
@@ -71,6 +77,12 @@ async def update_user(
 
     if email is not None:       
         user.email = email
+
+    if first_name is not None:  
+        user.first_name = first_name
+
+    if last_name is not None:       
+        user.last_name = last_name
 
     if total_study_time is not None:       
         user.total_study_time = total_study_time
