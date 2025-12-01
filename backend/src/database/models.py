@@ -47,8 +47,8 @@ class Users(Base):
     username:Mapped[str]= mapped_column(unique=True, index=True) #index true for faster search
     email:Mapped[str]= mapped_column(unique=True)
 
-    first_name: Mapped[str]
-    last_name: Mapped[str]
+    first_name: Mapped[str | None]
+    last_name: Mapped[str  | None]
 
     # App-specific data
     total_study_time: Mapped[int] = mapped_column(default=0)  # Total seconds
