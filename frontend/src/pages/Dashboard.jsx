@@ -1,5 +1,6 @@
 // Dashboard page
 import React, { useState, useEffect } from "react";
+import {useApi} from '../utils.api';
 import { useUser, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
@@ -13,13 +14,86 @@ import CalendarComponent from "../components/CalendarComponent";
 import TimeTracker from "../components/TimeTracker";
 import ProgressCard from "../components/Progresscard";
 
-function Dashboard() {
+export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
   const { isLoaded, isSignedIn } = useUser();
+  const { makeRequest } = useApi();
+
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const navItems = ["Dashboard", "Progress Tracking", "Resources", "Achievement"];
 
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Call your backend - notice no "api/" prefix since it's in makeRequest
+        const data = await makeRequest('dashboard');
+        
+        setDashboardData(data);
+        console.log('✅ Dashboard data loaded:', data);
+      } catch (err) {
+        console.error('❌ Dashboard error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Only fetch when Clerk has loaded and user is authenticated
+    if (isLoaded && user) {
+      fetchDashboard();
+    }
+  }, [isLoaded, user, makeRequest]);
+
+  // Loading state while Clerk loads or data fetches
+  if (!isLoaded || loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-8 max-w-md">
+          <div className="text-center">
+            <div className="text-5xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-red-800 mb-2">
+              Oops! Something went wrong
+            </h2>
+            <p className="text-red-600 mb-6">{error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+    // No data (shouldn't happen but handle gracefully)
+    if (!dashboardData) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-gray-50">
+          <p className="text-gray-600">No data available</p>
+        </div>
+      );
+    }
 
   // ------------ STREAK (LOCAL STORAGE) ------------
   const [streak, setStreak] = useState({
@@ -208,7 +282,9 @@ function Dashboard() {
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
 
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back, User</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+          Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
+          </h1>
         </div>
 
         {/* Streak Box */}
@@ -272,4 +348,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+
