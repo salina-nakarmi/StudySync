@@ -10,8 +10,10 @@ import {
 } from "@heroicons/react/24/outline";
 import fireIcon from "../assets/fire.png";
 import CalendarComponent from "../components/CalendarComponent";
-import TimeTracker from "../components/TimeTracker";
+
+import PomodoroTimer  from "../components/PomodoroTimer";
 import ProgressCard from "../components/Progresscard";
+
 
 function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -118,7 +120,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white">
 
       {/* ---------------- NAVBAR ---------------- */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
@@ -204,14 +206,14 @@ function Dashboard() {
         )}
       </nav>
 
-      {/* -------- Welcome & Streak -------- */}
+    
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
 
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Welcome Back, User</h1>
         </div>
 
-        {/* Streak Box */}
+        
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
           <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
           <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
@@ -220,51 +222,61 @@ function Dashboard() {
           </span>
         </div>
 
-        {/* TimeTracker + Today's Goal */}
-        <div className="flex gap-9 mt-4 lg:mt-0">
+
+       
+         
+        <div className="flex gap-2 mt-4 lg:mt-0 -mr-6 ">
           <div>
-            <TimeTracker />
+             <PomodoroTimer />
           </div>
 
-          {/* Today's Focus Goal */}
-          <div className="w-[290px] h-[120px] bg-white rounded-3xl border border-gray-200 p-4 flex flex-col items-center justify-center gap-1">
-            <h2 className="text-gray-800 font-bold text-lg -mt-2">Today's Focus Goal</h2>
-            <h3 className="text-blue-500 text-sm">Finish 3 lab simulation task</h3>
+   <div className="w-[300px] bg-white rounded-3xl border border-gray-200 p-4 flex flex-col items-center justify-center">
+  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
+  <h3 className="text-[#2C76BA] text-sm text-center">
+    Finish 3 lab simulation task
+  </h3>
 
-            <div className="w-[200px] flex flex-col items-center">
-              <div className="w-full h-3 bg-gray-200 rounded-2xl">
-                <div className="h-3 bg-blue-500 rounded-2xl" style={{ width: "50%" }}></div>
-              </div>
-              <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-            </div>
-          </div>
+  <div className="w-[200px] flex flex-col items-center mt-2">
+    <div className="w-full h-3 bg-gray-200 rounded-2xl">
+      <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
+    </div>
+    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
+  </div>
+
+</div>
+
         </div>
       </div>
+      
 
-      {/* -------- Calendar & Progress Cards Row -------- */}
-      <div className="mt-8 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-24">
+      
+      <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
 
-        {/* Calendar */}
+      
         <CalendarComponent streakDays={[...Array(streak.currentStreak).keys()].map((i) => i + 1)} />
           
 
-        {/* Progress Card */}
-        <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
+       
+        <div className="w-[300px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
           
             <ProgressCard screenTime={screenTimeData} title="Progress" />
-            
 
-            
+                     
         </div>
+
+       <div className="w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
+
+       </div>
+
+       <div className="w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
+
+       </div>
+       
            
           
         
 
 
-        {/* Placeholder Card */}
-        <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 flex flex-col">
-          <h2 className="text-gray-800 font-bold text-lg">Progress</h2>
-        </div>
 
 
       </div>
