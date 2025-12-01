@@ -27,7 +27,8 @@ async def get_my_profile(
     return current_user
 
 
-from pydantic import BaseModel, Optional
+from pydantic import BaseModel
+from typing import Optional
 class UpdateProfileRequest(BaseModel):
     """Schema for updating user profile"""
     username: str = None
