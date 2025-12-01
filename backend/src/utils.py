@@ -20,7 +20,14 @@ def authenticate_and_get_user_details(request: Request) -> dict:
         request: FastAPI Request object
         
     Returns:
-        dict with user_id and other claims
+         dict with user details from token:
+        {
+            "user_id": "user_2abc123xyz",
+            "email": "maren@example.com",
+            "username": "maren_p",           # if available
+            "first_name": "Maren",           # if available
+            "last_name": "Philips"           # if available
+        }
         
     Raises:
         HTTPException 401: If token is invalid or missing
@@ -56,20 +63,50 @@ def authenticate_and_get_user_details(request: Request) -> dict:
             raise HTTPException(
                 status_code=401, 
                 detail="Invalid token: missing user_id")
-        
-        #  extract additional claims for trigger creation
 
+        # Extract additional user info for lazy creation
+        # JWT standard claims for names (from OIDC spec):
+        # - given_name: First name
+        # - family_name: Last name
+        # - name: Full name
+        # - email: Email address
         # These fields might not always be present, so we provide defaults
-        email = payload.get("email", f"user_{user_id}@temp.com")
-        username = payload.get("username", f"user_{user_id[:8]}")
+        email = payload.get("email")
+        if not email:
+            email = f"user_{user_id}@temp.com"
+
+        username = (
+            payload.get("username") or       # Clerk's username field
+            payload.get("preferred_username") or  # OIDC standard
+            None  # Will be generated in get_or_create_user
+        )
+
+        first_name = (
+            payload.get("given_name") or     # OIDC standard (Google, Apple use this)
+            payload.get("first_name") or     # Some providers use this
+            None
+        )
+        last_name = (
+            payload.get("family_name") or    # OIDC standard
+            payload.get("last_name") or      # Some providers use this
+            None
+        )
+
+        # If we have full name but not first/last, try to split it
+        if not first_name and not last_name:
+            full_name = payload.get("name")
+            if full_name and " " in full_name:
+                parts = full_name.split(" ", 1)  # Split on first space only
+                first_name = parts[0]
+                last_name = parts[1] if len(parts) > 1 else None
+
 
         return {
             "user_id": user_id,
-            "email": request_state.payload.get("email"),
-            "username": request_state.payload.get("username")
-            # You can add more fields here if Clerk token contains them:
-            # "first_name": payload.get("first_name"),
-            # "last_name": payload.get("last_name"),
+            "email": email,
+            "username": username,      # Might be None
+            "first_name": first_name,  # Might be None
+            "last_name": last_name,    # Might be None
 
             }
     
