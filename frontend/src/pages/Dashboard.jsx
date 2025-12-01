@@ -1,6 +1,6 @@
 // Dashboard page
 import React, { useState, useEffect } from "react";
-import {useApi} from '../utils.api';
+import {useApi} from '../utils/api';
 import { useUser, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
@@ -17,14 +17,46 @@ import ProgressCard from "../components/Progresscard";
 export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const { isLoaded, isSignedIn } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const { makeRequest } = useApi();
 
+  //backend data states
   const [dashboardData, setDashboardData] = useState(null);
+  const [streakData, setStreakData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const navItems = ["Dashboard", "Progress Tracking", "Resources", "Achievement"];
+
+//fetch dashboard and streak data from backend
+  useEffect(() => {
+    async function fetchdata() {
+      if(!isLoaded || !user) return;
+
+      try{
+        setLoading(true);
+        setError(null);
+
+        //fetch dashboard data
+        const dashboard = await makeRequest('dashboard');
+        setDashboardData(dashboard);
+        console.log('✅ Dashboard data loaded:', dashboard);
+
+        //fetch streak data
+        const streak = await makeRequest('streak/me');
+        setStreakData(streak);
+        console.log('✅ Streak data loaded:', streak);
+      
+      } catch (err) {
+        console.error('❌ Data fetch error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchdata();
+  }, [isLoaded, user, makeRequest]);
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -51,10 +83,54 @@ export default function Dashboard() {
     }
   }, [isLoaded, user, makeRequest]);
 
+ // update streak when user does study activity
+ const updateStreak = async () => {
+  try{
+    const updated = await makeRequest('streak/update', {method: 'POST'});
+    setStreakData(updated);
+    console.log('✅ Streak updated:', updated);
+  } catch (err) {
+    console.error('❌ Streak update error:', err);
+  }
+};
+
+
+  // Placeholder data for progress chart (will be replaced with real data later)
+  const screenTimeData = [
+  { day: "S", hours: 2 },
+  { day: "M", hours: 4 },
+  { day: "T", hours: 5.5 },
+  { day: "W", hours: 3 },
+  { day: "T", hours: 4.5 },
+  { day: "F", hours: 6 },
+  { day: "S", hours: 1.5 },
+];
+
+<ProgressCard screenTime={screenTimeData} title="Progress" />
+
+
+
+  // ------------ NAV BUTTON ------------
+  const NavButton = ({ item }) => {
+    const isActive = activeTab === item;
+    return (
+      <button
+        onClick={() => setActiveTab(item)}
+        className={`px-4 py-2 rounded-full transition-all text-sm font-medium ${
+          isActive
+            ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
+            : "text-gray-700 hover:bg-gray-100"
+        }`}
+      >
+        {item}
+      </button>
+    );
+  };
+
   // Loading state while Clerk loads or data fetches
   if (!isLoaded || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your dashboard...</p>
@@ -63,10 +139,15 @@ export default function Dashboard() {
     );
   }
 
-  // Error state
+  // Redirect if not logged in
+  if (!isSignedIn) {
+    return <RedirectToSignIn />;
+  }
+
+    //error state
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-8 max-w-md">
           <div className="text-center">
             <div className="text-5xl mb-4">⚠️</div>
@@ -86,109 +167,13 @@ export default function Dashboard() {
     );
   }
 
-    // No data (shouldn't happen but handle gracefully)
-    if (!dashboardData) {
-      return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <p className="text-gray-600">No data available</p>
-        </div>
-      );
-    }
-
-  // ------------ STREAK (LOCAL STORAGE) ------------
-  const [streak, setStreak] = useState({
-    currentStreak: 0,
-    longestStreak: 0,
-    LastActiveDate: null,
-  });
-
-  const loadStreak = () => {
-    const data = JSON.parse(localStorage.getItem("studyStreak"));
+  // No data (shouldn't happen but handle gracefully)
+  if (!dashboardData || !streakData) {
     return (
-      data || {
-        currentStreak: 0,
-        longestStreak: 0,
-        LastActiveDate: null,
-      }
-    );
-  };
-
-  const updateStreak = () => {
-    const today = new Date().toDateString();
-    let data = loadStreak();
-
-    if (!data.LastActiveDate) {
-      data = { currentStreak: 1, longestStreak: 1, LastActiveDate: today };
-    } else {
-      const last = new Date(data.LastActiveDate).toDateString();
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      if (last === today) return data;
-
-      if (last === yesterday.toDateString()) data.currentStreak += 1;
-      else data.currentStreak = 1;
-
-      if (data.currentStreak > data.longestStreak)
-        data.longestStreak = data.currentStreak;
-
-      data.LastActiveDate = today;
-    }
-
-    localStorage.setItem("studyStreak", JSON.stringify(data));
-    return data;
-  };
-
-  const screenTimeData = [
-  { day: "S", hours: 2 },
-  { day: "M", hours: 4 },
-  { day: "T", hours: 5.5 },
-  { day: "W", hours: 3 },
-  { day: "T", hours: 4.5 },
-  { day: "F", hours: 6 },
-  { day: "S", hours: 1.5 },
-];
-
-<ProgressCard screenTime={screenTimeData} title="Progress" />
-
-
-  useEffect(() => {
-    const streakData = updateStreak();
-    setStreak(streakData);
-  }, []);
-
-  // ------------ NAV BUTTON ------------
-  const NavButton = ({ item }) => {
-    const isActive = activeTab === item;
-    return (
-      <button
-        onClick={() => setActiveTab(item)}
-        className={`px-4 py-2 rounded-full transition-all text-sm font-medium ${
-          isActive
-            ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
-            : "text-gray-700 hover:bg-gray-100"
-        }`}
-      >
-        {item}
-      </button>
-    );
-  };
-
-  // Loading state for Clerk
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <p className="text-gray-600">No data available</p>
       </div>
     );
-  }
-
-  // Redirect if not logged in
-  if (!isSignedIn) {
-    return <RedirectToSignIn />;
   }
 
   return (
@@ -287,19 +272,19 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        {/* Streak Box */}
+        {/* Streak Box - Shows Backend data */}
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
           <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
           <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
           <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
-            {streak.currentStreak}
+            {streakData.current_streak}
           </span>
         </div>
 
         {/* TimeTracker + Today's Goal */}
         <div className="flex gap-9 mt-4 lg:mt-0">
           <div>
-            <TimeTracker />
+            <TimeTracker onStudyComplete={updateStreak}/>
           </div>
 
           {/* Today's Focus Goal */}
@@ -320,28 +305,46 @@ export default function Dashboard() {
       {/* -------- Calendar & Progress Cards Row -------- */}
       <div className="mt-8 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-24">
 
-        {/* Calendar */}
-        <CalendarComponent streakDays={[...Array(streak.currentStreak).keys()].map((i) => i + 1)} />
+        {/* Calendar - Now uses backend streak data*/}
+        <CalendarComponent 
+        streakDays={[...Array(streakData.current_streak).keys()].map((i) => i + 1)}
+        />
           
 
         {/* Progress Card */}
         <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
           
             <ProgressCard screenTime={screenTimeData} title="Progress" />
-            
-
-            
         </div>
            
           
-        
-
-
-        {/* Placeholder Card */}
+        {/* Stats Card - Shows backend data */}
         <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 flex flex-col">
-          <h2 className="text-gray-800 font-bold text-lg">Progress</h2>
+          <h2 className="text-gray-800 font-bold text-lg mb-4">Your Stats</h2>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">Current Streak</span>
+              <span className="text-lg font-bold text-blue-600">
+                {streakData.current_streak} days 🔥
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">Longest Streak</span>
+              <span className="text-lg font-bold text-purple-600">
+                {streakData.longest_streak} days 🏆
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">Total Study Time</span>
+              <span className="text-lg font-bold text-green-600">
+                {Math.floor(dashboardData.user.total_study_time / 3600)}h {Math.floor((dashboardData.user.total_study_time % 3600) / 60)}m
+              </span>
+            </div>
+          </div>
         </div>
-
 
       </div>
     </div>
