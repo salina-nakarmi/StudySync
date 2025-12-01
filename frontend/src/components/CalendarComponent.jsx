@@ -34,7 +34,7 @@ export default function CustomCalendar({ streak = 3 }) {
     <div className="w-[344px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200  flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h1 className="flex items-center gap-2 font-bold text-gray-800 text-sm">
+        <h1 className="flex items-center gap-2 font-bold text-gray-800 text-lg">
           <img src="/calendar.png" alt="calendar icon" className="w-4 h-4" />
           Focus Calendar
         </h1 >
