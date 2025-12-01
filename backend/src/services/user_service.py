@@ -36,15 +36,30 @@ async def get_or_create_user(
         if user:
             return user
         
-        new_user = Users(
-             user_id = user_id,
-             username = username[:50], #enforce max length
-             email = email,
-             first_name = first_name,
-             last_name = last_name,
-             total_study_time = 0,
-             preferences = None
-        )
+        # Generate username if not provided
+        # Priority: provided username > generate from name > generate from user_id
+        if not username:
+            if first_name and last_name:
+                # Create username from name: "Maren Philips" → "maren_philips"
+                username = f"{first_name}_{last_name}".lower()
+                # Remove special characters, keep only alphanumeric and underscore
+                username = ''.join(c if c.isalnum() or c == '_' else '_' for c in username)
+            elif first_name:
+                # Just first name: "Maren" → "maren_user_2abc"
+                username = f"{first_name.lower()}_{user_id[:8]}"
+            else:
+                # No name at all: fallback to user_id
+                username = f"user_{user_id[:8]}"
+                
+            new_user = Users(
+                user_id = user_id,
+                username = username[:50], #enforce max length
+                email = email,
+                first_name = first_name,
+                last_name = last_name,
+                total_study_time = 0,
+                preferences = None
+            )
 
         #add tp database
         session.add(new_user)
