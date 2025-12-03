@@ -13,6 +13,9 @@ import CalendarComponent from "../components/CalendarComponent";
 
 import PomodoroTimer  from "../components/PomodoroTimer";
 import ProgressCard from "../components/Progresscard";
+import { Link } from "lucide-react";
+import SharedLinkItem from "../components/SharedLinkItem";
+import { ChevronDown } from "lucide-react";
 
 
 function Dashboard() {
@@ -225,7 +228,7 @@ function Dashboard() {
 
        
          
-        <div className="flex gap-2 mt-4 lg:mt-0 -mr-6 ">
+        <div className=" flex flex-col lg:flex-row flex gap-2 mt-4 lg:mt-0 -mr-6 ">
           <div>
              <PomodoroTimer />
           </div>
@@ -263,14 +266,91 @@ function Dashboard() {
 
                      
         </div>
+<div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
 
-       <div className="w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
+  {/* Heading */}
+  <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
 
+  {/* Rectangles for links */}
+
+  <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "1180px" }}>
+
+      <SharedLinkItem 
+        title="React Hooks Complete Guide"
+        desc="Comprehensive tutorial on React Hooks"
+        author="John Doe"
+        time="2 hours ago"
+      />
+
+      <SharedLinkItem 
+  title="Project Report PDF"
+  desc="Semester project report in PDF format"
+  author="Sarah Smith"
+  time="1 day ago"
+  type="pdf"
+/>
+
+      <SharedLinkItem 
+        title="Tailwind Typography Basics"
+        desc="Learn how to style text with Tailwind"
+        author="Sarah Smith"
+        time="12 mins ago"
+      />
+
+      <SharedLinkItem 
+        title="Node Authentication Flow"
+        desc="Step by step authentication logic"
+        author="Alex Carter"
+        time="Yesterday"
+      />
+
+ <SharedLinkItem 
+        title="Node Authentication Flow"
+        desc="Step by step authentication logic"
+        author="Alex Carter"
+        time="Yesterday"
+      />
+
+    </div>
+</div>
+
+       <div className="w-[300px] h-[488px] p-3 bg-white rounded-2xl border border-gray-200  lg:flex-row mx-auto gap-1.5">
+        <h2 className="text-gray-800 font-bold text-lg">My Task</h2>
+        <div className="flex gap-1 mt-2">
+    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
+      Yesterday
+    </button>
+    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
+      Today
+    </button>
+    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
+      Tomorrow
+    </button>
+     <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
+      Past 7 days
+    </button>
        </div>
-
-       <div className="w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
-
+       <div className=" mt-4 px-3 h-10 border border-gray-200 border-2 rounded-2xl flex items-center gap-10">
+        <div className="w-7 h-7 rounded-4xl bg-gray-900 text-white text-center font-bold text-xm"> 10</div>
+        <h2 className="text-center text-md font-bold text-gray-800">On Going Task</h2>
+        <ChevronDown size={18} className="text-gray-850 cursor-pointer" />
        </div>
+       <div className=" mt-4 w-69 h-20 bg-amber-50 rounded-3xl"></div>
+         <div className=" mt-4 w-69 h-20 bg-blue-50 rounded-3xl"></div>
+           <div className=" mt-4 w-69 h-20 bg-pink-50 rounded-3xl"></div>
+           
+             
+       </div>
+       
+        </div>
+
+        <div className="-mt-60 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
+           <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200  flex flex-col lg:flex-row mx-auto">
+             <h2 className="text-gray-800 font-bold text-lg mb-1">Activity Contribution</h2>
+</div>
+
+          
+</div>
        
            
           
@@ -279,7 +359,7 @@ function Dashboard() {
 
 
 
-      </div>
+     
     </div>
   );
 }
