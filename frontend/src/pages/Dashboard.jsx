@@ -16,6 +16,7 @@ import ProgressCard from "../components/Progresscard";
 import { Link } from "lucide-react";
 import SharedLinkItem from "../components/SharedLinkItem";
 import { ChevronDown } from "lucide-react";
+import Mytask from "../components/Mytask";
 
 
 function Dashboard() {
@@ -314,34 +315,9 @@ function Dashboard() {
     </div>
 </div>
 
-       <div className="w-[300px] h-[488px] p-3 bg-white rounded-2xl border border-gray-200  lg:flex-row mx-auto gap-1.5">
-        <h2 className="text-gray-800 font-bold text-lg">My Task</h2>
-        <div className="flex gap-1 mt-2">
-    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
-      Yesterday
-    </button>
-    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
-      Today
-    </button>
-    <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
-      Tomorrow
-    </button>
-     <button className="px-2 h-7 font-bold text-xs bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
-      Past 7 days
-    </button>
-       </div>
-       <div className=" mt-4 px-3 h-10 border border-gray-200 border-2 rounded-2xl flex items-center gap-10">
-        <div className="w-7 h-7 rounded-4xl bg-gray-900 text-white text-center font-bold text-xm"> 10</div>
-        <h2 className="text-center text-md font-bold text-gray-800">On Going Task</h2>
-        <ChevronDown size={18} className="text-gray-850 cursor-pointer" />
-       </div>
-       <div className=" mt-4 w-69 h-20 bg-amber-50 rounded-3xl"></div>
-         <div className=" mt-4 w-69 h-20 bg-blue-50 rounded-3xl"></div>
-           <div className=" mt-4 w-69 h-20 bg-pink-50 rounded-3xl"></div>
-           
-             
-       </div>
-       
+         <div className="p-6">
+      <Mytask/>
+    </div>
         </div>
 
         <div className="-mt-60 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">

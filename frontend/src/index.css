@@ -37,3 +37,7 @@ body {
   font-family: 'Inter';
 }
 
+
+div::-webkit-scrollbar {
+  display: none;
+}
