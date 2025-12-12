@@ -3,6 +3,7 @@ import os
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncAttrs, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -48,3 +49,13 @@ async def get_db():
             raise
         finally:
             await session.close()
+
+# Health check function
+async def check_database_health():
+    """Check if database connection is healthy"""
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
