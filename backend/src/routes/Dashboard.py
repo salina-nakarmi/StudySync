@@ -8,7 +8,7 @@ from ..dependencies import get_current_user
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
-@router.get("/")
+@router.get("")
 async def get_dashboard(
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

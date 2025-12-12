@@ -5,7 +5,8 @@ from .routes import Dashboard, streaks, users
 app = FastAPI(
     title="StudySync API",
     description="Backend API for StudySync Application",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False 
 )
 
 app.add_middleware(

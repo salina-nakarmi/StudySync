@@ -1,20 +1,18 @@
-import {useAuth} from "@clerk/clerk-react"
+import { useAuth } from "@clerk/clerk-react"
 
 export const useApi = () => {
-    const {getToken} = useAuth()
+    const { getToken } = useAuth()
 
     const makeRequest = async (endpoint, options = {}) => {
         const token = await getToken()
-        const defaultOptions = {
+        
+        const response = await fetch(`http://localhost:8000/api/${endpoint}`, {
+            ...options,
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
+                "Authorization": `Bearer ${token}`,
+                ...options.headers, // Merge custom headers AFTER defaults
             }
-        }
-
-        const response = await fetch(`http://localhost:8000/api/${endpoint}`, {
-            ...defaultOptions,
-            ...options,
         })
 
         if (!response.ok) {
@@ -28,5 +26,5 @@ export const useApi = () => {
         return response.json()
     }
 
-    return {makeRequest}
+    return { makeRequest }
 }

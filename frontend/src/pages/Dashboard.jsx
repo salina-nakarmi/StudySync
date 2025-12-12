@@ -34,71 +34,62 @@ export default function Dashboard() {
 
   const navItems = ["Dashboard", "Progress Tracking", "Resources", "Achievement"];
 
-//fetch dashboard and streak data from backend
+  // Fetch data ONCE when component mounts
   useEffect(() => {
-    async function fetchdata() {
-      if(!isLoaded || !user) return;
+    let isMounted = true;
 
-      try{
-        setLoading(true);
-        setError(null);
-
-        //fetch dashboard data
-        const dashboard = await makeRequest('dashboard');
-        setDashboardData(dashboard);
-        console.log('✅ Dashboard data loaded:', dashboard);
-
-        //fetch streak data
-        const streak = await makeRequest('streak/me');
-        setStreakData(streak);
-        console.log('✅ Streak data loaded:', streak);
-      
-      } catch (err) {
-        console.error('❌ Data fetch error:', err);
-        setError(err.message);
-      } finally {
+    async function fetchData() {
+      // Only run if user is authenticated
+      if (!isLoaded || !isSignedIn) {
         setLoading(false);
+        return;
       }
-    }
 
-    fetchdata();
-  }, [isLoaded, user, makeRequest]);
-
-  useEffect(() => {
-    async function fetchDashboard() {
       try {
         setLoading(true);
         setError(null);
-        
-        // Call your backend - notice no "api/" prefix since it's in makeRequest
-        const data = await makeRequest('dashboard');
-        
-        setDashboardData(data);
-        console.log('✅ Dashboard data loaded:', data);
+
+        // Fetch both dashboard and streak data
+        const [dashboard, streak] = await Promise.all([
+          makeRequest('dashboard'),
+          makeRequest('streaks/me')  // FIXED: Was 'streak/me', now 'streaks/me'
+        ]);
+
+        if (isMounted) {
+          setDashboardData(dashboard);
+          setStreakData(streak);
+          console.log('✅ Data loaded:', { dashboard, streak });
+        }
       } catch (err) {
-        console.error('❌ Dashboard error:', err);
-        setError(err.message);
+        console.error('❌ Data fetch error:', err);
+        if (isMounted) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
-    // Only fetch when Clerk has loaded and user is authenticated
-    if (isLoaded && user) {
-      fetchDashboard();
-    }
-  }, [isLoaded, user, makeRequest]);
+    fetchData();
 
- // update streak when user does study activity
- const updateStreak = async () => {
-  try{
-    const updated = await makeRequest('streak/update', {method: 'POST'});
-    setStreakData(updated);
-    console.log('✅ Streak updated:', updated);
-  } catch (err) {
-    console.error('❌ Streak update error:', err);
-  }
-};
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoaded, isSignedIn]); // CRITICAL: Don't include makeRequest here!
+
+  // Update streak handler
+  const updateStreak = async () => {
+    try {
+      const updated = await makeRequest('streaks/update', { method: 'POST' });
+      setStreakData(updated);
+      console.log('✅ Streak updated:', updated);
+    } catch (err) {
+      console.error('❌ Streak update error:', err);
+    }
+  };
+
 
 
   // Placeholder data for progress chart (will be replaced with real data later)
@@ -112,7 +103,6 @@ export default function Dashboard() {
   { day: "S", hours: 1.5 },
 ];
 
-<ProgressCard screenTime={screenTimeData} title="Progress" />
 
 
 
@@ -269,16 +259,15 @@ export default function Dashboard() {
         )}
       </nav>
 
-    
+        {/* MAIN CONTENT */}
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
-
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
           Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
         </div>
 
-        
+        {/* Streak Badge */}
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
           <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
           <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
@@ -289,7 +278,7 @@ export default function Dashboard() {
 
 
        
-         
+         {/* Timer and Focus Goal */}
         <div className=" flex flex-col lg:flex-row flex gap-2 mt-4 lg:mt-0 -mr-6 ">
           <div>
              <PomodoroTimer />
@@ -384,19 +373,8 @@ export default function Dashboard() {
         <div className="-mt-60 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
            <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200  flex flex-col lg:flex-row mx-auto">
              <h2 className="text-gray-800 font-bold text-lg mb-1">Activity Contribution</h2>
-</div>
-
-          
-</div>
-       
-           
-          
-        
-
-
-
-
-     
+        </div>      
+      </div>
     </div>
   );
 }
