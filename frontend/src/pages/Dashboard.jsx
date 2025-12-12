@@ -11,8 +11,14 @@ import {
 } from "@heroicons/react/24/outline";
 import fireIcon from "../assets/fire.png";
 import CalendarComponent from "../components/CalendarComponent";
-import TimeTracker from "../components/TimeTracker";
+
+import PomodoroTimer  from "../components/PomodoroTimer";
 import ProgressCard from "../components/Progresscard";
+import { Link } from "lucide-react";
+import SharedLinkItem from "../components/SharedLinkItem";
+import { ChevronDown } from "lucide-react";
+import Mytask from "../components/Mytask";
+
 
 export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -177,7 +183,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white">
 
       {/* ---------------- NAVBAR ---------------- */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
@@ -263,7 +269,7 @@ export default function Dashboard() {
         )}
       </nav>
 
-      {/* -------- Welcome & Streak -------- */}
+    
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
 
         <div className="flex-1">
@@ -272,7 +278,7 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        {/* Streak Box - Shows Backend data */}
+        
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
           <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
           <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
@@ -281,72 +287,116 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {/* TimeTracker + Today's Goal */}
-        <div className="flex gap-9 mt-4 lg:mt-0">
+
+       
+         
+        <div className=" flex flex-col lg:flex-row flex gap-2 mt-4 lg:mt-0 -mr-6 ">
           <div>
-            <TimeTracker onStudyComplete={updateStreak}/>
+             <PomodoroTimer />
           </div>
 
-          {/* Today's Focus Goal */}
-          <div className="w-[290px] h-[120px] bg-white rounded-3xl border border-gray-200 p-4 flex flex-col items-center justify-center gap-1">
-            <h2 className="text-gray-800 font-bold text-lg -mt-2">Today's Focus Goal</h2>
-            <h3 className="text-blue-500 text-sm">Finish 3 lab simulation task</h3>
+   <div className="w-[300px] bg-white rounded-3xl border border-gray-200 p-4 flex flex-col items-center justify-center">
+  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
+  <h3 className="text-[#2C76BA] text-sm text-center">
+    Finish 3 lab simulation task
+  </h3>
 
-            <div className="w-[200px] flex flex-col items-center">
-              <div className="w-full h-3 bg-gray-200 rounded-2xl">
-                <div className="h-3 bg-blue-500 rounded-2xl" style={{ width: "50%" }}></div>
-              </div>
-              <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-            </div>
-          </div>
+  <div className="w-[200px] flex flex-col items-center mt-2">
+    <div className="w-full h-3 bg-gray-200 rounded-2xl">
+      <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
+    </div>
+    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
+  </div>
+
+</div>
+
         </div>
       </div>
+      
 
-      {/* -------- Calendar & Progress Cards Row -------- */}
-      <div className="mt-8 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-24">
+      
+      <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
 
-        {/* Calendar - Now uses backend streak data*/}
-        <CalendarComponent 
-        streakDays={[...Array(streakData.current_streak).keys()].map((i) => i + 1)}
-        />
+      
+        <CalendarComponent streakDays={[...Array(streak.currentStreak).keys()].map((i) => i + 1)} />
           
 
-        {/* Progress Card */}
-        <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
+       
+        <div className="w-[300px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
           
             <ProgressCard screenTime={screenTimeData} title="Progress" />
+
+                     
         </div>
-           
-          
-        {/* Stats Card - Shows backend data */}
-        <div className="w-[344px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 flex flex-col">
-          <h2 className="text-gray-800 font-bold text-lg mb-4">Your Stats</h2>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm font-medium text-gray-700">Current Streak</span>
-              <span className="text-lg font-bold text-blue-600">
-                {streakData.current_streak} days 🔥
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-              <span className="text-sm font-medium text-gray-700">Longest Streak</span>
-              <span className="text-lg font-bold text-purple-600">
-                {streakData.longest_streak} days 🏆
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-              <span className="text-sm font-medium text-gray-700">Total Study Time</span>
-              <span className="text-lg font-bold text-green-600">
-                {Math.floor(dashboardData.user.total_study_time / 3600)}h {Math.floor((dashboardData.user.total_study_time % 3600) / 60)}m
-              </span>
-            </div>
-          </div>
+<div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
+
+  {/* Heading */}
+  <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
+
+  {/* Rectangles for links */}
+
+  <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "1180px" }}>
+
+      <SharedLinkItem 
+        title="React Hooks Complete Guide"
+        desc="Comprehensive tutorial on React Hooks"
+        author="John Doe"
+        time="2 hours ago"
+      />
+
+      <SharedLinkItem 
+  title="Project Report PDF"
+  desc="Semester project report in PDF format"
+  author="Sarah Smith"
+  time="1 day ago"
+  type="pdf"
+/>
+
+      <SharedLinkItem 
+        title="Tailwind Typography Basics"
+        desc="Learn how to style text with Tailwind"
+        author="Sarah Smith"
+        time="12 mins ago"
+      />
+
+      <SharedLinkItem 
+        title="Node Authentication Flow"
+        desc="Step by step authentication logic"
+        author="Alex Carter"
+        time="Yesterday"
+      />
+
+ <SharedLinkItem 
+        title="Node Authentication Flow"
+        desc="Step by step authentication logic"
+        author="Alex Carter"
+        time="Yesterday"
+      />
+
+    </div>
+</div>
+
+         <div className="p-6">
+      <Mytask/>
+    </div>
         </div>
 
-      </div>
+        <div className="-mt-60 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
+           <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200  flex flex-col lg:flex-row mx-auto">
+             <h2 className="text-gray-800 font-bold text-lg mb-1">Activity Contribution</h2>
+</div>
+
+          
+</div>
+       
+           
+          
+        
+
+
+
+
+     
     </div>
   );
 }
