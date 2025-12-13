@@ -51,22 +51,22 @@ async def get_or_create_user(
                 # No name at all: fallback to user_id
                 username = f"user_{user_id[:8]}"
                 
-            new_user = Users(
-                user_id = user_id,
-                username = username[:50], #enforce max length
-                email = email,
-                first_name = first_name,
-                last_name = last_name,
-                total_study_time = 0,
-                preferences = None
-            )
+        new_user = Users(
+            user_id = user_id,
+            username = username[:50], #enforce max length
+            email = email,
+            first_name = first_name,
+            last_name = last_name,
+            total_study_time = 0,
+            preferences = None
+        )
 
         #add tp database
         session.add(new_user)
         #flush to get autoggenetaed fields
         await session.flush()
 
-        print(f" Created new user {user_id} in database.")
+        print(f" Created new user {user_id} ({email}) in database.")
 
         return new_user
 
