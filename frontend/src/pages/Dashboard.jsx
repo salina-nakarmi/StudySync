@@ -307,7 +307,7 @@ export default function Dashboard() {
       <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
 
       
-        <CalendarComponent streakDays={[...Array(streak.currentStreak).keys()].map((i) => i + 1)} />
+        <CalendarComponent streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)} />
           
 
        
