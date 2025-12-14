@@ -16,10 +16,8 @@ export function ClerkProviderWithRoutes({ children }) {
       navigate={(to) => navigate(to)}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/dashboard"
-      signInForceRedirectUrl="/dashboard"
-      signUpForceRedirectUrl="/dashboard"
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
     >
       {children}
     </ClerkProvider>

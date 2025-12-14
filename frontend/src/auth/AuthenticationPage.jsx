@@ -104,24 +104,21 @@ export default function AuthenticationPage() {
       }
     };
 
-  // Handle Google OAuth
-  const handleGoogleSignIn = async () => {
-    if (!signInLoaded) {
-      setError("Please wait...");
-      return;
-    }
-
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
-      });
-    } catch (err) {
-      console.error("Google sign-in error:", err);
-      setError("Google sign-in failed. Please try again.");
-    }
-  };
+// Handle Google OAuth - SIMPLEST VERSION
+const handleGoogleSignIn = async () => {
+  try {
+    setIsLoading(true);
+    
+    // Let Clerk handle everything
+    await signIn.authenticateWithRedirect({
+      strategy: "oauth_google",
+    });
+  } catch (err) {
+    console.error("Google sign-in error:", err);
+    setError("Google sign-in failed. Please try again.");
+    setIsLoading(false);
+  }
+};
 
 
 
