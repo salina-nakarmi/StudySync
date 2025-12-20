@@ -25,6 +25,7 @@ class ResourceCreate(BaseModel):
 class ResourceResponse(BaseModel):
     id: int
     group_id: int
+    url: str
     uploaded_by: str
     resource_type: ResourceType
     title: str
