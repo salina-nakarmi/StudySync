@@ -21,6 +21,8 @@ class ResourceCreate(BaseModel):
     parent_folder_id: Optional[int] = None
     file_size: Optional[int] = None
 
+class ResourceUpdate(BaseModel):
+    description: Optional[str]
 
 class ResourceResponse(BaseModel):
     id: int
