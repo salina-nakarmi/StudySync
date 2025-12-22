@@ -1,7 +1,7 @@
-// Dashboard page
+// Dashboard.jsx
 import React, { useState, useEffect } from "react";
-import {useApi} from '../utils/api';
-import { useUser, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import { useApi } from "../utils/api";
+import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -11,14 +11,12 @@ import {
 } from "@heroicons/react/24/outline";
 import fireIcon from "../assets/fire.png";
 import CalendarComponent from "../components/CalendarComponent";
-
-import PomodoroTimer  from "../components/PomodoroTimer";
+import PomodoroTimer from "../components/PomodoroTimer";
 import ProgressCard from "../components/Progresscard";
 import { Link } from "lucide-react";
 import SharedLinkItem from "../components/SharedLinkItem";
-import { ChevronDown } from "lucide-react";
 import Mytask from "../components/Mytask";
-
+import ContributionGraph from "../components/ContributionGraph";
 
 export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -26,20 +24,22 @@ export default function Dashboard() {
   const { user, isLoaded, isSignedIn } = useUser();
   const { makeRequest } = useApi();
 
-  //backend data states
+  // Backend data states
   const [dashboardData, setDashboardData] = useState(null);
   const [streakData, setStreakData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Frontend contributions state for dynamic updates
+  const [contributions, setContributions] = useState([]);
+
   const navItems = ["Dashboard", "Progress Tracking", "Resources", "Achievement"];
 
-  // Fetch data ONCE when component mounts
+  // Fetch data once
   useEffect(() => {
     let isMounted = true;
 
     async function fetchData() {
-      // Only run if user is authenticated
       if (!isLoaded || !isSignedIn) {
         setLoading(false);
         return;
@@ -49,64 +49,41 @@ export default function Dashboard() {
         setLoading(true);
         setError(null);
 
-        // Fetch both dashboard and streak data
         const [dashboard, streak] = await Promise.all([
-          makeRequest('dashboard'),
-          makeRequest('streaks/me')  // FIXED: Was 'streak/me', now 'streaks/me'
+          makeRequest("dashboard"),
+          makeRequest("streaks/me"),
         ]);
 
         if (isMounted) {
           setDashboardData(dashboard);
           setStreakData(streak);
-          console.log('✅ Data loaded:', { dashboard, streak });
+          setContributions(dashboard.contributions || []); // initialize frontend state
+          console.log("✅ Data loaded:", { dashboard, streak });
         }
       } catch (err) {
-        console.error('❌ Data fetch error:', err);
-        if (isMounted) {
-          setError(err.message);
-        }
+        console.error("❌ Data fetch error:", err);
+        if (isMounted) setError(err.message);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     }
 
     fetchData();
+    return () => (isMounted = false);
+  }, [isLoaded, isSignedIn]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoaded, isSignedIn]); // CRITICAL: Don't include makeRequest here!
-
-  // Update streak handler
-  const updateStreak = async () => {
-    try {
-      const updated = await makeRequest('streaks/update', { method: 'POST' });
-      setStreakData(updated);
-      console.log('✅ Streak updated:', updated);
-    } catch (err) {
-      console.error('❌ Streak update error:', err);
-    }
-  };
-
-
-
-  // Placeholder data for progress chart (will be replaced with real data later)
+  // Placeholder data for progress chart
   const screenTimeData = [
-  { day: "S", hours: 2 },
-  { day: "M", hours: 4 },
-  { day: "T", hours: 5.5 },
-  { day: "W", hours: 3 },
-  { day: "T", hours: 4.5 },
-  { day: "F", hours: 6 },
-  { day: "S", hours: 1.5 },
-];
+    { day: "S", hours: 2 },
+    { day: "M", hours: 4 },
+    { day: "T", hours: 5.5 },
+    { day: "W", hours: 3 },
+    { day: "T", hours: 4.5 },
+    { day: "F", hours: 6 },
+    { day: "S", hours: 1.5 },
+  ];
 
-
-
-
-  // ------------ NAV BUTTON ------------
+  // NAV BUTTON
   const NavButton = ({ item }) => {
     const isActive = activeTab === item;
     return (
@@ -123,7 +100,16 @@ export default function Dashboard() {
     );
   };
 
-  // Loading state while Clerk loads or data fetches
+  // Handle new activity (frontend only)
+  const handleNewActivity = (dayIndex) => {
+    setContributions((prev) => {
+      const updated = [...prev];
+      updated[dayIndex] = Math.min((updated[dayIndex] || 0) + 1, 4);
+      return updated;
+    });
+  };
+
+  // Loading state
   if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -136,11 +122,9 @@ export default function Dashboard() {
   }
 
   // Redirect if not logged in
-  if (!isSignedIn) {
-    return <RedirectToSignIn />;
-  }
+  if (!isSignedIn) return <RedirectToSignIn />;
 
-    //error state
+  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -151,7 +135,7 @@ export default function Dashboard() {
               Oops! Something went wrong
             </h2>
             <p className="text-red-600 mb-6">{error}</p>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
             >
@@ -163,7 +147,7 @@ export default function Dashboard() {
     );
   }
 
-  // No data (shouldn't happen but handle gracefully)
+  // No data fallback
   if (!dashboardData || !streakData) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -174,12 +158,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-white">
-
-      {/* ---------------- NAVBAR ---------------- */}
+      {/* NAVBAR */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg sm:text-xl">S</span>
@@ -234,9 +216,7 @@ export default function Dashboard() {
                     setMenuOpen(false);
                   }}
                   className={`px-3 py-2 rounded-lg text-left text-base font-medium ${
-                    activeTab === item
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-700 hover:bg-gray-200"
+                    activeTab === item ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   {item}
@@ -259,11 +239,11 @@ export default function Dashboard() {
         )}
       </nav>
 
-        {/* MAIN CONTENT */}
+      {/* MAIN CONTENT */}
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
+            Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
         </div>
 
@@ -276,107 +256,81 @@ export default function Dashboard() {
           </span>
         </div>
 
+        {/* Timer and Focus Goal */}
+        <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 -mr-7">
+          <PomodoroTimer />
 
-       
-         {/* Timer and Focus Goal */}
-        <div className=" flex flex-col lg:flex-row flex gap-2 mt-4 lg:mt-0 -mr-6 ">
-          <div>
-             <PomodoroTimer />
+          <div className="w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
+            <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
+            <h3 className="text-[#2C76BA] text-sm text-center">
+              Finish 3 lab simulation task
+            </h3>
+
+            <div className="w-[200px] flex flex-col items-center mt-2">
+              <div className="w-full h-3 bg-gray-200 rounded-2xl">
+                <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
+              </div>
+              <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
+            </div>
           </div>
-
-   <div className="w-[300px] bg-white rounded-3xl border border-gray-200 p-4 flex flex-col items-center justify-center">
-  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
-  <h3 className="text-[#2C76BA] text-sm text-center">
-    Finish 3 lab simulation task
-  </h3>
-
-  <div className="w-[200px] flex flex-col items-center mt-2">
-    <div className="w-full h-3 bg-gray-200 rounded-2xl">
-      <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
-    </div>
-    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-  </div>
-
-</div>
-
         </div>
       </div>
-      
 
-      
+      {/* Calendar, ProgressCard, Shared Links, Tasks */}
       <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
+        <CalendarComponent
+          streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)}
+        />
 
-      
-        <CalendarComponent streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)} />
-          
-
-       
-        <div className="w-[300px] h-[240px] bg-white rounded-3xl border border-gray-200 p-5 ">
-          
-            <ProgressCard screenTime={screenTimeData} title="Progress" />
-
-                     
+        <div className="w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5">
+          <ProgressCard screenTime={screenTimeData} title="Progress" />
         </div>
-<div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
 
-  {/* Heading */}
-  <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
+        <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
+          <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
 
-  {/* Rectangles for links */}
+          <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "1180px" }}>
+            {/* Example links with dynamic onRead */}
+            <SharedLinkItem
+              title="React Hooks Complete Guide"
+              desc="Comprehensive tutorial on React Hooks"
+              author="John Doe"
+              time="2 hours ago"
+              onRead={() => handleNewActivity(new Date().getDay())}
+            />
 
-  <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "1180px" }}>
+            <SharedLinkItem
+              title="Project Report PDF"
+              desc="Semester project report in PDF format"
+              author="Sarah Smith"
+              time="1 day ago"
+              type="pdf"
+              onRead={() => handleNewActivity(new Date().getDay())}
+            />
 
-      <SharedLinkItem 
-        title="React Hooks Complete Guide"
-        desc="Comprehensive tutorial on React Hooks"
-        author="John Doe"
-        time="2 hours ago"
-      />
+            <SharedLinkItem
+              title="Tailwind Typography Basics"
+              desc="Learn how to style text with Tailwind"
+              author="Sarah Smith"
+              time="12 mins ago"
+              onRead={() => handleNewActivity(new Date().getDay())}
+            />
+          </div>
+        </div>
 
-      <SharedLinkItem 
-  title="Project Report PDF"
-  desc="Semester project report in PDF format"
-  author="Sarah Smith"
-  time="1 day ago"
-  type="pdf"
-/>
+        <div className="p-6">
+          <Mytask />
+        </div>
+      </div>
 
-      <SharedLinkItem 
-        title="Tailwind Typography Basics"
-        desc="Learn how to style text with Tailwind"
-        author="Sarah Smith"
-        time="12 mins ago"
-      />
-
-      <SharedLinkItem 
-        title="Node Authentication Flow"
-        desc="Step by step authentication logic"
-        author="Alex Carter"
-        time="Yesterday"
-      />
-
- <SharedLinkItem 
-        title="Node Authentication Flow"
-        desc="Step by step authentication logic"
-        author="Alex Carter"
-        time="Yesterday"
-      />
-
-    </div>
+      {/* Activity Contribution Graph */}
+      <div className="-mt-66 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
+       <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
+  <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
+  <ContributionGraph contributions={contributions} />
 </div>
 
-         <div className="p-6">
-      <Mytask/>
-    </div>
-        </div>
-
-        <div className="-mt-60 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-           <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200  flex flex-col lg:flex-row mx-auto">
-             <h2 className="text-gray-800 font-bold text-lg mb-1">Activity Contribution</h2>
-        </div>      
       </div>
     </div>
   );
 }
-
-
