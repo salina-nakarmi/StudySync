@@ -8,6 +8,8 @@ import EmailVerification from "./auth/EmailVerification.jsx";
 import SSOCallback from "./auth/SSOCallback.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home.jsx";
+import ProgressTracking from "./pages/ProgressTracking.jsx";
+
 
 function App() {
   return (
@@ -40,6 +42,22 @@ function App() {
             </>
           } 
         />
+
+        <Route 
+  path="/progress-tracking" 
+  element={
+    <>
+      <SignedIn>
+        <ProgressTracking />
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  } 
+/>
+
+
 
         <Route path="/sign-in/*" element={<AuthenticationPage />} />
         <Route path="/sign-up/*" element={<AuthenticationPage />} />
