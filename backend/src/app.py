@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard, streaks, users, resources, groups
+from .routes import Dashboard, streaks, users, resources, groups, study_sessions
 
 app = FastAPI(
     title="StudySync API",
@@ -24,6 +24,7 @@ app.include_router(streaks.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(resources.router, prefix="/api")
 app.include_router(groups.router, prefix="/api") 
+app.include_router(study_sessions.router, prefix="/api") 
 
 @app.get("/")
 async def root():
