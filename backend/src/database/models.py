@@ -182,14 +182,6 @@ class Resources(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
     
-# helper function
-def is_personal_resource(resource: Resources) -> bool:
-    """Check if a resource is personal (not shared with any group)"""
-    return resource.group_id is None
-
-def is_group_resource(resource: Resources) -> bool:
-    """Check if a resource is shared with a group"""
-    return resource.group_id is not None
 class ResourceProgress(Base):
     """
     NEW TABLE: Self-reported progress tracking
