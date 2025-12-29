@@ -3,8 +3,8 @@ Permission checks. if the user is allowed to play with the resources
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
-from ..database.models import Resources, ResourceType
+from sqlalchemy import select, and_, or_, func
+from ..database.models import Resources, Groupings, InvitationStatus, ResourceType
 from .group_service import is_user_in_group, can_manage_resources
 from typing import Optional, List, Tuple
 
@@ -261,3 +261,201 @@ async def delete_resource(
     resource.is_deleted = True
     await session.flush()
     return True
+
+'''Part 3: Sharing and Advanced Features
+   these handles:
+- Sharing personal resources to groups
+- Making group resources personal
+- Getting all resources user can access
+   '''
+
+# ============================================================================
+# Sharing operations: moving resources between contexts
+# ===========================================================================
+
+async def share_resource_to_group(
+        session: AsyncSession,
+        resource_id: int,
+        group_id: int
+) -> Optional[Resources]:
+    # Share a personal resource to a group
+    resource = await get_resource_by_id(session, resource_id)
+
+    if not resource:
+        return None
+    
+    # Only personal resources can be shared
+    if resource.group_id is not None:
+        return None
+    
+    resource.group_id = group_id
+    await session.flush()
+    return resource
+
+async def make_resource_personal(
+        session: AsyncSession,
+        resource_id: int
+) -> Optional[Resources]:
+    # Make a group resource personal
+    resource = await get_resource_by_id(session, resource_id)
+
+    if not resource:
+        return None
+     
+    #make it personal
+    resource.group_id = None
+    await session.flush()
+    return resource
+
+async def move_resource_to_group(
+        session: AsyncSession,
+        resource_id: int,
+        target_group_id: int
+) -> Optional[Resources]:
+    # Move a resource to a different group
+    resource = await get_resource_by_id(session, resource_id)
+
+    if not resource:
+        return None
+    
+    # move to target group
+    resource.group_id = target_group_id
+    await session.flush()
+    return resource
+
+# ============================================================================
+# Advanced Read - Get all resources user can access
+# ============================================================================
+
+async def get_all_user_resources(
+        session: AsyncSession,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 50
+) -> Tuple[List[Resources], int]: 
+    '''Why useful?
+    - Dashboard "My Library" view
+    - Search across everything
+    - Recent resources feed'''
+
+    #Step 1: Get all group IDs user belongs to
+    group_result = await session.execute(
+        select(Groupings.group_id).where(
+            and_(
+                Groupings.user_id == user_id,
+                Groupings.invitation_status == InvitationStatus.ACCEPTED
+            )
+        )
+    )
+    user_group_ids = [row[0] for row in group_result.all()]
+
+    #Step2: Build query for personal+groupresources
+    query = select(Resources).where(
+        and_(
+            or_(
+                # Personal resources (user's own)
+                and_(
+                    Resources.uploaded_by == user_id,
+                    Resources.group_id == None
+                ),
+                # Group resources (from user's groups)
+                Resources.group_id.in_(user_group_ids) if user_group_ids else False
+            ),
+            Resources.is_deleted == False
+        )
+    )
+
+    # Step 3: Count total
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await session.execute(count_query)
+    total = total_result.scalar()
+    
+    # Step 4: Apply pagination
+    query = query.order_by(
+        Resources.created_at.desc()
+    ).offset(skip).limit(limit)
+    
+    # Step 5: Execute
+    result = await session.execute(query)
+    resources = result.scalars().all()
+    
+    return list(resources), total
+
+async def get_recent_resources(
+        session: AsyncSession,
+        user_id: str,
+        limit: int = 10
+) -> List[Resources]:
+    # Get user's most recent resources (personal + groups)
+    resources, _ = await get_all_user_resources(
+        session=session,
+        user_id=user_id,
+        skip=0,
+        limit=limit
+    )
+    
+    return resources
+
+# ============================================================================
+# STATISTICS - Useful for Dashboards
+# ============================================================================
+
+async def get_user_resource_stats(
+    session: AsyncSession,
+    user_id: str
+) -> dict:
+    """    
+    Use case:
+        Dashboard widgets:
+        "You have 23 personal resources"
+        "42 resources shared in groups"
+    
+    Example:
+        stats = await get_user_resource_stats(db, "user_123")
+        
+        # Returns:
+        {
+            "personal_count": 23,
+            "group_count": 42,
+            "total_count": 65,
+            "by_type": {
+                "video": 20,
+                "file": 30,
+                "link": 15
+            },
+            "added_this_week": 5
+        }
+    """
+    
+    from datetime import datetime, timedelta
+    
+    # Get all user's resources
+    all_resources, total = await get_all_user_resources(
+        session, user_id, skip=0, limit=10000  # Get all
+    )
+    
+    # Count personal vs group
+    personal_count = sum(1 for r in all_resources if r.group_id is None)
+    group_count = sum(1 for r in all_resources if r.group_id is not None)
+    
+    # Count by type
+    by_type = {}
+    for resource in all_resources:
+        type_name = resource.resource_type.value
+        by_type[type_name] = by_type.get(type_name, 0) + 1
+    
+    # Count recent (last 7 days)
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    added_this_week = sum(
+        1 for r in all_resources 
+        if r.created_at >= week_ago
+    )
+    
+    return {
+        "personal_count": personal_count,
+        "group_count": group_count,
+        "total_count": total,
+        "by_type": by_type,
+        "added_this_week": added_this_week
+    }
+

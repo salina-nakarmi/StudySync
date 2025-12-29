@@ -20,7 +20,7 @@ class ResourceCreate(BaseModel):
     resource_type: ResourceType
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
-    parent_folder_id: Optional[int] = Field(None, None, description="Parent folder for organization")
+    parent_folder_id: Optional[int] = Field(None, description="Parent folder for organization")
     file_size: Optional[int] = Field(None, ge=0, description="File size in bytes, if applicable")
 
 class ResourceUpdate(BaseModel):
@@ -102,7 +102,7 @@ class MoveResourceRequest(BaseModel):
 
 class ResourceProgressUpdate(BaseModel):
     """"Manual progress tracking"""
-    status: str = Field(..., regex="^(not_started|in_progress|completed|paused)$", description = "Current status")
+    status: str = Field(..., pattern="^(not_started|in_progress|completed|paused)$", description = "Current status")
     progress_percentage: int = Field(..., ge=0, le=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
