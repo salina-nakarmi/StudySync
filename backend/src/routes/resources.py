@@ -52,7 +52,7 @@ async def create_resource(
             raise HTTPException(status_code=404, detail="Group not found")
 
     # Step 3: Create resource (uses Part 2 of service!)
-    resource = await resource_service.create_resource(
+    resource = await resources_service.create_resource(
         session=db,
         user_id=current_user.user_id,
         title=payload.title,
