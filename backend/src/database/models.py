@@ -82,7 +82,7 @@ class Groups(Base):
      # Creator (first leader)
     creator_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     
-    group_name: Mapped[str] = mapped_column(index=True)
+    group_name: Mapped[str] = mapped_column(index=True) #creates a "map" that lets the database find that name instantly.
     description: Mapped[str | None]
     image: Mapped[str | None]
 
@@ -165,7 +165,7 @@ class Resources(Base):
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
 
     uploaded_by: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
-    group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id')) #Optional for private resource tracking as well
 
     url: Mapped[str]
     resource_type: Mapped[ResourceType] = mapped_column(Enum(ResourceType))
@@ -182,6 +182,14 @@ class Resources(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
     
+# helper function
+def is_personal_resource(resource: Resources) -> bool:
+    """Check if a resource is personal (not shared with any group)"""
+    return resource.group_id is None
+
+def is_group_resource(resource: Resources) -> bool:
+    """Check if a resource is shared with a group"""
+    return resource.group_id is not None
 class ResourceProgress(Base):
     """
     NEW TABLE: Self-reported progress tracking
