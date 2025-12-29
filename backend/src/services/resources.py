@@ -58,8 +58,26 @@ async def can_user_modify_resource(
         return resource.uploaded_by == user_id
     
     if resource.uploaded_by == user_id:
-        
+        return True
     
-    #rule 2: group resource - check group permissions
+    #rule 2: group resource - check group permissions, This allows group admins to moderate content
     return await can_manage_resources(session, user_id, resource.group_id
 )
+
+# ============================================================================
+# HELPER FUNCTION - Used by permission checks above
+# ============================================================================
+
+async def get_resource_by_id(
+        session: AsyncSession,
+        resource_id: int
+) -> Optional[Resources]:
+    result = await session.execute(
+        select(Resources).where(
+            and_(
+            Resources.id == resource_id,
+            Resources.is_deleted == False
+            )
+        )
+    )
+    return result.scalars().first()
