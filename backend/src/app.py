@@ -2,8 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions
 
-
-
 app = FastAPI(
     title="StudySync API",
     description="Backend API for StudySync Application",

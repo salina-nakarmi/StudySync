@@ -973,3 +973,201 @@ Your StudySync application is now feature-complete for all three tracking pillar
 """
 
 
+from fastapi import File, UploadFile
+from ..services.upload_service import (
+    upload_file_to_cloudinary,
+    validate_file_size,
+    sanitize_filename
+)
+
+# ============================================================================
+# ADD THIS ENDPOINT TO YOUR ROUTER
+# ============================================================================
+
+@router.post("/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+async def upload_file(
+    file: UploadFile = File(...),
+    group_id: Optional[int] = None,
+    description: Optional[str] = None,
+    parent_folder_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Upload file to Cloudinary and create resource
+    
+    **File Upload Flow:**
+    1. User selects file from frontend
+    2. File uploaded to Cloudinary (cloud storage)
+    3. Get public URL from Cloudinary
+    4. Save URL in database as resource
+    
+    **Supports:**
+    - Images (jpg, png, gif, webp)
+    - Videos (mp4, mov, avi)
+    - Documents (pdf, doc, docx)
+    - Any file type
+    
+    **Parameters:**
+    - **file**: File to upload (required)
+    - **group_id**: null = personal, int = group resource
+    - **description**: Optional description
+    - **parent_folder_id**: Optional folder organization
+    
+    **Max File Size:** 50MB (Cloudinary free tier: 100MB)
+    
+    **Example (with curl):**
+    ```bash
+    curl -X POST "http://localhost:8000/api/resources/upload" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -F "file=@/path/to/notes.pdf" \
+      -F "group_id=null" \
+      -F "description=My calculus notes"
+    ```
+    
+    **Example (with JavaScript):**
+    ```javascript
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('group_id', groupId || 'null');
+    formData.append('description', 'My notes');
+    
+    await fetch('/api/resources/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData  // Don't set Content-Type!
+    });
+    ```
+    """
+    
+    # Step 1: Validate file size (optional, adjust as needed)
+    validate_file_size(file, max_size_mb=50)
+    
+    # Step 2: Check upload permission
+    if not await resources_service.can_user_upload_resource(
+        db, current_user.user_id, group_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to upload to this location"
+        )
+    
+    # Step 3: Verify group exists if provided
+    if group_id:
+        from ..services.group_service import get_group_by_id
+        group = await get_group_by_id(db, group_id)
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Step 4: Upload to Cloudinary
+    try:
+        upload_result = await upload_file_to_cloudinary(
+            file=file,
+            folder="study-resources"  # Organize in Cloudinary
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
+        )
+    
+    # Step 5: Detect resource type from content type
+    from ..database.models import ResourceType
+    
+    content_type = file.content_type or "application/octet-stream"
+    
+    if content_type.startswith('image/'):
+        resource_type = ResourceType.IMAGE
+    elif content_type.startswith('video/'):
+        resource_type = ResourceType.VIDEO
+    elif content_type == 'application/pdf':
+        resource_type = ResourceType.FILE
+    elif 'link' in file.filename.lower() or 'url' in file.filename.lower():
+        resource_type = ResourceType.LINK
+    else:
+        resource_type = ResourceType.FILE
+    
+    # Step 6: Clean filename for title
+    clean_title = sanitize_filename(file.filename)
+    
+    # Step 7: Create resource in database
+    resource = await resources_service.create_resource(
+        session=db,
+        user_id=current_user.user_id,
+        title=clean_title,
+        url=upload_result['url'],  # Cloudinary public URL
+        resource_type=resource_type,
+        group_id=group_id,
+        description=description,
+        parent_folder_id=parent_folder_id,
+        file_size=upload_result['size']
+    )
+    
+    # Step 8: Commit to database
+    await db.commit()
+    
+    # Step 9: Return resource
+    return ResourceResponse(
+        **resource.__dict__,
+        is_personal=(resource.group_id is None)
+    )
+
+
+# ============================================================================
+# OPTIONAL: DELETE WITH CLOUDINARY CLEANUP
+# ============================================================================
+
+# If you want to also delete from Cloudinary when resource is deleted,
+# modify your existing delete_resource endpoint:
+
+@router.delete("/{resource_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_resource_permanently(
+    resource_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Delete resource from database AND Cloudinary
+    
+    WARNING: This is permanent! The file will be removed from cloud storage.
+    
+    Use the regular DELETE /resources/{id} for soft delete (keeps file).
+    """
+    
+    # Check permission
+    if not await resources_service.can_user_modify_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(status_code=403, detail="No permission")
+    
+    # Get resource
+    resource = await resources_service.get_resource_by_id(db, resource_id)
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    # Delete from Cloudinary (if URL is from Cloudinary)
+    if "cloudinary.com" in resource.url:
+        # Extract public_id from URL
+        # URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/{public_id}.{format}
+        try:
+            from ..services.upload_service import delete_file_from_cloudinary
+            
+            # Simple extraction (works for most cases)
+            url_parts = resource.url.split('/')
+            public_id_with_ext = '/'.join(url_parts[-2:])  # folder/filename.ext
+            public_id = public_id_with_ext.rsplit('.', 1)[0]  # Remove extension
+            
+            await delete_file_from_cloudinary(public_id)
+        except Exception as e:
+            print(f"Warning: Could not delete from Cloudinary: {e}")
+            # Continue with database deletion anyway
+    
+    # Delete from database
+    success = await resources_service.delete_resource(db, resource_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    await db.commit()
