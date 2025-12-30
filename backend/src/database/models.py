@@ -28,6 +28,14 @@ class ResourceType(enum.Enum):
     VIDEO="video"
     FILE="file"
     FOLDER="folder"
+    LINK ="link" # external URL
+
+class ResourceStatus(enum.Enum):
+    """Self-reported resource completion status"""
+    NOT_STARTED="not_started"
+    IN_PROGRESS="in_progress"
+    COMPLETED="completed"
+    PAUSED="paused"
 
 class MessageType(enum.Enum):
     IMAGE="image"
@@ -47,10 +55,12 @@ class Users(Base):
     username:Mapped[str]= mapped_column(unique=True, index=True) #index true for faster search
     email:Mapped[str]= mapped_column(unique=True)
 
-    first_name: Mapped[str]
-    last_name: Mapped[str]
+    first_name: Mapped[str | None]
+    last_name: Mapped[str  | None]
 
     # App-specific data
+    # Denormalized field: Updated whenever a StudySession is created
+    # Kept for performance (avoids SUM query on every dashboard load)
     total_study_time: Mapped[int] = mapped_column(default=0)  # Total seconds
     preferences: Mapped[str | None]  # JSON string for settings
 
@@ -72,7 +82,7 @@ class Groups(Base):
      # Creator (first leader)
     creator_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     
-    group_name: Mapped[str] = mapped_column(index=True)
+    group_name: Mapped[str] = mapped_column(index=True) #creates a "map" that lets the database find that name instantly.
     description: Mapped[str | None]
     image: Mapped[str | None]
 
@@ -155,7 +165,7 @@ class Resources(Base):
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
 
     uploaded_by: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
-    group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id')) #Optional for private resource tracking as well
 
     url: Mapped[str]
     resource_type: Mapped[ResourceType] = mapped_column(Enum(ResourceType))
@@ -172,6 +182,61 @@ class Resources(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
     
+class ResourceProgress(Base):
+    """
+    NEW TABLE: Self-reported progress tracking
+    Users manually update their progress on resources
+    """
+    __tablename__ = 'resource_progress'
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    resource_id: Mapped[int] = mapped_column(ForeignKey('resources.id'))
+    
+    # Self-reported status
+    status: Mapped[ResourceStatus] = mapped_column(
+        Enum(ResourceStatus),
+        default=ResourceStatus.NOT_STARTED
+    )
+    
+    # Progress percentage (0-100)
+    progress_percentage: Mapped[int] = mapped_column(default=0)
+    
+    # User's notes on this resource
+    notes: Mapped[str | None]
+    
+    # Timestamps for tracking
+    started_at: Mapped[datetime | None]  # When they first marked as in_progress
+    completed_at: Mapped[datetime | None]  # When they marked as completed
+    last_updated: Mapped[datetime] = mapped_column(
+        default=func.now(), 
+        onupdate=func.now()
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+class StudySessions(Base):
+    """
+    NEW TABLE (replaces TimeSpends): Track study sessions with group context
+    User starts/stops timer, we log the session
+    """
+    __tablename__ = 'study_sessions'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id'))  # Optional: can study without group
+    
+    # Session details
+    duration_seconds: Mapped[int]
+    session_date: Mapped[datetime] = mapped_column(index=True)  # Index for date queries
+    
+    # Optional: User can add notes about what they studied
+    session_notes: Mapped[str | None]
+    
+    started_at: Mapped[datetime]
+    ended_at: Mapped[datetime]
+    
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
 
 class Streaks(Base):
     __tablename__ = 'streaks'
@@ -186,26 +251,6 @@ class Streaks(Base):
 
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
-
-
-
-class TimeSpends(Base):
-    """
-    Track time spent in groups
-    """
-    __tablename__='timespends'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)  # FIXED missing PK
-
-    user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
-    group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
-
-    duration_seconds:Mapped[int]
-    session_date: Mapped[datetime] = mapped_column(default=func.now())  # Date of study session
-
-    started_at:Mapped[datetime]=mapped_column(default=func.now())
-    ended_at:Mapped[datetime|None]    
-  
     
 
 class Messages(Base):

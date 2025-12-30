@@ -18,7 +18,6 @@ export function ClerkProviderWithRoutes({ children }) {
       signUpUrl="/sign-up"
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/dashboard"
-      afterSignOutUrl="/"
     >
       {children}
     </ClerkProvider>

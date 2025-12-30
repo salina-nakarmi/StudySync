@@ -1,17 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard, streaks, users
-from .database import init_db
+from .routes import Dashboard, streaks, users, resources, groups, study_sessions
 
 app = FastAPI(
     title="StudySync API",
     description="Backend API for StudySync Application",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False 
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, specify exact origins
+    allow_origins=["http://localhost:5173"], # In production, specify exact origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -22,9 +22,9 @@ app.add_middleware(
 app.include_router(Dashboard.router, prefix="/api")
 app.include_router(streaks.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
-@app.on_event("startup")
-async def on_startup():
-    await init_db()
+app.include_router(resources.router, prefix="/api")
+app.include_router(groups.router, prefix="/api") 
+app.include_router(study_sessions.router, prefix="/api") 
 
 @app.get("/")
 async def root():

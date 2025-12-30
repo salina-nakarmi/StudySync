@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSignUp, useSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
+import { useSignUp, useSignIn, useUser} from "@clerk/clerk-react";
 
 export default function AuthenticationPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isSignedIn } = useUser();
 
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Form states
   const [name, setName] = useState("");
@@ -18,7 +20,14 @@ export default function AuthenticationPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const { signUp } = useSignUp();
-  const { signIn, setActive } = useSignIn();
+  const { signIn, setActive, isLoaded: signInLoaded } = useSignIn();
+
+    // Redirect if already signed in
+    useEffect(() => {
+      if (isSignedIn) {
+        navigate("/dashboard");
+      }
+    }, [isSignedIn, navigate]);
 
   useEffect(() => {
     if (location.state?.mode === "signup") {
@@ -28,32 +37,45 @@ export default function AuthenticationPage() {
     }
   }, [location.state]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
     setError("");
     setMessage("");
+    setIsLoading(true);
 
     try {
       if (isLoginMode) {
         // Login flow
+        if (!signInLoaded) {
+          setError("Authentication not ready. Please wait...");
+          setIsLoading(false);
+          return;
+        }
+        
         const result = await signIn.create({
           identifier: email,
           password,
         });
         
-        await setActive({ session: result.createdSessionId });
-        navigate("/dashboard");
+        if (result.status === "complete") {
+          await setActive({ session: result.createdSessionId });
+          navigate("/dashboard");
+        }
       } else {
         // Signup validation
         if (!name || !email || !password || !confirmPassword) {
           setError("Please fill in all fields");
+          setIsLoading(false);
           return;
         }
         if (password !== confirmPassword) {
           setError("Passwords do not match");
+          setIsLoading(false);
           return;
         }
         if (!agreedToTerms) {
           setError("Please agree to the terms and privacy policy");
+          setIsLoading(false);
           return;
         }
 
@@ -65,41 +87,43 @@ export default function AuthenticationPage() {
         });
 
         // Send verification email
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });;
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
 
          // Redirect to verification page
          navigate("/verify-email");
         }
       } catch (err) {
-        setError(err.errors?.[0]?.longMessage || err.message || "Something went wrong");
+        console.error("Auth error:", err);
+        setError(
+          err.errors?.[0]?.longMessage || 
+          err.message || 
+          "Something went wrong. Please try again."
+        );
+      } finally {
+        setIsLoading(false);
       }
     };
 
-   // Handle Google OAuth
-  const handleGoogleSignIn = async () => {
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
-      });
-    } catch (err) {
-      setError("Google sign-in failed. Please try again.");
-    }
-  };
-
-
-  function NavigateToDashboard() {
-    const navigate = useNavigate();
-    React.useEffect(() => {
-      navigate("/dashboard");
-    }, [navigate]);
-    return null;
+// Handle Google OAuth - SIMPLEST VERSION
+const handleGoogleSignIn = async () => {
+  try {
+    setIsLoading(true);
+    
+    // Let Clerk handle everything
+    await signIn.authenticateWithRedirect({
+      strategy: "oauth_google",
+    });
+  } catch (err) {
+    console.error("Google sign-in error:", err);
+    setError("Google sign-in failed. Please try again.");
+    setIsLoading(false);
   }
+};
+
+
+
 
   return (
-    <>
-    <SignedOut>
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Left Side */}
@@ -160,7 +184,7 @@ export default function AuthenticationPage() {
             </p>
           </div>
 
-          <form className="space-y-4 mb-6">
+          <form onSubmit={handleSubmit} className="space-y-4 mb-6">
             {!isLoginMode && (
               <input
                 type="text"
@@ -226,22 +250,21 @@ export default function AuthenticationPage() {
                   Continue with Google
                 </button>
 
-            <button
-              type="button"
-              onClick={handleSubmit}
-              className="w-full py-3 rounded-full bg-black text-white font-semibold hover:bg-gray-900 transition-colors mt-6"
+                <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 rounded-full bg-black text-white font-semibold hover:bg-gray-900 transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoginMode ? "Login" : "Create Account"}
-            </button>
+              {isLoading 
+                ? "Please wait..." 
+                : isLoginMode 
+                  ? "Login" 
+                  : "Create Account"
+              }
+              </button>
           </form>
         </div>
       </div>
     </div>
-   </SignedOut>
-
-   <SignedIn>
-     <NavigateToDashboard />
-   </SignedIn>
-   </> 
   );
 }

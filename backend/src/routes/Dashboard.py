@@ -1,44 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from ..database.database import get_db
 from ..database.models import Users
-from ..utils import authenticate_and_get_user_details
+from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
-@router.get("/")
+@router.get("")
 async def get_dashboard(
-    request: Request,
+    current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get dashboard data for authenticated user
-    """
-    try:
-        auth_details = authenticate_and_get_user_details(request)
-        user_id = auth_details["user_id"]
-        
-        # Fetch user data
-        result = await db.execute(select(Users).where(Users.user_id == user_id))
-        user = result.scalars().first()
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "message": "Dashboard data",
-            "user": {
-                "user_id": user.user_id,
-                "username": user.username,
-                "email": user.email,
-                "total_study_time": user.total_study_time,
-                "created_at": user.created_at.isoformat()
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    LAZY CREATION: User is automatically created on first visit
+    to dashboard if they don't exist yet.
     
+    Returns:
+        Dashboard data including user info and stats
+    """
+    return {
+        "message": "Welcome to your dashboard!",
+        "user": {
+            "user_id": current_user.user_id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "first_name": current_user.first_name,      # ← Added
+            "last_name": current_user.last_name,        # ← Added
+            "total_study_time": current_user.total_study_time,
+            "member_since": current_user.created_at.isoformat()
+        },
+        # TODO: Add groups, recent activity, etc.
+        "stats": {
+            "study_time_today": 0,  # Will calculate later
+            "groups_count": 0,      # Will calculate later
+            "active_streak": 0       # Will calculate later
+        }
+    }
+
+
+
+
