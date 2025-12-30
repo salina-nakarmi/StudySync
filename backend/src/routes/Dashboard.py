@@ -41,45 +41,6 @@ async def get_dashboard(
         }
     }
 
-# ============================================================================
-# PROGRESS STATISTICS - For Dashboards
-# ============================================================================
-async def get_user_progress_stats(
-    session: AsyncSession,
-    user_id: str
-) -> dict:
-    """
-    Use case:
-        Dashboard widgets:
-        "📚 12 resources in progress"
-        "✅ 23 resources completed"
-        "🎯 53% completion rate"
-    """
-    all_progress = await get_all_user_progress(session, user_id)
-    
-    # Count by status
-    by_status = {
-        "not_started": 0,
-        "in_progress": 0,
-        "completed": 0,
-        "paused": 0
-    }
-    
-    for progress in all_progress:
-        status_name = progress.status.value
-        by_status[status_name] = by_status.get(status_name, 0) + 1
-    
-    total = len(all_progress)
-    completed = by_status["completed"]
-    completion_rate = (completed / total * 100) if total > 0 else 0
-    
-    return {
-        "not_started": by_status["not_started"],
-        "in_progress": by_status["in_progress"],
-        "completed": by_status["completed"],
-        "paused": by_status["paused"],
-        "total_tracked": total,
-        "completion_rate": round(completion_rate, 1)
-    }
+
 
 
