@@ -4,9 +4,10 @@ Permission checks. if the user is allowed to play with the resources
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
-from ..database.models import Resources, Groupings, InvitationStatus, ResourceType
+from ..database.models import Resources, Groupings, InvitationStatus, ResourceType, ResourceProgress, ResourceStatus
 from .group_service import is_user_in_group, can_manage_resources
 from typing import Optional, List, Tuple
+from datetime import datetime
 
 # ============================================================================
 # PERMISSION CHECKS - The Foundation
@@ -458,4 +459,176 @@ async def get_user_resource_stats(
         "by_type": by_type,
         "added_this_week": added_this_week
     }
+
+"""
+Resource Service Layer - Part 4: Progress Tracking (Pillar 2)
+"""
+# ============================================================================
+# PROGRESS TRACKING - Pillar 2 Implementation
+# ============================================================================
+
+async def update_resource_progress(
+        session: AsyncSession,
+        user_id: str,
+        resource_id: int,
+        status: ResourceStatus,
+        progress_percentage:int,
+        notes: Optional[str] = None
+) -> Optional[ResourceProgress]:
+    #manula tracking - self reporting
+
+    #try to find existing progress resord
+    result = await session.execute(
+        select(ResourceProgress).where(
+            and_(
+                ResourceProgress.user_id == user_id,
+                ResourceProgress.resource_id == resource_id
+            )
+        )
+    )
+    progress = result.scalars().first()
+
+    now = datetime.utcnow()
+
+    #create new if doesn't exist
+    if not progress:
+        progrss = ResourceProgress(
+            user_id=user_id,
+            resource_id=resource_id,
+            status=status,
+            progress_percentage=progress_percentage,
+            notes=notes,
+            started_at=now if status != ResourceStatus.NOT_STARTED else None,
+            completed_at=now if status == ResourceStatus.COMPLETED else None
+        )
+        session.add(progress)
+    else:
+        #update esisting
+        progress.status = status
+        progress.progress_percentage = progress_percentage
+
+        if notes is not None:
+            progress.notes = notes
+
+        #smart timestamp update
+        if status == ResourceStatus.IN_PROGRESS and not progress.started_at:#when progrss.started is empty
+            progress.started_at = now
+
+        if status == ResourceStatus.COMPLETED and not progress.completed_at:
+            progress.completed_at = now
+            progress.progress_percentage = 100
+
+        await session.flush()
+
+        return progress
+    
+
+async def get_resource_progress(
+        session: AsyncSession,
+        user_id: str,
+        resource_id:int
+) -> Optional[ResourceProgress]:
+    #get user's progress on a specific record
+    result = await session.execute(
+        select(ResourceProgress).where(
+            and_(
+                ResourceProgress.user_id == user_id,
+                ResourceProgress.resource_id == resource_id
+            )
+        )
+    )
+    return result.scalars().first()
+
+async def get_all_resource_progress(
+        session: AsyncSession,
+        user_id:str,
+        status_filter: Optional[ResourceStatus] = None
+) -> List[ResourceProgress]:
+    #get all progress records for user
+    ''' Use cases:
+    - Dashboard: "5 resources in progress"
+    - Achievements: "23 resources completed!"
+    - Resume page: "Continue studying these"'''
+    query = select(ResourceProgress).where(
+        ResourceProgress.user_id == user_id
+    )
+
+    if status_filter:
+        query = query.where(ResourceProgress.status == status_filter)
+
+    #query by most recently updated first
+    query = query.order_by(ResourceProgress.last_updated.desc())
+
+    result = await session.execute(query)
+    return result.scalars().all()
+
+async def delete_resource_progress(
+    session: AsyncSession,
+    user_id: str,
+    resource_id: int
+) -> bool:
+    #delste/reset user's progress on a resource
+
+    result= await session.execute(
+        select(ResourceProgress).where(
+            and_(
+                ResourceProgress.user_id == user_id,
+                ResourceProgress.resource_id == resource_id
+            )
+        )
+    )
+    progress = result.scalars().first()
+
+    if not progress:
+        return False
+    
+    await session.delete(progress)
+    await session.flush()
+
+    return True
+
+async def mark_resource_completed(
+    session: AsyncSession,
+    user_id: str,
+    resource_id: int,
+    notes: Optional[str] = None
+) -> Optional[ResourceProgress]:
+    '''Quick helper: Mark a resource as completed
+    
+    Convenience function that:
+    - Sets status to COMPLETED
+    - Sets progress to 100%
+    - Records completion timestamp
+    '''
+    return await update_resource_progress(
+        session=session,
+        user_id=user_id,
+        resource_id=resource_id,
+        status=ResourceStatus.COMPLETED,
+        progress_percentage=100,
+        notes=notes
+    )
+
+async def mark_resource_started(
+    session: AsyncSession,
+    user_id: str,
+    resource_id: int,
+    notes: Optional[str] = None
+) -> ResourceProgress:
+    '''
+    Quick helper: Mark a resource as started
+    
+    Convenience function that:
+    - Sets status to IN_PROGRESS
+    - Sets progress to 0% (just started)
+    - Records start timestamp
+    '''
+    return await update_resource_progress(
+        session=session,
+        user_id=user_id,
+        resource_id=resource_id,
+        status=ResourceStatus.IN_PROGRESS,
+        progress_percentage=0,
+        notes=notes
+    )
 

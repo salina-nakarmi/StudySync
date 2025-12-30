@@ -4,14 +4,16 @@ from typing import Optional, List
 from sqlalchemy import select
 
 from ..database.database import get_db
-from ..database.models import Users, ResourceType, Resources, Groups
+from ..database.models import Users, ResourceType, Resources, Groups, ResourceStatus
 from ..schemas.resources import (
     ResourceCreate, 
     ResourceResponse, 
     ResourceUpdate,
     ResourceWithProgress,
     ShareResourceRequest,
-    MoveResourceRequest)
+    MoveResourceRequest,
+    ResourceProgressUpdate,
+    ResourceProgressResponse)
 from ..dependencies import get_current_user
 from ..services import resources_service
 from ..services.user_service import get_user_by_id
@@ -271,23 +273,6 @@ async def get_all_my_resources(
     NEW ENDPOINT! Returns everything:
     - Your personal resources
     - Resources from all your groups
-    
-    Use cases:
-    - "My Library" page
-    - Search across all resources
-    - Recent activity feed
-    
-    Example response:
-        [
-            {"id": 1, "title": "My Notes", "group_id": null, ...},
-            {"id": 2, "title": "Group Study Guide", "group_id": 123, ...},
-            {"id": 3, "title": "Physics Lab", "group_id": 456, ...}
-        ]
-    
-    Why useful?
-    - Single endpoint for complete library
-    - Unified search across personal + groups
-    - Dashboard overview
     """
     
     resources, total = await resources_service.get_all_user_resources(
@@ -567,46 +552,424 @@ async def move_resource(
         is_personal=(updated_resource.group_id is None)
     )
 
+# ============================================================================
+# PROGRESS TRACKING ENDPOINTS - Pillar 2!
+# ============================================================================
+
+@router.post("/{resource_id}/progress", response_model=ResourceProgressResponse)
+async def update_resource_progress(
+    resource_id: int,
+    payload: ResourceProgressUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Update your progress on a resource
+    
+    ✨ THIS IS PILLAR 2! Manual progress tracking ✨
+    
+    You can track:
+    - Status: not_started, in_progress, completed, paused
+    - Percentage: 0-100%
+    - Personal notes: "Review section 3 again"
+    
+    Works for BOTH personal and group resources!
+    
+    Example requests:
+        # Just started
+        POST /resources/1/progress
+        {
+            "status": "in_progress",
+            "progress_percentage": 0,
+            "notes": "Starting today!"
+        }
+        
+        # Halfway through
+        {
+            "status": "in_progress",
+            "progress_percentage": 50,
+            "notes": "Need to review chapter 3"
+        }
+        
+        # Completed!
+        {
+            "status": "completed",
+            "progress_percentage": 100,
+            "notes": "Great video!"
+        }
+    
+    Smart features:
+    - Auto-records when you started (first in_progress)
+    - Auto-records when completed
+    - Updates last_updated timestamp
+    
+    Note: You must have permission to VIEW the resource to track it
+    """
+    
+    # Step 1: Check if user can view this resource
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Resource not found"
+        )
+    
+    # Step 2: Parse status string to enum
+    try:
+        status_enum = ResourceStatus[payload.status.upper()]
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Must be: not_started, in_progress, completed, or paused"
+        )
+    
+    # Step 3: Update progress
+    progress = await resources_service.update_resource_progress(
+        session=db,
+        user_id=current_user.user_id,
+        resource_id=resource_id,
+        status=status_enum,
+        progress_percentage=payload.progress_percentage,
+        notes=payload.notes
+    )
+    
+    await db.commit()
+    
+    return ResourceProgressResponse(**progress.__dict__)
+
+
+@router.get("/{resource_id}/progress/me", response_model=ResourceProgressResponse)
+async def get_my_progress_on_resource(
+    resource_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Get your progress on a specific resource
+    
+    Returns your tracking data:
+    - Current status
+    - Percentage complete
+    - Your notes
+    - When you started
+    - When you completed
+    
+    Example response:
+        {
+            "id": 1,
+            "user_id": "user_123",
+            "resource_id": 5,
+            "status": "in_progress",
+            "progress_percentage": 75,
+            "notes": "Almost done, review section 4",
+            "started_at": "2024-12-20T10:00:00Z",
+            "completed_at": null,
+            "last_updated": "2024-12-28T15:30:00Z"
+        }
+    
+    If you haven't tracked this resource yet:
+        Returns default state (not_started, 0%)
+    """
+    
+    # Step 1: Check permission
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Resource not found"
+        )
+    
+    # Step 2: Get progress
+    progress = await resources_service.get_resource_progress(
+        db, current_user.user_id, resource_id
+    )
+    
+    # Step 3: Return progress or default state
+    if not progress:
+        # Not tracking yet - return default
+        from datetime import datetime
+        return ResourceProgressResponse(
+            id=0,  # Not in DB yet
+            user_id=current_user.user_id,
+            resource_id=resource_id,
+            status="not_started",
+            progress_percentage=0,
+            notes=None,
+            started_at=None,
+            completed_at=None,
+            last_updated=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
+    
+    return ResourceProgressResponse(**progress.__dict__)
+
+
+@router.get("/my-progress", response_model=List[ResourceProgressResponse])
+async def get_all_my_progress(
+    status: Optional[str] = Query(
+        None, 
+        regex="^(not_started|in_progress|completed|paused)$",
+        description="Filter by status"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Get all your resource progress
+    
+    Optionally filter by status:
+    - in_progress: "Continue where you left off"
+    - completed: "Your achievements!"
+    - paused: "Resume these later"
+    - not_started: "Haven't started these yet"
+    
+    Use cases:
+    - Dashboard: "5 resources in progress"
+    - Achievements page: "23 completed!"
+    - Resume page: "Continue studying"
+    
+    Examples:
+        # Get everything you're tracking
+        GET /resources/my-progress
+        
+        # Get only in-progress resources
+        GET /resources/my-progress?status=in_progress
+        
+        # Get completed resources
+        GET /resources/my-progress?status=completed
+    
+    Perfect for:
+    - "Continue where you left off" section
+    - Progress dashboard
+    - Achievement tracking
+    """
+    
+    # Parse status filter if provided
+    status_filter = None
+    if status:
+        try:
+            status_filter = ResourceStatus[status.upper()]
+        except KeyError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid status"
+            )
+    
+    # Get progress list
+    progress_list = await resources_service.get_all_user_progress(
+        session=db,
+        user_id=current_user.user_id,
+        status_filter=status_filter
+    )
+    
+    return [
+        ResourceProgressResponse(**p.__dict__)
+        for p in progress_list
+    ]
+
+
+@router.delete("/{resource_id}/progress/me", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_my_progress(
+    resource_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Reset your progress on a resource
+    
+    Deletes all tracking data - fresh start!
+    
+    Use cases:
+    - "I want to start over"
+    - "Clear my progress"
+    - Accidental marking
+    
+    Example:
+        DELETE /resources/1/progress/me
+        
+        Result: All progress data for resource 1 deleted
+    """
+    
+    success = await resources_service.delete_resource_progress(
+        db, current_user.user_id, resource_id
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="No progress found for this resource"
+        )
+    
+    await db.commit()
+
+
+@router.get("/progress/stats", response_model=dict)
+async def get_my_progress_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Get your progress statistics
+    
+    NEW ENDPOINT! Perfect for dashboard widgets.
+    
+    Example response:
+        {
+            "not_started": 5,
+            "in_progress": 12,
+            "completed": 23,
+            "paused": 3,
+            "total_tracked": 43,
+            "completion_rate": 53.5
+        }
+    
+    Use for:
+    - Dashboard: "📚 12 in progress, ✅ 23 completed"
+    - Progress bars: "53% completion rate"
+    - Motivation: "23 resources conquered!"
+    """
+    
+    stats = await resources_service.get_user_progress_stats(
+        session=db,
+        user_id=current_user.user_id
+    )
+    
+    return stats
+
 
 # ============================================================================
-# UNDERSTANDING THE SHARING ENDPOINTS
+# CONVENIENCE ENDPOINTS - Quick Actions
+# ============================================================================
+
+@router.post("/{resource_id}/mark-completed", response_model=ResourceProgressResponse)
+async def mark_resource_completed(
+    resource_id: int,
+    notes: Optional[str] = Query(None, max_length=1000),
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Quick action: Mark as completed
+    
+    Convenience endpoint that:
+    - Sets status to COMPLETED
+    - Sets progress to 100%
+    - Records completion timestamp
+    
+    Example:
+        POST /resources/1/mark-completed?notes=Great video!
+        
+    This is a shortcut for:
+        POST /resources/1/progress
+        {
+            "status": "completed",
+            "progress_percentage": 100,
+            "notes": "Great video!"
+        }
+    
+    Why this endpoint?
+    - Simpler for frontends
+    - Single-click completion
+    - Clear intent
+    """
+    
+    # Check permission
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    # Mark completed
+    progress = await resources_service.mark_resource_completed(
+        session=db,
+        user_id=current_user.user_id,
+        resource_id=resource_id,
+        notes=notes
+    )
+    
+    await db.commit()
+    
+    return ResourceProgressResponse(**progress.__dict__)
+
+
+@router.post("/{resource_id}/mark-started", response_model=ResourceProgressResponse)
+async def mark_resource_started(
+    resource_id: int,
+    notes: Optional[str] = Query(None, max_length=1000),
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Quick action: Mark as started
+    
+    Convenience endpoint that:
+    - Sets status to IN_PROGRESS
+    - Sets progress to 0%
+    - Records start timestamp
+    
+    Example:
+        POST /resources/1/mark-started?notes=Starting today!
+    
+    Why this endpoint?
+    - Quick "I'm starting this" button
+    - Simpler than full progress update
+    - Clear intent
+    """
+    
+    # Check permission
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    # Mark started
+    progress = await resources_service.mark_resource_started(
+        session=db,
+        user_id=current_user.user_id,
+        resource_id=resource_id,
+        notes=notes
+    )
+    
+    await db.commit()
+    
+    return ResourceProgressResponse(**progress.__dict__)
+
+
+# ============================================================================
+# 🎉 ALL THREE PILLARS COMPLETE! 🎉
 # ============================================================================
 
 """
-Three ways to change resource visibility:
+Congratulations! You now have a complete resource tracking system with:
 
-1. /share - Personal → Group
-   - Specific: Only for sharing personal resources
-   - Clear intent: "I want to share this"
-   - Returns error if already shared
+✅ PILLAR 1: Study Sessions
+   - Automatic time tracking
+   - Daily/weekly analytics
+   - Streak system
+   (Implemented in study_sessions.py routes)
 
-2. /make-personal - Group → Personal
-   - Specific: Only for unsharing
-   - Clear intent: "I want this private again"
-   - Works from any group
+✅ PILLAR 2: Resource Progress (THIS FILE!)
+   - Manual progress tracking
+   - Status updates (in_progress, completed, etc.)
+   - Personal notes
+   - Progress statistics
 
-3. /move - Any → Any
-   - Flexible: Handles all cases
-   - Can move between groups
-   - Can make personal
-   - One endpoint to rule them all
+✅ PILLAR 3: Group Accountability
+   - Leaderboards
+   - Weekly rankings
+   - Social motivation
+   (Implemented in study_sessions.py routes)
 
-Choose based on your frontend needs:
-- Explicit buttons: Use /share and /make-personal
-- Flexible UI: Use /move
-- Both: Offer all three (let users choose)
+Total Endpoints in resources.py:
+- 6 Basic CRUD (create, read, update, delete, get by ID, get personal)
+- 3 Sharing (share, make-personal, move)
+- 2 Statistics (resource stats, progress stats)
+- 7 Progress tracking (update, get, list, reset, mark-completed, mark-started, stats)
+= 18 TOTAL ENDPOINTS! 🚀
 
-Example UI flows:
-
-Simple:
-    [Share to Group ▼] → /share
-    [Make Private] → /make-personal
-
-Advanced:
-    [Move to: ▼ Personal / Group A / Group B] → /move
-
-Both:
-    [Share to Group ▼] → /share
-    [Change Group ▼] → /move
-    [Make Private] → /make-personal
+Your StudySync application is now feature-complete for all three tracking pillars!
 """
+
+
