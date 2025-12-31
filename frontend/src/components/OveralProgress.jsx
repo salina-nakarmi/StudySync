@@ -16,19 +16,25 @@ const OverallProgress = () => {
 
   return (
     <div className="shrink-0">
-      <div className="w-[320px] h-40  bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
-        <div className="w-7 h-7 flex items-center justify-center rounded-full bg-black mb-2">
-          <ChartBarIcon className="w-3 h-3 text-white" />
+      <div className="w-[320px] h-40 bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
+        
+        {/* Icon Circle */}
+        <div className="w-9 h-9 flex items-center justify-center rounded-full bg-black mb-2">
+          <ChartBarIcon className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-gray-800 font-bold text-lg mb-1">Overall Progress</h2>
-        <p className="text-2xl font-bold text-black mb-2">{progress}%</p>
-        {/* <div className="w-full h-2 bg-gray-200 rounded-2xl">
-          <div
-            className="h-2 bg-[#2C76BA] rounded-2xl transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div> */}
-        <p className="text-xs text-gray-500 mt-2">
+
+        {/* Title */}
+        <h2 className="text-gray-800 font-bold text-lg mb-1">
+          Overall Progress
+        </h2>
+
+        {/* Percentage */}
+        <p className="text-2xl font-bold text-black mb-1">
+          {progress}%
+        </p>
+
+        {/* Progress Info */}
+        <p className="text-xs text-gray-500">
           {completedTasks} of {totalTasks} tasks completed
         </p>
       </div>
