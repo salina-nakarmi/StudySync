@@ -1,20 +1,19 @@
 import os
 from dotenv import load_dotenv
-
+import uvicorn
 
 load_dotenv()
 
 def main():
-    print("Hello from backend")
-    database_url = os.getenv("DATABASE_URL")
-
-    if database_url:
-        print("Database is connection to online sever NEON")
-        
-
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        print("🚀 Starting StudySync Backend...")
+        print("✅ Database connection string found (NEON)")
     else:
-        print("CRITICAL ERROR : DATABASE_URL not found!")
-        print(" Please check your .env file and ensure 'DATABASE_URL' is set") 
+        print("❌ CRITICAL ERROR: DATABASE_URL not found!")
+
+    # Start the actual server
+    uvicorn.run("src.app:app", host="0.0.0.0", port=8000, reload=True)
 
 
 if __name__=="__main__":
