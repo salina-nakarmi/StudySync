@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions
+from .services import socket_services
 
 app = FastAPI(
     title="StudySync API",
@@ -37,3 +38,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket):
+    await websoket.accept()
