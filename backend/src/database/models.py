@@ -261,17 +261,16 @@ class Messages(Base):
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
-    group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
-
+    group_id:Mapped[str]=mapped_column(ForeignKey('groups.id'))
+    
     content:Mapped[str]
     message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))
 
     # Thread support
     reply_to_id: Mapped[int | None] = mapped_column(ForeignKey('messages.id'))
-
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
-
+    seen_no: Mapped[int] 
     created_at:Mapped[datetime]=mapped_column(default=func.now())
     updated_at:Mapped[datetime]=mapped_column(default=func.now(), onupdate=func.now())
 

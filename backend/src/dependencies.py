@@ -55,3 +55,4 @@ async def get_current_user_id(request: Request) -> str:
     return auth_details["user_id"]
 
 # Contains get_current_user() - the dependency all routes use
+
