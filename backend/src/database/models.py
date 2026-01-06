@@ -77,7 +77,7 @@ class Groups(Base):
     """
     __tablename__ = 'groups'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(primary_key=True, autoincrement=True)
 
      # Creator (first leader)
     creator_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
