@@ -80,14 +80,14 @@ export default function Home() {
   {/* Navigate directly to Clerk auth pages */}
   <button
     onClick={() => navigate("/sign-in")}
-    className="px-5 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition"
+    className="ml-9 px-5 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition"
   >
     Login
   </button>
 
   <button
     onClick={() => navigate("/sign-up")}
-    className="px-5 py-2 text-gray-500 font-medium hover:text-gray-900 transition"
+    className=" px-5 py-2 text-gray-500 font-medium hover:text-gray-900 transition"
   >
     Sign Up
   </button>

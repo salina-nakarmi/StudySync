@@ -9,6 +9,10 @@ import SSOCallback from "./auth/SSOCallback.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home.jsx";
 import ProgressTracking from "./pages/ProgressTracking.jsx";
+import Profile from "./pages/Profile.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
+
+
 
 
 function App() {
@@ -55,6 +59,20 @@ function App() {
       </SignedOut>
     </>
   } 
+/>
+
+<Route
+  path="/profile"
+  element={
+    <>
+      <SignedIn>
+        <ProfilePage />
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  }
 />
 
 

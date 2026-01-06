@@ -35,7 +35,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Achievement"];
+  const navItems = ["Dashboard", "Resources", "Progress Tracking"];
 
   const screenTimeData = [
     { day: "S", hours: 2 },
@@ -196,9 +196,13 @@ export default function Dashboard() {
               <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200">
                 <BellIcon className="w-6 h-6 text-gray-700" />
               </button>
-              <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
-                <UserIcon className="w-6 h-6 text-gray-700" />
-              </button>
+              <button
+                           onClick={() => navigate("/profile")}
+                           className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+                         >
+                           <UserIcon className="w-6 h-6 text-gray-700" />
+                         </button>
+                       
             </div>
 
             {/* Mobile Menu Button */}
@@ -240,7 +244,9 @@ export default function Dashboard() {
               <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
                 <BellIcon className="w-6 h-6" />
               </button>
-              <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
+              <button
+               onClick={() => navigate("/profile")}
+               className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
                 <UserIcon className="w-6 h-6" />
               </button>
             </div>

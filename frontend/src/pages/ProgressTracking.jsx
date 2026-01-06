@@ -6,7 +6,7 @@ import ResourceTimer from "../components/ResourceTimer";
 import SharedLinkItem from "../components/SharedLinkItem";
 import TodayProgressCard from "../components/TodayProgressCard";
 
-import ProgressCard from "../components/ProgressCard";
+// import ProgressCard from "../components/ProgressCard";
 import { TasksDone, AverageScore } from "../components/ProgressStats";
 
 
