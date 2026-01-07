@@ -1,7 +1,7 @@
 from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions
-from .services import socket_services
+# from .services import socket_services
 
 app = FastAPI(
     title="StudySync API",

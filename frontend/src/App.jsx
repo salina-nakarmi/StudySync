@@ -11,6 +11,8 @@ import Home from "./pages/Home.jsx";
 import ProgressTracking from "./pages/ProgressTracking.jsx";
 import Profile from "./pages/Profile.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
+import Groups from "./pages/Groups.jsx";
+
 
 
 
@@ -48,6 +50,22 @@ function App() {
         />
 
         <Route 
+  path="/groups" 
+  element={
+    <>
+      <SignedIn>
+        <Groups />
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  } 
+/>
+
+
+
+        <Route 
   path="/progress-tracking" 
   element={
     <>
@@ -74,6 +92,7 @@ function App() {
     </>
   }
 />
+
 
 
 

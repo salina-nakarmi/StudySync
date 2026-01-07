@@ -4,6 +4,8 @@ import { useApi } from "../utils/api";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
+
+
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -35,7 +37,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking"];
+  const navItems = ["Dashboard","Groups", "Resources", "Progress Tracking"];
 
   const screenTimeData = [
     { day: "S", hours: 2 },
@@ -52,6 +54,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
+     else if (location.pathname === "/groups")
+    setActiveTab("Groups"); 
   }, [location.pathname]);
 
   // Fetch dashboard & streak data
@@ -104,6 +108,7 @@ export default function Dashboard() {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     if (item === "Dashboard") navigate("/dashboard");
+      if (item === "Groups") navigate("/groups");
   };
 
   // ----------------- NAV BUTTON COMPONENT -----------------
@@ -327,6 +332,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+
         <div className="p-6">
           <Mytask />
         </div>
@@ -338,6 +344,7 @@ export default function Dashboard() {
           <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
           <ContributionGraph contributions={contributions} />
         </div>
+          {/* <GroupSection /> */}
       </div>
     </div>
   );
