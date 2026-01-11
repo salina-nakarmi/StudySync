@@ -11,19 +11,22 @@ import {
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const navItems = ["Dashboard", "Resources", "Progress Tracking"];
+  
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
+      else if (location.pathname === "/groups") setActiveTab("Groups");
   }, [location.pathname]);
 
   const handleNavClick = (item) => {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     else if (item === "Dashboard") navigate("/dashboard");
+     else if (item === "Groups") navigate("/groups");
   };
 
   const NavButton = ({ item }) => {

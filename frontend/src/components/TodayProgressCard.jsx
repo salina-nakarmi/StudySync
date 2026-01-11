@@ -22,7 +22,8 @@ const ScreenTimeCard = () => {
   });
 
   return (
-    <div className=" sm:w-[400px] md:w-[580px] lg:w-[920px] h-60 bg-white rounded-2xl border border-gray-200 p-4 mx-auto">
+    /* Reduced width from 820px to 380px and centered it */
+    <div className="w-full max-w-[600px] h-60 bg-white rounded-2xl border border-gray-200 p-4">
       
       <div className="flex justify-between items-center mb-4">
         <div>
@@ -31,25 +32,25 @@ const ScreenTimeCard = () => {
             {Math.floor(today.hours)}h {Math.round((today.hours % 1) * 60)} min
           </p>
         </div>
-        <p className="text-gray-400 text-sm">{formattedDate}</p>
+        <p className="text-gray-400 text-xs">{formattedDate}</p>
       </div>
 
-      {/* Chart */}
-      <div className="flex justify-center items-end h-[130px] gap-2 sm:gap-4 md:gap-6 lg:gap-14">
+      {/* Chart - Reduced gaps to fit the smaller width */}
+      <div className="flex justify-between items-end h-[130px] px-2">
         {data.map((item, index) => {
           const isToday = index === todayIndex;
           return (
             <div key={index} className="flex flex-col items-center">
               {/* Time label only for today */}
               {isToday && (
-                <span className="text-orange-500 text-xs font-bold mb-1">
-                  {Math.floor(item.hours)}h {Math.round((item.hours % 1) * 60)}m
+                <span className="text-orange-500 text-[10px] font-bold mb-1">
+                  {Math.floor(item.hours)}h
                 </span>
               )}
 
               {/* Bar */}
               <div
-                className={`w-4 rounded-[4px] ${isToday ? "bg-orange-400" : "bg-gray-900"}`}
+                className={`w-3 rounded-[4px] ${isToday ? "bg-orange-400" : "bg-gray-900"}`}
                 style={{
                   height: `${(item.hours / maxHours) * 80}px`,
                 }}
@@ -57,11 +58,11 @@ const ScreenTimeCard = () => {
 
               {/* Dot */}
               <div
-                className={`w-3 h-3 rounded-full mt-2 ${isToday ? "bg-orange-400" : "bg-black"}`}
+                className={`w-2.5 h-2.5 rounded-full mt-2 ${isToday ? "bg-orange-400" : "bg-black"}`}
               />
 
               {/* Day */}
-              <span className="text-xs mt-1 text-gray-500">{item.day[0]}</span>
+              <span className="text-[10px] mt-1 text-gray-500">{item.day[0]}</span>
             </div>
           );
         })}

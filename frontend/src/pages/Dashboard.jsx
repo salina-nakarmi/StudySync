@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useApi } from "../utils/api";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 
 
@@ -37,7 +38,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = ["Dashboard","Groups", "Resources", "Progress Tracking"];
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
 
   const screenTimeData = [
     { day: "S", hours: 2 },
@@ -170,6 +171,7 @@ export default function Dashboard() {
 
   // ----------------- MAIN RENDER -----------------
   return (
+    
     <div className="min-h-screen bg-white">
       {/* NAVBAR */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
