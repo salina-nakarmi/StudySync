@@ -66,15 +66,24 @@ def authenticate_and_get_user_details(request: Request) -> dict:
         last_name = request.headers.get("x-user-last-name") or None
         username = request.headers.get("x-user-username") or None
 
-        #Generate username if not provided
+        # Generate UNIQUE username if not provided
+        # ALWAYS append user_id to prevent collisions
         if not username:
             if first_name and last_name:
-                username = f"{first_name}_{last_name}".lower()
-                username = ''.join(c if c.isalnum() or c == '_' else '_' for c in username)
+                # Example: "Salina Nakarmi" → "salina_nakarmi_user389r"
+                base = f"{first_name}_{last_name}".lower()
+                base = ''.join(c if c.isalnum() or c == '_' else '_' for c in base)
+                username = f"{base}_{user_id[:8]}"
             elif first_name:
+                # Example: "Salina" → "salina_user389r"
                 username = f"{first_name.lower()}_{user_id[:8]}"
             else:
+                # Fallback: "user_389ryNgH"
                 username = f"user_{user_id[:8]}"
+        else:
+            # Even if username is provided, ensure uniqueness by appending user_id
+            # This prevents conflicts when two users have the same name
+            username = f"{username}_{user_id[:8]}"
 
         result = {
             "user_id": user_id,

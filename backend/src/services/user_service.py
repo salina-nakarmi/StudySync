@@ -25,7 +25,7 @@ async def get_or_create_user(
         email:str,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None
-        ) -> Users:
+    ) -> Users:
         '''
         Get existing user or create new one if doesn't exist 
         try to find user in database if found : return 
@@ -40,10 +40,12 @@ async def get_or_create_user(
         # Priority: provided username > generate from name > generate from user_id
         if not username:
             if first_name and last_name:
-                # Create username from name: "Maren Philips" → "maren_philips"
-                username = f"{first_name}_{last_name}".lower()
+                # Create username from name: "Salina Nakarmi" → "salina_nakarmi_user389r"
+                base = f"{first_name}_{last_name}".lower()
                 # Remove special characters, keep only alphanumeric and underscore
-                username = ''.join(c if c.isalnum() or c == '_' else '_' for c in username)
+                base = ''.join(c if c.isalnum() or c == '_' else '_' for c in base)
+                # Remove special characters, keep only alphanumeric and underscore
+                username = f"{base}_{user_id[:8]}"
             elif first_name:
                 # Just first name: "Maren" → "maren_user_2abc"
                 username = f"{first_name.lower()}_{user_id[:8]}"
@@ -51,6 +53,12 @@ async def get_or_create_user(
                 # No name at all: fallback to user_id
                 username = f"user_{user_id[:8]}"
                 
+        else:
+            # Even if username is provided, append user_id for uniqueness
+            # This prevents "salina_nakarmi" collision between personal and college accounts
+            if not username.endswith(f"_{user_id[:8]}"):
+                username = f"{username}_{user_id[:8]}"
+
         new_user = Users(
             user_id = user_id,
             username = username[:50], #enforce max length
