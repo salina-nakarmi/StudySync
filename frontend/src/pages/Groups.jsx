@@ -28,7 +28,7 @@ export default function Groups() {
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
-    group_type: "COMMUNITY",
+    group_type: "community",
     visibility: "PUBLIC",
     max_members: "",
     invite_code: "",
