@@ -29,7 +29,7 @@ export default function Groups() {
     group_name: "",
     description: "",
     group_type: "community",
-    visibility: "PUBLIC",
+    visibility: "public",
     max_members: "",
     invite_code: "",
   });
@@ -97,10 +97,11 @@ export default function Groups() {
       const groupData = {
         group_name: formData.group_name,
         description: formData.description || null,
-        group_type: formData.group_type,
-        visibility: formData.visibility,
+        group_type: formData.group_type.toLowerCase(),  // convert to lowercase
+        visibility: formData.visibility.toLowerCase(),  // convert to lowercase
         max_members: formData.max_members ? parseInt(formData.max_members) : null,
       };
+
 
       const newGroup = await groupService.createGroup(token, groupData);
       
@@ -205,8 +206,8 @@ export default function Groups() {
     setFormData({
       group_name: "",
       description: "",
-      group_type: "COMMUNITY",
-      visibility: "PUBLIC",
+      group_type: "community",
+      visibility: "public",
       max_members: "",
       invite_code: "",
     });
@@ -317,7 +318,7 @@ export default function Groups() {
                             Members: {group.member_count}
                           </p>
                           <p className="text-sm text-gray-600 mt-1">
-                            Type: {group.group_type === "COMMUNITY" ? "Community" : "Leader Controlled"}
+                            Type: {group.group_type === "community" ? "Community" : "Leader Controlled"}
                           </p>
                         </div>
                       </div>
@@ -346,7 +347,7 @@ export default function Groups() {
                       <p className="mt-2 text-sm">
                         {activeGroup.member_count} members •{" "}
                         {activeGroup.visibility} •{" "}
-                        {activeGroup.group_type === "COMMUNITY" ? "Community" : "Leader Controlled"}
+                        {activeGroup.group_type === "community" ? "Community" : "Leader Controlled"}
                       </p>
                       {activeGroup.invite_code && (
                         <p className="mt-2 text-sm">
@@ -510,16 +511,16 @@ export default function Groups() {
                   onChange={(e) => setFormData({ ...formData, group_type: e.target.value })}
                   className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="COMMUNITY">Community (all can manage)</option>
-                  <option value="LEADER_CONTROLLED">Leader Controlled</option>
+                  <option value="community">Community (all can manage)</option>
+                  <option value="leader_controlled">Leader Controlled</option>
                 </select>
                 <select
                   value={formData.visibility}
                   onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
                   className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="PUBLIC">Public</option>
-                  <option value="PRIVATE">Private</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
                 </select>
                 <input
                   type="number"

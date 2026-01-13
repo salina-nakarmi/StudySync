@@ -6,6 +6,12 @@ const apiCall = async (endpoint, token, options = {}) => {
   if (!token) {
     throw new Error('Not authenticated - please sign in');
   }
+
+  console.log('📤 Sending request:', {
+    url: `${API_BASE_URL}${endpoint}`,
+    method: options.method || 'GET',
+    body: options.body,
+  });
   
   const config = {
     ...options,
