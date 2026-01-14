@@ -1,4 +1,5 @@
 import enum
+import uuid
 from datetime import datetime
 from .database import Base
 from sqlalchemy.orm import Mapped
@@ -15,7 +16,7 @@ class GroupType(enum.Enum):
     COMMUNITY = "community"  # Any member can manage resources
 
 class GroupVisibility(enum.Enum):
-    PUBLIC = "public"  # Anyone can join
+    PUBLIC = "public" #anyone can join
     PRIVATE = "private"  # Invitation required
 
 class InvitationStatus(enum.Enum):
@@ -77,7 +78,7 @@ class Groups(Base):
     """
     __tablename__ = 'groups'
 
-    id: Mapped[str] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
      # Creator (first leader)
     creator_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))

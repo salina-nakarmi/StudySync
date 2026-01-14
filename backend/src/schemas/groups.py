@@ -9,7 +9,7 @@ from ..database.models import GroupType, GroupVisibility, GroupRole, InvitationS
 
 class GroupBase(BaseModel):
     """Base schema for grup data"""
-    group_name: str = Field(..., min_length=5, max_length=50)
+    group_name: str = Field(..., max_length=50)
     description: Optional[str] = Field(None, max_length=500)
     image: Optional[str] = None  # URL to group image
     group_type: GroupType = Field(default=GroupType.LEADER_CONTROLLED)
