@@ -22,6 +22,7 @@ import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
 import ContributionGraph from "../components/ContributionGraph";
+import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
   // ----------------- STATE -----------------
@@ -280,30 +281,36 @@ export default function Dashboard() {
         </div>
 
         {/* Timer & Focus Goal */}
-        <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 -mr-7">
-          <PomodoroTimer />
-          <div className="w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
-            <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
-            <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
-            <div className="w-[200px] flex flex-col items-center mt-2">
-              <div className="w-full h-3 bg-gray-200 rounded-2xl">
-                <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
-              </div>
-              <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-            </div>
-          </div>
-        </div>
-      </div>
+     <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
+  <PomodoroTimer />
+ <div className="w-11/13 sm:w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center h-40 mx-auto">
+  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
+  <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
 
+  <div className="flex flex-col items-center mt-2 w-full">
+    {/* Gray bar */}
+    <div className="w-3/4 sm:w-full h-3 bg-gray-200 rounded-2xl">
+      {/* Blue bar */}
+      <div className="h-3 bg-[#2C76BA] rounded-2xl w-1/4 sm:w-1/2"></div>
+    </div>
+    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
+  </div>
+</div>
+
+</div>
+
+        </div>  
+      
       {/* Calendar, ProgressCard, Shared Links, Tasks */}
       <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
         <CalendarComponent
           streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)}
         />
 
-        <div className="w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5">
-          <ProgressCard screenTime={screenTimeData} title="Progress" />
-        </div>
+      <div className="w-11/12 sm:w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5 mx-auto">
+  <ProgressCard screenTime={screenTimeData} title="Progress" />
+</div>
+
 
         <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
           <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
@@ -334,20 +341,21 @@ export default function Dashboard() {
           </div>
         </div>
 
+  <div className="w-11/12 sm:w-auto p-6 mx-auto">
+  <Mytask />
+</div>
 
-        <div className="p-6">
-          <Mytask />
-        </div>
+      
       </div>
 
-      {/* Activity Contribution Graph */}
-      <div className="-mt-66 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-        <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
-          <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
-          <ContributionGraph contributions={contributions} />
-        </div>
-          {/* <GroupSection /> */}
-      </div>
+{/* Activity Contribution Graph */}
+<div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
+  <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
+    <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
+    <ContributionGraph contributions={contributions} />
+  </div>
+</div>
+
     </div>
   );
 }

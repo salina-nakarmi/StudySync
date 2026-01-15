@@ -3,23 +3,33 @@ import React from "react";
 const ContributionGraph = ({ contributions = [] }) => {
   const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
 
-  const getColor = (count) => colors[count] || colors[0];
+  const getColor = (count) => colors[Math.min(count, colors.length - 1)];
 
-  // Always show 53 weeks × 7 days
   const totalDays = 53 * 7;
-  const paddedContributions = Array.from({ length: totalDays }, (_, i) => contributions[i] || 0);
+  const paddedContributions = Array.from(
+    { length: totalDays },
+    (_, i) => contributions[i] || 0
+  );
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex gap-1 mt-6 ">
+    <div className="w-full overflow-x-auto">
+      {/* Graph */}
+      <div className="flex gap-[3px] mt-4 min-w-max">
         {Array.from({ length: 53 }).map((_, weekIdx) => (
-          <div key={weekIdx} className="flex flex-col gap-1">
+          <div key={weekIdx} className="flex flex-col gap-[3px]">
             {Array.from({ length: 7 }).map((_, dayIdx) => {
               const index = weekIdx * 7 + dayIdx;
               return (
                 <div
                   key={dayIdx}
-                  className="w-4 h-4 rounded-sm cursor-pointer transition-all hover:scale-110"
+                  className="
+                    rounded-[3px]
+                    transition-transform
+                    hover:scale-110
+                    cursor-pointer
+                    w-3 h-3
+                    sm:w-4 sm:h-4
+                  "
                   style={{ backgroundColor: getColor(paddedContributions[index]) }}
                   title={`${paddedContributions[index]} contributions`}
                 />
@@ -27,6 +37,19 @@ const ContributionGraph = ({ contributions = [] }) => {
             })}
           </div>
         ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-end gap-2 mt-3 text-xs text-gray-500">
+        <span>Less</span>
+        {colors.map((color, idx) => (
+          <div
+            key={idx}
+            className="w-3 h-3 rounded-sm"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+        <span>More</span>
       </div>
     </div>
   );
