@@ -6,7 +6,7 @@ Location: backend/src/services/upload_service.py
 
 import cloudinary.uploader
 from typing import Optional, BinaryIO
-from fastapi import UploadFile, HTTPException
+from fastapi import UploadFile, File, Form, HTTPException
 
 # ============================================================================
 # CLOUDINARY UPLOAD FUNCTIONS

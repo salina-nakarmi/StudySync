@@ -11,6 +11,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { groupService } from "../services/group_services";
+import AddResourceModal from "../components/AddResourceModal";
+import {resourceService} from "../services/resource_services";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -23,6 +25,8 @@ export default function Groups() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [resources, setResources] = useState([]);
+  const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -35,6 +39,10 @@ export default function Groups() {
   });
   const [isJoinMode, setIsJoinMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const currentUserIsLeader = activeGroup?.members?.some(
+  (member) => member.role === "leader"
+);
+
   
   const navigate = useNavigate();
 
@@ -51,8 +59,18 @@ export default function Groups() {
   useEffect(() => {
     if (activeGroup) {
       loadGroupDetails(activeGroup.id);
+      if (activeTab === "Resources") {
+        loadGroupResources(activeGroup.id);
+      }
     }
-  }, [activeGroup?.id]);
+  }, [activeGroup?.id, activeTab]);
+
+  useEffect(() => {
+  if (activeGroup && activeTab === "Resources") {
+    loadGroupResources(activeGroup.id);
+  }
+}, [activeGroup?.id, activeTab]);
+
 
   const loadGroups = async () => {
     try {
@@ -78,12 +96,92 @@ export default function Groups() {
     try {
       const token = await getToken();
       const data = await groupService.getGroup(token, groupId);
-      // Update the active group with full details including members
       setActiveGroup(data);
     } catch (err) {
       console.error("Error loading group details:", err);
     }
   };
+
+  const loadGroupResources = async (groupId) => {
+  try {
+    const token = await getToken();
+    const data = await resourceService.getGroupResources(token, groupId);
+
+    console.log("📥 Loaded resources for group", groupId, data);
+    setResources(data);
+  } catch (err) {
+    console.error("Error loading resources:", err);
+    setResources([]);
+  }
+};
+
+const handleAddResource = async (resourceData) => {
+  if (!activeGroup?.id) {
+    alert("No active group selected");
+    return;
+  }
+
+  try {
+    const token = await getToken();
+    const groupId = activeGroup.id;
+
+    if (resourceData.type === 'file') {
+      await resourceService.uploadFile(
+        token,
+        resourceData.file,
+        groupId,
+        resourceData.description ?? null
+      );
+    }
+
+    if (resourceData.type === 'link') {
+      await resourceService.createResource(token, {
+        title: resourceData.title,
+        url: resourceData.url,
+        description: resourceData.description ?? "",
+        resource_type: "link",
+        group_id: groupId,
+        parent_folder_id: resourceData.parentFolderId ?? null
+      });
+    }
+
+    await loadGroupResources(groupId);
+  } catch (err) {
+    console.error("❌ Error uploading resource:", err);
+  }
+};
+
+
+
+
+  const handleDeleteResource = async (resourceId) => {
+    if (!confirm('Are you sure you want to delete this resource?')) return;
+    
+    try {
+      const token = await getToken();
+      await resourceService.deleteResource(token, resourceId);
+      await loadGroupResources(activeGroup.id);
+    } catch (err) {
+      alert(`Failed to delete resource: ${err.message}`);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId) => {
+  if (!confirm("This will permanently delete the group. Are you sure?")) return;
+
+  try {
+    const token = await getToken();
+    await groupService.deleteGroup(token, groupId);
+
+    alert("Group deleted successfully");
+
+    // Refresh groups & reset UI
+    await loadGroups();
+    setActiveGroup(null);
+  } catch (err) {
+    alert(`Failed to delete group: ${err.message}`);
+  }
+};
 
   const handleCreateGroup = async () => {
     if (!formData.group_name.trim()) {
@@ -97,11 +195,10 @@ export default function Groups() {
       const groupData = {
         group_name: formData.group_name,
         description: formData.description || null,
-        group_type: formData.group_type.toLowerCase(),  // convert to lowercase
-        visibility: formData.visibility.toLowerCase(),  // convert to lowercase
+        group_type: formData.group_type,
+        visibility: formData.visibility,
         max_members: formData.max_members ? parseInt(formData.max_members) : null,
       };
-
 
       const newGroup = await groupService.createGroup(token, groupData);
       
@@ -123,63 +220,47 @@ export default function Groups() {
   };
 
   const handleJoinGroup = async () => {
-    if (!formData.invite_code.trim() && !formData.group_name.trim()) {
-      alert("Please enter a group name to search or an invite code");
+  if (!formData.group_name.trim()) {
+    alert("Please enter the group name");
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    const token = await getToken();
+
+    // 1️⃣ SEARCH GROUP BY NAME (PUBLIC + PRIVATE)
+    const groups = await groupService.getPublicGroups(token, {
+      search: formData.group_name.trim(),
+    });
+
+    if (!groups.length) {
+      alert("No group found with that name");
       return;
     }
 
-    try {
-      setSubmitting(true);
-      const token = await getToken();
+    const group = groups[0];
 
-      // If they have an invite code, try to find and join by code
-      if (formData.invite_code.trim()) {
-        // Search for groups and try to match invite code
-        // For now, just ask user for group ID or name
-        alert("To join with invite code: search for the group name first, then use the code");
-        return;
-      }
+    // 2️⃣ JOIN USING group_id + invite_code
+    await groupService.joinGroup(
+      token,
+      group.id,
+      formData.invite_code?.trim() || null
+    );
 
-      // Search for public groups by name
-      const publicGroups = await groupService.getPublicGroups(token, { 
-        search: formData.group_name 
-      });
-      
-      if (publicGroups.length === 0) {
-        alert("No public groups found with that name. Try searching or ask for an invite code.");
-        return;
-      }
+    await loadGroups();
+    resetForm();
+    setModalOpen(false);
+    setIsJoinMode(false);
 
-      // Show the first result and ask to join
-      const groupToJoin = publicGroups[0];
-      const confirm = window.confirm(
-        `Found: "${groupToJoin.group_name}" with ${groupToJoin.member_count} members. Join this group?`
-      );
+    alert("Successfully joined the group!");
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
-      if (!confirm) return;
-
-      // Join the group
-      await groupService.joinGroup(
-        token,
-        groupToJoin.id, 
-        formData.invite_code || null
-      );
-      
-      // Reload groups
-      await loadGroups();
-      
-      // Close modal
-      resetForm();
-      setModalOpen(false);
-      setIsJoinMode(false);
-      
-      alert("Successfully joined the group!");
-    } catch (err) {
-      alert(`Failed to join group: ${err.message}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleLeaveGroup = async (groupId) => {
     if (!confirm("Are you sure you want to leave this group?")) return;
@@ -355,12 +436,22 @@ export default function Groups() {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleLeaveGroup(activeGroup.id)}
-                      className="px-3 py-2 bg-white text-red-600 rounded-lg hover:bg-gray-100 shadow-md font-medium"
-                    >
-                      Leave Group
-                    </button>
+                    {currentUserIsLeader ? (
+                          <button
+                            onClick={() => handleDeleteGroup(activeGroup.id)}
+                            className="px-3 py-2 bg-white text-red-700 rounded-lg hover:bg-red-100 shadow-md font-medium"
+                          >
+                            Delete Group
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleLeaveGroup(activeGroup.id)}
+                            className="px-3 py-2 bg-white text-red-600 rounded-lg hover:bg-gray-100 shadow-md font-medium"
+                          >
+                            Leave Group
+                          </button>
+                        )}
+
                   </div>
                 </div>
 
@@ -382,21 +473,75 @@ export default function Groups() {
                 </div>
 
                 {activeTab === "Resources" && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-lg font-semibold">
-                        Group Resources (0)
-                      </h2>
-                      <button
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg shadow-md text-white"
-                        style={{ backgroundColor: "#1E1E1E" }}
-                      >
-                        <PlusIcon className="w-4 h-4" /> Add
-                      </button>
-                    </div>
-                    <p className="text-gray-500">No resources yet. Add some!</p>
-                  </div>
-                )}
+  <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
+    {/* Header */}
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-lg font-semibold">
+        Group Resources ({resources.length})
+      </h2>
+      <button
+        onClick={() => setAddResourceModalOpen(true)}
+        className="flex items-center gap-1 px-3 py-1 rounded-lg shadow-md text-white hover:opacity-90"
+        style={{ backgroundColor: "#1E1E1E" }}
+      >
+        <PlusIcon className="w-4 h-4" /> Add
+      </button>
+    </div>
+
+    {/* Empty state */}
+    {resources.length === 0 ? (
+      <p className="text-gray-500 text-center py-8">No resources yet. Add some!</p>
+    ) : (
+      <div className="space-y-2">
+        {resources.map((resource) => {
+          const type = resource.resource_type.toLowerCase(); // normalize type
+          let Icon;
+          if (type === "file") Icon = DocumentTextIcon;
+          else if (type === "video") Icon = VideoCameraIcon;
+          else Icon = LinkIcon;
+
+          return (
+            <div
+              key={resource.id}
+              className="flex items-center justify-between border border-gray-200 rounded-lg p-3 hover:shadow-md transition group"
+            >
+              {/* Resource info */}
+              <div className="flex items-center gap-3 flex-1">
+                <Icon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{resource.title || "Untitled"}</p>
+                  {resource.description && (
+                    <p className="text-sm text-gray-500 truncate">{resource.description}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                <a
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm px-3 py-1 rounded hover:bg-gray-100"
+                  style={{ color: PRIMARY_BLUE }}
+                >
+                  Open
+                </a>
+                <button
+                  onClick={() => handleDeleteResource(resource.id)}
+                  className="text-sm px-3 py-1 text-red-600 rounded hover:bg-red-50 opacity-0 group-hover:opacity-100 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
+
 
                 {activeTab === "Members" && (
                   <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-2 shadow-sm">
@@ -437,6 +582,17 @@ export default function Groups() {
           </div>
         </div>
       </div>
+
+      {/* ADD RESOURCE MODAL */}
+      <AddResourceModal
+        isOpen={addResourceModalOpen}
+        onClose={() => setAddResourceModalOpen(false)}
+        onSubmit={resourceData =>
+          handleAddResource({ ...resourceData, groupId: activeGroup?.id })
+        }
+        groupId={activeGroup?.id}
+      />
+
 
       {/* CREATE/JOIN MODAL */}
       {modalOpen && (
