@@ -7,27 +7,35 @@ import {
   LinkIcon,
   Bars3Icon,
   XMarkIcon,
+  Cog6ToothIcon,
+  BellIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@clerk/clerk-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { groupService } from "../services/group_services";
 import AddResourceModal from "../components/AddResourceModal";
-import {resourceService} from "../services/resource_services";
+import { resourceService } from "../services/resource_services";
 
 const PRIMARY_BLUE = "#2C76BA";
 
 export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
+  useUser();
   const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeTab, setActiveTab] = useState("Resources");
   const [modalOpen, setModalOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // For Mobile Nav
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [resources, setResources] = useState([]);
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
-  
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
+
   // Form state
   const [formData, setFormData] = useState({
     group_name: "",
@@ -39,14 +47,12 @@ export default function Groups() {
   });
   const [isJoinMode, setIsJoinMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   const currentUserIsLeader = activeGroup?.members?.some(
-  (member) => member.role === "leader"
-);
+    (member) => member.role === "leader"
+  );
 
-  
-  const navigate = useNavigate();
-
-  // Load groups on mount
+  // --- LOGIC (UNTOUCHED) ---
   useEffect(() => {
     if (isSignedIn) {
       loadGroups();
@@ -55,7 +61,6 @@ export default function Groups() {
     }
   }, [isSignedIn]);
 
-  // Load full group details when active group changes
   useEffect(() => {
     if (activeGroup) {
       loadGroupDetails(activeGroup.id);
@@ -64,13 +69,6 @@ export default function Groups() {
       }
     }
   }, [activeGroup?.id, activeTab]);
-
-  useEffect(() => {
-  if (activeGroup && activeTab === "Resources") {
-    loadGroupResources(activeGroup.id);
-  }
-}, [activeGroup?.id, activeTab]);
-
 
   const loadGroups = async () => {
     try {
@@ -81,9 +79,6 @@ export default function Groups() {
       setGroups(data);
     } catch (err) {
       setError(err.message);
-      console.error("Error loading groups:", err);
-      
-      // If not authenticated, redirect to login
       if (err.message.includes("Not authenticated") || err.message.includes("401")) {
         navigate("/sign-in");
       }
@@ -103,60 +98,45 @@ export default function Groups() {
   };
 
   const loadGroupResources = async (groupId) => {
-  try {
-    const token = await getToken();
-    const data = await resourceService.getGroupResources(token, groupId);
-
-    console.log("📥 Loaded resources for group", groupId, data);
-    setResources(data);
-  } catch (err) {
-    console.error("Error loading resources:", err);
-    setResources([]);
-  }
-};
-
-const handleAddResource = async (resourceData) => {
-  if (!activeGroup?.id) {
-    alert("No active group selected");
-    return;
-  }
-
-  try {
-    const token = await getToken();
-    const groupId = activeGroup.id;
-
-    if (resourceData.type === 'file') {
-      await resourceService.uploadFile(
-        token,
-        resourceData.file,
-        groupId,
-        resourceData.description ?? null
-      );
+    try {
+      const token = await getToken();
+      const data = await resourceService.getGroupResources(token, groupId);
+      setResources(data);
+    } catch (err) {
+      console.error("Error loading resources:", err);
+      setResources([]);
     }
+  };
 
-    if (resourceData.type === 'link') {
-      await resourceService.createResource(token, {
-        title: resourceData.title,
-        url: resourceData.url,
-        description: resourceData.description ?? "",
-        resource_type: "link",
-        group_id: groupId,
-        parent_folder_id: resourceData.parentFolderId ?? null
-      });
+  const handleAddResource = async (resourceData) => {
+    if (!activeGroup?.id) {
+      alert("No active group selected");
+      return;
     }
-
-    await loadGroupResources(groupId);
-  } catch (err) {
-    console.error("❌ Error uploading resource:", err);
-  }
-};
-
-
-
+    try {
+      const token = await getToken();
+      const groupId = activeGroup.id;
+      if (resourceData.type === 'file') {
+        await resourceService.uploadFile(token, resourceData.file, groupId, resourceData.description ?? null);
+      }
+      if (resourceData.type === 'link') {
+        await resourceService.createResource(token, {
+          title: resourceData.title,
+          url: resourceData.url,
+          description: resourceData.description ?? "",
+          resource_type: "link",
+          group_id: groupId,
+          parent_folder_id: resourceData.parentFolderId ?? null
+        });
+      }
+      await loadGroupResources(groupId);
+    } catch (err) {
+      console.error("❌ Error uploading resource:", err);
+    }
+  };
 
   const handleDeleteResource = async (resourceId) => {
     if (!confirm('Are you sure you want to delete this resource?')) return;
-    
     try {
       const token = await getToken();
       await resourceService.deleteResource(token, resourceId);
@@ -167,28 +147,22 @@ const handleAddResource = async (resourceData) => {
   };
 
   const handleDeleteGroup = async (groupId) => {
-  if (!confirm("This will permanently delete the group. Are you sure?")) return;
-
-  try {
-    const token = await getToken();
-    await groupService.deleteGroup(token, groupId);
-
-    alert("Group deleted successfully");
-
-    // Refresh groups & reset UI
-    await loadGroups();
-    setActiveGroup(null);
-  } catch (err) {
-    alert(`Failed to delete group: ${err.message}`);
-  }
-};
+    if (!confirm("This will permanently delete the group. Are you sure?")) return;
+    try {
+      const token = await getToken();
+      await groupService.deleteGroup(token, groupId);
+      await loadGroups();
+      setActiveGroup(null);
+    } catch (err) {
+      alert(`Failed to delete group: ${err.message}`);
+    }
+  };
 
   const handleCreateGroup = async () => {
     if (!formData.group_name.trim()) {
       alert("Please enter a group name");
       return;
     }
-
     try {
       setSubmitting(true);
       const token = await getToken();
@@ -199,16 +173,9 @@ const handleAddResource = async (resourceData) => {
         visibility: formData.visibility,
         max_members: formData.max_members ? parseInt(formData.max_members) : null,
       };
-
       const newGroup = await groupService.createGroup(token, groupData);
-      
-      // Reload groups to get updated list
       await loadGroups();
-      
-      // Set the new group as active
       setActiveGroup(newGroup);
-      
-      // Reset form and close modal
       resetForm();
       setModalOpen(false);
       setIsJoinMode(false);
@@ -220,63 +187,39 @@ const handleAddResource = async (resourceData) => {
   };
 
   const handleJoinGroup = async () => {
-  if (!formData.group_name.trim()) {
-    alert("Please enter the group name");
-    return;
-  }
-
-  try {
-    setSubmitting(true);
-    const token = await getToken();
-
-    // 1️⃣ SEARCH GROUP BY NAME (PUBLIC + PRIVATE)
-    const groups = await groupService.getPublicGroups(token, {
-      search: formData.group_name.trim(),
-    });
-
-    if (!groups.length) {
-      alert("No group found with that name");
+    if (!formData.group_name.trim()) {
+      alert("Please enter the group name");
       return;
     }
-
-    const group = groups[0];
-
-    // 2️⃣ JOIN USING group_id + invite_code
-    await groupService.joinGroup(
-      token,
-      group.id,
-      formData.invite_code?.trim() || null
-    );
-
-    await loadGroups();
-    resetForm();
-    setModalOpen(false);
-    setIsJoinMode(false);
-
-    alert("Successfully joined the group!");
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
+    try {
+      setSubmitting(true);
+      const token = await getToken();
+      const groupsFound = await groupService.getPublicGroups(token, { search: formData.group_name.trim() });
+      if (!groupsFound.length) {
+        alert("No group found with that name");
+        return;
+      }
+      const group = groupsFound[0];
+      await groupService.joinGroup(token, group.id, formData.invite_code?.trim() || null);
+      await loadGroups();
+      resetForm();
+      setModalOpen(false);
+      setIsJoinMode(false);
+      alert("Successfully joined the group!");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleLeaveGroup = async (groupId) => {
     if (!confirm("Are you sure you want to leave this group?")) return;
-    
     try {
       const token = await getToken();
       await groupService.leaveGroup(token, groupId);
-      
-      // Reload groups
       await loadGroups();
-      
-      // Clear active group if it was the one we left
-      if (activeGroup?.id === groupId) {
-        setActiveGroup(null);
-      }
-      
+      if (activeGroup?.id === groupId) setActiveGroup(null);
       alert("Successfully left the group");
     } catch (err) {
       alert(`Failed to leave group: ${err.message}`);
@@ -294,471 +237,360 @@ const handleAddResource = async (resourceData) => {
     });
   };
 
+  const handleNavClick = (item) => {
+    if (item === "Dashboard") navigate("/dashboard");
+    if (item === "Groups") navigate("/groups");
+    if (item === "Progress Tracking") navigate("/progress-tracking");
+  };
+
+  // --- UI COMPONENTS ---
+  const NavButton = ({ item }) => {
+    const isActive = location.pathname.includes(item.toLowerCase().replace(" ", "-")) || (item === "Groups" && location.pathname === "/groups");
+    return (
+      <button
+        onClick={() => handleNavClick(item)}
+        className={`px-4 py-2 rounded-full transition-all text-sm font-medium ${
+          isActive
+            ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
+            : "text-gray-700 hover:bg-gray-100"
+        }`}
+      >
+        {item}
+      </button>
+    );
+  };
+
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-gray-600">Loading groups...</p>
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border[#2C76BA] mx-auto mb-4"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* DESKTOP SIDEBAR */}
-      <div className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col">
-        <SidebarContent
-          groups={groups}
-          setActiveGroup={setActiveGroup}
-          activeGroup={activeGroup}
-          navigate={navigate}
-          setModalOpen={setModalOpen}
-          setIsJoinMode={setIsJoinMode}
-        />
-      </div>
+    <div className="min-h-screen bg-white">
+      {/* NAVBAR (Cloned from Dashboard) */}
+      <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg sm:text-xl">S</span>
+              </div>
+              <span className="text-xl font-bold text-gray-900">StudySync</span>
+            </div>
 
-      {/* MOBILE SIDEBAR SLIDEOVER */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <div className="relative w-64 bg-white flex flex-col border-r border-gray-200">
-            <div className="p-6 flex justify-between items-center border-b border-gray-200">
-              <h1 className="text-xl font-bold text-gray-900">Groups</h1>
-              <button onClick={() => setSidebarOpen(false)}>
-                <XMarkIcon className="w-6 h-6 text-gray-600" />
+            <div className="hidden md:flex flex-1 justify-center mx-10">
+              <div className="flex space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
+                {navItems.map((item) => (
+                  <NavButton key={item} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center space-x-2">
+              <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
+                <Cog6ToothIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">Settings</span>
+              </button>
+              <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200">
+                <BellIcon className="w-6 h-6 text-gray-700" />
+              </button>
+              <button onClick={() => navigate("/profile")} className="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
+                <UserIcon className="w-6 h-6 text-gray-700" />
               </button>
             </div>
-            <SidebarContent
-              groups={groups}
-              setActiveGroup={setActiveGroup}
-              activeGroup={activeGroup}
-              navigate={navigate}
-              setModalOpen={setModalOpen}
-              setIsJoinMode={setIsJoinMode}
-            />
+
+            <div className="md:hidden flex items-center">
+              <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-full text-gray-800 hover:bg-gray-100">
+                {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6">
-        <div className="flex items-center justify-between md:hidden mb-4">
-          <button onClick={() => setSidebarOpen(true)}>
-            <Bars3Icon className="w-6 h-6 text-gray-700" />
-          </button>
-          <h1 className="text-xl font-bold">Groups</h1>
-          <button onClick={() => setModalOpen(true)}>
-            <PlusIcon className="w-6 h-6" style={{ color: PRIMARY_BLUE }} />
-          </button>
+        {menuOpen && (
+          <div className="md:hidden px-4 pb-4 space-y-2 border-t border-gray-100 bg-white">
+            <div className="flex flex-col space-y-1 p-2 bg-gray-50 rounded-lg">
+              {navItems.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => { handleNavClick(item); setMenuOpen(false); }}
+                  className={`px-3 py-2 rounded-lg text-left text-base font-medium ${
+                    location.pathname.includes(item.toLowerCase()) ? "bg[#2C76BA] text-white" : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </nav>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {activeGroup ? activeGroup.group_name : "My Groups"}
+          </h1>
+          {!activeGroup && (
+            <button
+              onClick={() => { setModalOpen(true); setIsJoinMode(false); }}
+              className="px-4 py-2 bg-gray-800 text-white rounded-full text-sm font-medium shadow-md hover:bg-gray-900 transition flex items-center gap-2"
+            >
+              <PlusIcon className="w-4 h-4" /> Create / Join
+            </button>
+          )}
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
             {error}
           </div>
         )}
 
-        <div className="flex justify-center">
-          <div className="w-full max-w-5xl">
-            {!activeGroup ? (
-              <>
-                {groups.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-600 mb-4">You haven't joined any groups yet</p>
-                    <button
-                      onClick={() => setModalOpen(true)}
-                      className="px-6 py-3 rounded-lg text-white font-semibold hover:opacity-90"
-                      style={{ backgroundColor: PRIMARY_BLUE }}
-                    >
-                      Create or Join a Group
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {groups.map((group) => (
-                      <div
-                        key={group.id}
-                        onClick={() => setActiveGroup(group)}
-                        className="cursor-pointer rounded-2xl overflow-hidden border border-gray-200 hover:shadow-lg transition"
-                      >
-                        <div
-                          className="h-28 p-4 text-white flex flex-col justify-end"
-                          style={{
-                            background: `linear-gradient(135deg, ${PRIMARY_BLUE}, #5FA8F5)`,
-                          }}
-                        >
-                          <h2 className="text-lg font-semibold">{group.group_name}</h2>
-                          <p className="text-sm opacity-90">
-                            {group.description || "No description"}
-                          </p>
-                        </div>
-                        <div className="p-4 bg-white">
-                          <p className="text-sm text-gray-600">
-                            Members: {group.member_count}
-                          </p>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Type: {group.group_type === "community" ? "Community" : "Leader Controlled"}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+        {!activeGroup ? (
+          /* GROUP GRID VIEW */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {groups.length === 0 ? (
+              <div className="col-span-full text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">You haven't joined any groups yet.</p>
+              </div>
             ) : (
-              <>
-                <button
-                  onClick={() => setActiveGroup(null)}
-                  className="text-blue-600 hover:underline mb-4"
-                  style={{ color: PRIMARY_BLUE }}
-                >
-                  ← Back to Groups
-                </button>
-
+              groups.map((group) => (
                 <div
-                  className="text-white rounded-2xl p-6 mb-6 shadow-lg"
-                  style={{ background: `linear-gradient(135deg, ${PRIMARY_BLUE}, #5FA8F5)` }}
+                  key={group.id}
+                  onClick={() => setActiveGroup(group)}
+                  className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-lg transition cursor-pointer flex flex-col h-full"
                 >
-                  <div className="flex justify-between items-start flex-wrap gap-4">
-                    <div>
-                      <h1 className="text-2xl font-bold">{activeGroup.group_name}</h1>
-                      <p className="opacity-90">{activeGroup.description || "No description"}</p>
-                      <p className="mt-2 text-sm">
-                        {activeGroup.member_count} members •{" "}
-                        {activeGroup.visibility} •{" "}
-                        {activeGroup.group_type === "community" ? "Community" : "Leader Controlled"}
-                      </p>
-                      {activeGroup.invite_code && (
-                        <p className="mt-2 text-sm">
-                          Invite Code: <span className="font-mono font-semibold bg-white/20 px-2 py-1 rounded">{activeGroup.invite_code}</span>
-                        </p>
-                      )}
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                      <UsersIcon className="w-6 h-6 text-gray-600" />
                     </div>
-                    {currentUserIsLeader ? (
-                          <button
-                            onClick={() => handleDeleteGroup(activeGroup.id)}
-                            className="px-3 py-2 bg-white text-red-700 rounded-lg hover:bg-red-100 shadow-md font-medium"
-                          >
-                            Delete Group
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleLeaveGroup(activeGroup.id)}
-                            className="px-3 py-2 bg-white text-red-600 rounded-lg hover:bg-gray-100 shadow-md font-medium"
-                          >
-                            Leave Group
-                          </button>
-                        )}
-
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 px-2 py-1 rounded text-gray-600">
+                      {group.group_type}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-1">{group.group_name}</h3>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
+                    {group.description || "No description provided."}
+                  </p>
+                  <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
+                    <span>{group.member_count} Members</span>
+                    <span className="text[#2C76BA] font-medium">View Group →</span>
                   </div>
                 </div>
-
-                <div className="flex gap-4 mb-4 border-b border-gray-200 flex-wrap">
-                  {["Resources", "Members", "Leaderboard"].map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-4 py-2 -mb-1 font-medium transition ${
-                        activeTab === tab
-                          ? `border-b-2 text-[#2C76BA] font-semibold`
-                          : "text-gray-600 hover:text-[#2C76BA]"
-                      }`}
-                      style={activeTab === tab ? { borderColor: PRIMARY_BLUE } : {}}
-                    >
-                      {tab}
-                    </button>
-                  ))}
+              ))
+            )}
+          </div>
+        ) : (
+          /* ACTIVE GROUP DETAIL VIEW */
+          <div className="flex flex-col gap-6">
+            {/* Header Card */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 relative">
+              <button 
+                onClick={() => setActiveGroup(null)} 
+                className="text-xs font-bold text-gray-400 hover:text-gray-600 mb-4 block"
+              >
+                ← BACK TO ALL GROUPS
+              </button>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{activeGroup.group_name}</h2>
+                  <p className="text-gray-500 mt-1 max-w-2xl">{activeGroup.description}</p>
+                  <div className="flex gap-4 mt-4 text-xs font-medium text-gray-600">
+                    <span className="bg-gray-100 px-3 py-1 rounded-full">{activeGroup.member_count} Members</span>
+                    <span className="bg-gray-100 px-3 py-1 rounded-full capitalize">{activeGroup.visibility}</span>
+                    {activeGroup.invite_code && (
+                      <span className="bg-blue-50 text-blue[#2C76BA] px-3 py-1 rounded-full">Code: {activeGroup.invite_code}</span>
+                    )}
+                  </div>
                 </div>
-
-                {activeTab === "Resources" && (
-  <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
-    {/* Header */}
-    <div className="flex justify-between items-center mb-4">
-      <h2 className="text-lg font-semibold">
-        Group Resources ({resources.length})
-      </h2>
-      <button
-        onClick={() => setAddResourceModalOpen(true)}
-        className="flex items-center gap-1 px-3 py-1 rounded-lg shadow-md text-white hover:opacity-90"
-        style={{ backgroundColor: "#1E1E1E" }}
-      >
-        <PlusIcon className="w-4 h-4" /> Add
-      </button>
-    </div>
-
-    {/* Empty state */}
-    {resources.length === 0 ? (
-      <p className="text-gray-500 text-center py-8">No resources yet. Add some!</p>
-    ) : (
-      <div className="space-y-2">
-        {resources.map((resource) => {
-          const type = resource.resource_type.toLowerCase(); // normalize type
-          let Icon;
-          if (type === "file") Icon = DocumentTextIcon;
-          else if (type === "video") Icon = VideoCameraIcon;
-          else Icon = LinkIcon;
-
-          return (
-            <div
-              key={resource.id}
-              className="flex items-center justify-between border border-gray-200 rounded-lg p-3 hover:shadow-md transition group"
-            >
-              {/* Resource info */}
-              <div className="flex items-center gap-3 flex-1">
-                <Icon className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{resource.title || "Untitled"}</p>
-                  {resource.description && (
-                    <p className="text-sm text-gray-500 truncate">{resource.description}</p>
+                <div className="flex gap-2">
+                  {currentUserIsLeader ? (
+                    <button onClick={() => handleDeleteGroup(activeGroup.id)} className="px-4 py-2 text-sm font-bold text-red-600 border border-red-100 rounded-lg hover:bg-red-50">
+                      Delete
+                    </button>
+                  ) : (
+                    <button onClick={() => handleLeaveGroup(activeGroup.id)} className="px-4 py-2 text-sm font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      Leave
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm px-3 py-1 rounded hover:bg-gray-100"
-                  style={{ color: PRIMARY_BLUE }}
-                >
-                  Open
-                </a>
-                <button
-                  onClick={() => handleDeleteResource(resource.id)}
-                  className="text-sm px-3 py-1 text-red-600 rounded hover:bg-red-50 opacity-0 group-hover:opacity-100 transition"
-                >
-                  Delete
-                </button>
+              {/* Tabs */}
+              <div className="flex gap-6 mt-8 border-b border-gray-100">
+                {["Resources", "Members", "Leaderboard"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`pb-3 text-sm font-bold transition-all ${
+                      activeTab === tab ? "text-gray-900 border-b-2 border-[#2C76BA]" : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
             </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-)}
 
+            {/* Tab Content */}
+            <div className="min-h-[400px]">
+              {activeTab === "Resources" && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-gray-900">Shared Materials</h3>
+                    <button
+                      onClick={() => setAddResourceModalOpen(true)}
+                      className="px-3 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-black transition"
+                    >
+                      <PlusIcon className="w-3 h-3" /> Add Resource
+                    </button>
+                  </div>
+                  
+                  {resources.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400 text-sm">No resources shared yet.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {resources.map((res) => {
+                        const type = res.resource_type.toLowerCase();
+                        let Icon = LinkIcon;
+                        if (type === "file") Icon = DocumentTextIcon;
+                        if (type === "video") Icon = VideoCameraIcon;
 
-                {activeTab === "Members" && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-2 shadow-sm">
-                    <h2 className="text-lg font-semibold mb-4">
-                      Members ({activeGroup.members?.length || 0})
-                    </h2>
-                    {activeGroup.members && activeGroup.members.length > 0 ? (
-                      activeGroup.members.map((member) => (
-                        <div
-                          key={member.user_id}
-                          className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition"
-                        >
-                          <div className="flex items-center gap-3">
-                            <UsersIcon className="w-5 h-5 text-gray-600" />
-                            <div>
-                              <p className="font-medium">{member.username}</p>
-                              <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                        return (
+                          <div key={res.id} className="group flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition">
+                            <div className="flex items-center gap-4">
+                              <div className="p-2 bg-gray-100 rounded-lg text-gray-600 group-hover:bg-white transition">
+                                <Icon className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-gray-900">{res.title || "Untitled"}</h4>
+                                <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <a href={res.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#2C76BA] hover:underline">Open</a>
+                              <button onClick={() => handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
+                                <XMarkIcon className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-                          <span className="text-xs text-gray-400">
-                            {new Date(member.joined_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500">Loading members...</p>
-                    )}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
-                {activeTab === "Leaderboard" && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-6 text-gray-500 shadow-sm">
-                    <p>Leaderboard feature coming soon! 🏆</p>
+              {activeTab === "Members" && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                  <h3 className="font-bold text-gray-900 mb-6">Group Members</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeGroup.members?.map((member) => (
+                      <div key={member.user_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white border border-gray-200 rounded-full flex items-center justify-center">
+                            <UserIcon className="w-4 h-4 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{member.username}</p>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-tighter">{member.role}</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-gray-400">{new Date(member.joined_at).toLocaleDateString()}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
+
+              {activeTab === "Leaderboard" && (
+                <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-20 text-center">
+                  <p className="text-gray-400 font-medium">Leaderboard rankings are being calculated... 🏆</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ADD RESOURCE MODAL */}
+      {/* MODALS */}
       <AddResourceModal
         isOpen={addResourceModalOpen}
         onClose={() => setAddResourceModalOpen(false)}
-        onSubmit={resourceData =>
-          handleAddResource({ ...resourceData, groupId: activeGroup?.id })
-        }
+        onSubmit={resourceData => handleAddResource({ ...resourceData, groupId: activeGroup?.id })}
         groupId={activeGroup?.id}
       />
 
-
-      {/* CREATE/JOIN MODAL */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-xl w-11/12 max-w-md shadow-lg">
-            <h2 className="text-xl font-bold mb-4">
-              {isJoinMode ? "Join a Group" : "Create or Join Group"}
-            </h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[100]">
+          <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">{isJoinMode ? "Join a Community" : "Create a Group"}</h2>
+            
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+               <button onClick={() => setIsJoinMode(false)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${!isJoinMode ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>Create</button>
+               <button onClick={() => setIsJoinMode(true)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${isJoinMode ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>Join</button>
+            </div>
 
-            {!isJoinMode ? (
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setIsJoinMode(false)}
-                  className="flex-1 py-2 rounded-lg font-semibold text-white"
-                  style={{ backgroundColor: PRIMARY_BLUE }}
-                >
-                  Create
-                </button>
-                <button
-                  onClick={() => setIsJoinMode(true)}
-                  className="flex-1 py-2 rounded-lg font-semibold border-2"
-                  style={{ borderColor: PRIMARY_BLUE, color: PRIMARY_BLUE }}
-                >
-                  Join
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsJoinMode(false)}
-                className="text-sm mb-4"
-                style={{ color: PRIMARY_BLUE }}
-              >
-                ← Back to Create
-              </button>
-            )}
-
-            {isJoinMode ? (
-              <>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Group Name *"
+                value={formData.group_name}
+                onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring[#2C76BA] outline-none text-sm transition"
+              />
+              {!isJoinMode ? (
+                <>
+                  <textarea
+                    placeholder="Description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring[#2C76BA] outline-none text-sm h-24 transition"
+                  />
+                  <select
+                    value={formData.group_type}
+                    onChange={(e) => setFormData({ ...formData, group_type: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring[#2C76BA] outline-none text-sm transition"
+                  >
+                    <option value="community">Community (Public Management)</option>
+                    <option value="leader_controlled">Leader Controlled</option>
+                  </select>
+                </>
+              ) : (
                 <input
                   type="text"
-                  placeholder="Group Name"
-                  value={formData.group_name}
-                  onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
-                  className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Invite Code (optional for private groups)"
+                  placeholder="Invite Code (Required for private groups)"
                   value={formData.invite_code}
                   onChange={(e) => setFormData({ ...formData, invite_code: e.target.value })}
-                  className="w-full mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring [#2C76BA] outline-none text-sm transition"
                 />
-              </>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  placeholder="Group Name *"
-                  value={formData.group_name}
-                  onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
-                  className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <textarea
-                  placeholder="Description (optional)"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                />
-                <select
-                  value={formData.group_type}
-                  onChange={(e) => setFormData({ ...formData, group_type: e.target.value })}
-                  className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="community">Community (all can manage)</option>
-                  <option value="leader_controlled">Leader Controlled</option>
-                </select>
-                <select
-                  value={formData.visibility}
-                  onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
-                  className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-                <input
-                  type="number"
-                  placeholder="Max Members (optional)"
-                  value={formData.max_members}
-                  onChange={(e) => setFormData({ ...formData, max_members: e.target.value })}
-                  className="w-full mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </>
-            )}
+              )}
+            </div>
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setModalOpen(false);
-                  setIsJoinMode(false);
-                  resetForm();
-                }}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-                disabled={submitting}
+            <div className="flex gap-3 mt-8">
+              <button 
+                onClick={() => setModalOpen(false)} 
+                className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition"
               >
                 Cancel
               </button>
-              <button
-                onClick={isJoinMode ? handleJoinGroup : handleCreateGroup}
+              <button 
+                onClick={isJoinMode ? handleJoinGroup : handleCreateGroup} 
                 disabled={submitting}
-                className="px-4 py-2 rounded-lg text-white disabled:opacity-50"
-                style={{ backgroundColor: PRIMARY_BLUE }}
+                className="flex-1 py-3 text-sm font-bold bg-gray-800 text-white rounded-xl hover:bg-black transition disabled:opacity-50"
               >
-                {submitting ? "Processing..." : isJoinMode ? "Join" : "Create"}
+                {submitting ? "..." : isJoinMode ? "Join" : "Create"}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-// SIDEBAR CONTENT COMPONENT
-function SidebarContent({ groups, setActiveGroup, activeGroup, navigate, setModalOpen, setIsJoinMode }) {
-  return (
-    <>
-      <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-900">Groups</h1>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {groups.map((group) => (
-          <div
-            key={group.id}
-            onClick={() => setActiveGroup(group)}
-            className={`cursor-pointer px-4 py-3 hover:bg-[#2C76BA]/10 transition ${
-              activeGroup?.id === group.id ? "bg-[#2C76BA]/20 border-r-4 border-[#2C76BA]" : ""
-            }`}
-          >
-            <p className={`text-gray-800 ${activeGroup?.id === group.id ? "font-semibold" : ""}`}>
-              {group.group_name}
-            </p>
-            <p className="text-xs text-gray-500">{group.member_count} members</p>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={() => navigate("/dashboard")}
-        className="p-4 border-t border-gray-200 text-left hover:bg-gray-100 transition font-semibold"
-        style={{ color: PRIMARY_BLUE }}
-      >
-        ← Back to Dashboard
-      </button>
-
-      <button
-        onClick={() => {
-          setModalOpen(true);
-          setIsJoinMode(false);
-        }}
-        className="m-4 px-4 py-2 rounded-lg transition bg-gray-800 text-white flex items-center justify-center gap-2 hover:bg-gray-900"
-      >
-        <PlusIcon className="w-5 h-5" />
-        Create / Join
-      </button>
-    </>
   );
 }
