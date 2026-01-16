@@ -4,6 +4,9 @@ import { useApi } from "../utils/api";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import NotificationPanel from "./NotificationPanel";
+
+
 
 
 
@@ -38,6 +41,9 @@ export default function Dashboard() {
   const { makeRequest } = useApi();
   const navigate = useNavigate();
   const location = useLocation();
+const [showNotifications, setShowNotifications] = useState(false);
+
+
 
   const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
 
@@ -197,13 +203,18 @@ export default function Dashboard() {
 
             {/* Desktop Icons */}
             <div className="hidden md:flex items-center space-x-2">
-              <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
+              {/* <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
                 <Cog6ToothIcon className="w-5 h-5" />
                 <span className="text-sm font-medium">Settings</span>
-              </button>
-              <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200">
-                <BellIcon className="w-6 h-6 text-gray-700" />
-              </button>
+              </button> */}
+            <button
+  onClick={() => setShowNotifications(true)}
+  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
+>
+  <BellIcon className="w-6 h-6 text-gray-700" />
+  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+
               <button
                            onClick={() => navigate("/profile")}
                            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
@@ -246,12 +257,19 @@ export default function Dashboard() {
             </div>
 
             <div className="flex justify-between mt-2 pt-2 border-t border-gray-200">
-              <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
+              {/* <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
                 <Cog6ToothIcon className="w-5 h-5" />
-              </button>
-              <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
-                <BellIcon className="w-6 h-6" />
-              </button>
+              </button> */}
+              
+          <button
+  onClick={() => setShowNotifications(true)}
+  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
+>
+  <BellIcon className="w-6 h-6 text-gray-700" />
+  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+
+
               <button
                onClick={() => navigate("/profile")}
                className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
@@ -356,6 +374,12 @@ export default function Dashboard() {
   </div>
 </div>
 
+{showNotifications && (
+  <NotificationPanel onClose={() => setShowNotifications(false)} />
+)}
+
+
     </div>
+    
   );
 }
