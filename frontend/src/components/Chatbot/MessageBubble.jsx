@@ -17,7 +17,7 @@ const MessageBubble = ({ message, isUser }) => {
         </p>
         <p
           className={`text-xs mt-1 ${
-            isUser ? 'text-gray-700' : 'text-gray-500'
+            isUser ? 'text-gray-400' : 'text-gray-500'
           }`}
         >
           {new Date(message.timestamp).toLocaleTimeString('en-US', {
