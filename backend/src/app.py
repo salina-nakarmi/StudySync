@@ -42,6 +42,3 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
