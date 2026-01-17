@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from schemas.chatbot import ChatRequest, ChatResponse
-from services.chatbot_service import ChatbotService
-from dependencies import get_current_user
+from ..schemas.chatbot import ChatRequest, ChatResponse
+from ..services.chatbot_service import ChatbotService
+from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/api/chatbot", tags=["Chatbot"])
 
