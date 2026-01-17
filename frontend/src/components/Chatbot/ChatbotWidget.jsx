@@ -2,11 +2,14 @@
 
 import React, { useState } from 'react';
 import ChatWindow from './ChatWindow';
+import { useAuth } from '@clerk/clerk-react'; 
 
 const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const { getToken } = useAuth();
 
   const handleSendMessage = async (userMessage) => {
     const userMsg = {
@@ -19,48 +22,47 @@ const ChatbotWidget = () => {
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual API call later
-      await simulateBotResponse(userMessage);
+      // ✨ REPLACE simulateBotResponse with real API call
+      const token = await getToken();
+      
+      const response = await fetch('http://localhost:8000/api/chatbot', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          conversation_history: messages,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const botMsg = {
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+      
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       
       const errorMsg = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: 'Sorry, I encountered an error connecting to the AI. Please try again.',
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Simulate bot response (temporary - will replace with API)
-  const simulateBotResponse = async (userMessage) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    let botResponse = '';
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
-      botResponse = `Hello! 👋 I'm your Study Assistant. How can I help you today?`;
-    } else if (lowerMessage.includes('progress')) {
-      botResponse = `I can see your study progress! You're doing great. Keep it up! 🎯\n\nThis week you've studied 340 minutes across 8 sessions. You're on a 12-day streak!`;
-    } else if (lowerMessage.includes('streak')) {
-      botResponse = `Your current streak is looking good! 🔥 Keep studying daily to maintain it.`;
-    } else if (lowerMessage.includes('task') || lowerMessage.includes('goal')) {
-      botResponse = `Your focus goal today is to finish 3 lab simulation tasks. You're 50% complete - keep going! 📚`;
-    } else {
-      botResponse = `I received your message: "${userMessage}"\n\nI'm still learning, but I'm here to help! Try asking about your progress, streak, or tasks. 😊`;
-    }
-
-    const botMsg = {
-      role: 'assistant',
-      content: botResponse,
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, botMsg]);
   };
 
   return (
