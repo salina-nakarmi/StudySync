@@ -12,6 +12,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "fastapi>=0.118.2",
     "groq>=1.0.0",
+    "openai>=2.15.0",
     "python-dotenv>=1.1.1",
     "python-multipart>=0.0.21",
     "sqlalchemy>=2.0.43",
