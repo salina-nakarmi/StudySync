@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -11,19 +11,22 @@ import {
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Achievement"];
+  
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
+      else if (location.pathname === "/groups") setActiveTab("Groups");
   }, [location.pathname]);
 
   const handleNavClick = (item) => {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     else if (item === "Dashboard") navigate("/dashboard");
+     else if (item === "Groups") navigate("/groups");
   };
 
   const NavButton = ({ item }) => {
@@ -43,7 +46,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
+    <nav className="bg-white fixed top-0 left-0 right-0 z-[9999] shadow-sm pointer-events-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -69,10 +72,17 @@ const Navbar = () => {
               <Cog6ToothIcon className="w-5 h-5" />
               <span className="text-sm font-medium">Settings</span>
             </button>
-            <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200">
-              <BellIcon className="w-6 h-6 text-gray-700" />
+
+            {/* Bell icon (optional notifications) */}
+            <button className="hover:bg-gray-100 rounded-lg p-2">
+              <BellIcon className="w-6 h-6" />
             </button>
-            <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
+
+            {/* User icon navigates to Profile */}
+            <button
+              onClick={() => navigate("/profile")}
+              className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+            >
               <UserIcon className="w-6 h-6 text-gray-700" />
             </button>
           </div>
@@ -115,10 +125,20 @@ const Navbar = () => {
             <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
               <Cog6ToothIcon className="w-5 h-5" />
             </button>
-            <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
-              <BellIcon className="w-6 h-6" />
+
+            {/* Bell icon (optional notifications) */}
+            <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 w-1/3 flex justify-center">
+              <BellIcon className="w-6 h-6 text-gray-700" />
             </button>
-            <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
+
+            {/* User icon navigates to Profile */}
+            <button
+              onClick={() => {
+                navigate("/profile");
+                setMenuOpen(false); // close menu after click
+              }}
+              className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center"
+            >
               <UserIcon className="w-6 h-6" />
             </button>
           </div>

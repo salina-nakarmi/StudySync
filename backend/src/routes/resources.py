@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter,File, UploadFile, Form, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from sqlalchemy import select
@@ -1107,7 +1107,7 @@ async def upload_file(
     
     # Step 8: Commit to database
     await db.commit()
-    
+    await db.refresh(resource) 
     # Step 9: Return resource
     return ResourceResponse(
         **resource.__dict__,
@@ -1171,3 +1171,43 @@ async def delete_resource_permanently(
         raise HTTPException(status_code=404, detail="Resource not found")
     
     await db.commit()
+
+
+@router.post("/debug-upload")
+async def debug_upload(
+    file: UploadFile = File(...),
+    group_id: int = Form(None),
+    description: str = Form(None),
+    parent_folder_id: int = Form(None),
+    db = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Debug endpoint to check if uploaded file and form data reach backend.
+    """
+
+    # Print file info
+    file_content_preview = await file.read()
+    print("=== DEBUG UPLOAD RECEIVED ===")
+    print("File name:", file.filename)
+    print("Content type:", file.content_type)
+    print("File size (bytes):", len(file_content_preview))
+    print("Preview (first 100 bytes):", file_content_preview[:100])
+
+    # Reset file pointer if you want to use it later
+    await file.seek(0)
+
+    # Print form data
+    print("Group ID:", group_id)
+    print("Description:", description)
+    print("Parent folder ID:", parent_folder_id)
+    print("Uploaded by user ID:", current_user.user_id)
+
+    return {
+        "file_name": file.filename,
+        "content_type": file.content_type,
+        "file_size": len(file_content_preview),
+        "group_id": group_id,
+        "description": description,
+        "parent_folder_id": parent_folder_id
+    }

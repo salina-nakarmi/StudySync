@@ -3,6 +3,12 @@ import React, { useState, useEffect } from "react";
 import { useApi } from "../utils/api";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import NotificationPanel from "./NotificationPanel";
+
+
+
+
 
 import {
   Cog6ToothIcon,
@@ -19,6 +25,7 @@ import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
 import ContributionGraph from "../components/ContributionGraph";
+import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
   // ----------------- STATE -----------------
@@ -34,8 +41,11 @@ export default function Dashboard() {
   const { makeRequest } = useApi();
   const navigate = useNavigate();
   const location = useLocation();
+const [showNotifications, setShowNotifications] = useState(false);
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Achievement"];
+
+
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
 
   const screenTimeData = [
     { day: "S", hours: 2 },
@@ -52,6 +62,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
+     else if (location.pathname === "/groups")
+    setActiveTab("Groups"); 
   }, [location.pathname]);
 
   // Fetch dashboard & streak data
@@ -104,6 +116,7 @@ export default function Dashboard() {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     if (item === "Dashboard") navigate("/dashboard");
+      if (item === "Groups") navigate("/groups");
   };
 
   // ----------------- NAV BUTTON COMPONENT -----------------
@@ -165,6 +178,7 @@ export default function Dashboard() {
 
   // ----------------- MAIN RENDER -----------------
   return (
+    
     <div className="min-h-screen bg-white">
       {/* NAVBAR */}
       <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
@@ -189,16 +203,25 @@ export default function Dashboard() {
 
             {/* Desktop Icons */}
             <div className="hidden md:flex items-center space-x-2">
-              <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
+              {/* <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
                 <Cog6ToothIcon className="w-5 h-5" />
                 <span className="text-sm font-medium">Settings</span>
-              </button>
-              <button className="p-2 rounded-full hover:bg-gray-100 border border-gray-200">
-                <BellIcon className="w-6 h-6 text-gray-700" />
-              </button>
-              <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
-                <UserIcon className="w-6 h-6 text-gray-700" />
-              </button>
+              </button> */}
+            <button
+  onClick={() => setShowNotifications(true)}
+  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
+>
+  <BellIcon className="w-6 h-6 text-gray-700" />
+  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+
+              <button
+                           onClick={() => navigate("/profile")}
+                           className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+                         >
+                           <UserIcon className="w-6 h-6 text-gray-700" />
+                         </button>
+                       
             </div>
 
             {/* Mobile Menu Button */}
@@ -234,13 +257,22 @@ export default function Dashboard() {
             </div>
 
             <div className="flex justify-between mt-2 pt-2 border-t border-gray-200">
-              <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
+              {/* <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
                 <Cog6ToothIcon className="w-5 h-5" />
-              </button>
-              <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
-                <BellIcon className="w-6 h-6" />
-              </button>
-              <button className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
+              </button> */}
+              
+          <button
+  onClick={() => setShowNotifications(true)}
+  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
+>
+  <BellIcon className="w-6 h-6 text-gray-700" />
+  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+
+
+              <button
+               onClick={() => navigate("/profile")}
+               className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
                 <UserIcon className="w-6 h-6" />
               </button>
             </div>
@@ -267,30 +299,36 @@ export default function Dashboard() {
         </div>
 
         {/* Timer & Focus Goal */}
-        <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 -mr-7">
-          <PomodoroTimer />
-          <div className="w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
-            <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
-            <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
-            <div className="w-[200px] flex flex-col items-center mt-2">
-              <div className="w-full h-3 bg-gray-200 rounded-2xl">
-                <div className="h-3 bg-[#2C76BA] rounded-2xl" style={{ width: "50%" }}></div>
-              </div>
-              <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-            </div>
-          </div>
-        </div>
-      </div>
+     <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
+  <PomodoroTimer />
+ <div className="w-11/13 sm:w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center h-40 mx-auto">
+  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
+  <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
 
+  <div className="flex flex-col items-center mt-2 w-full">
+    {/* Gray bar */}
+    <div className="w-3/4 sm:w-full h-3 bg-gray-200 rounded-2xl">
+      {/* Blue bar */}
+      <div className="h-3 bg-[#2C76BA] rounded-2xl w-1/4 sm:w-1/2"></div>
+    </div>
+    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
+  </div>
+</div>
+
+</div>
+
+        </div>  
+      
       {/* Calendar, ProgressCard, Shared Links, Tasks */}
       <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
         <CalendarComponent
           streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)}
         />
 
-        <div className="w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5">
-          <ProgressCard screenTime={screenTimeData} title="Progress" />
-        </div>
+      <div className="w-11/12 sm:w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5 mx-auto">
+  <ProgressCard screenTime={screenTimeData} title="Progress" />
+</div>
+
 
         <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
           <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
@@ -321,18 +359,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="p-6">
-          <Mytask />
-        </div>
+  <div className="w-11/12 sm:w-auto p-6 mx-auto">
+  <Mytask />
+</div>
+
+      
       </div>
 
-      {/* Activity Contribution Graph */}
-      <div className="-mt-66 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-        <div className="w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
-          <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
-          <ContributionGraph contributions={contributions} />
-        </div>
-      </div>
+{/* Activity Contribution Graph */}
+<div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
+  <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
+    <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
+    <ContributionGraph contributions={contributions} />
+  </div>
+</div>
+
+{showNotifications && (
+  <NotificationPanel onClose={() => setShowNotifications(false)} />
+)}
+
+
     </div>
+    
   );
 }

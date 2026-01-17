@@ -9,6 +9,14 @@ import SSOCallback from "./auth/SSOCallback.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home.jsx";
 import ProgressTracking from "./pages/ProgressTracking.jsx";
+import Profile from "./pages/Profile.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
+import Groups from "./pages/Groups.jsx";
+//Import Chatbot Widget for global access
+import ChatbotWidget from './components/Chatbot/ChatbotWidget';
+
+
+
 
 
 function App() {
@@ -44,6 +52,22 @@ function App() {
         />
 
         <Route 
+  path="/groups" 
+  element={
+    <>
+      <SignedIn>
+        <Groups />
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  } 
+/>
+
+
+
+        <Route 
   path="/progress-tracking" 
   element={
     <>
@@ -57,6 +81,21 @@ function App() {
   } 
 />
 
+<Route
+  path="/profile"
+  element={
+    <>
+      <SignedIn>
+        <ProfilePage />
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  }
+/>
+
+
 
 
         <Route path="/sign-in/*" element={<AuthenticationPage />} />
@@ -67,7 +106,10 @@ function App() {
         <Route path="/sso-callback" element={<SSOCallback />} />
         
         <Route path="*" element={<RedirectToSignIn />} />
+        
       </Routes>
+      {/* Chatbot Widget - Shows on ALL pages */}
+      <ChatbotWidget />
     </ClerkProviderWithRoutes>
   );
 }

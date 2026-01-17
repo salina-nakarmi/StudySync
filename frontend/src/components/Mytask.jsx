@@ -40,13 +40,9 @@ export default function MyTask() {
   };
 
   // ---------------- TOGGLE COMPLETE ----------------
-  const toggleComplete = (id) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
-  };
+const toggleComplete = (id) => {
+  setTasks(tasks.filter((task) => task.id !== id));
+};
 
   // ---------------- HANDLE ENTER KEY ----------------
   const handleKeyDown = (e) => {

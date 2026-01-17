@@ -80,14 +80,14 @@ export default function Home() {
   {/* Navigate directly to Clerk auth pages */}
   <button
     onClick={() => navigate("/sign-in")}
-    className="px-5 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition"
+    className="ml-9 px-5 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition"
   >
     Login
   </button>
 
   <button
     onClick={() => navigate("/sign-up")}
-    className="px-5 py-2 text-gray-500 font-medium hover:text-gray-900 transition"
+    className=" px-5 py-2 text-gray-500 font-medium hover:text-gray-900 transition"
   >
     Sign Up
   </button>
@@ -153,7 +153,8 @@ export default function Home() {
 
              <button
   onClick={() => navigate("/sign-in")}
-  className="px-8 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition"
+ className="px-8 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white text-base font-medium rounded-lg 
+             hover:from-gray-950 hover:to-gray- transition-all duration-300 transform hover:scale-105"
 >
   Get Started
 </button>
@@ -387,10 +388,10 @@ export default function Home() {
             Ready to Transform Your Study Habits?
           </h2>
           <p className="text-base sm:text-lg text-gray-300 mb-8 sm:mb-10">
-            Join thousands of students already using StudySync to achieve their academic goals.
+            Plan smarter, stay organized, and track your progress with ease.
           </p>
-          <button className="px-8 py-3 bg-white text-gray-900 text-base font-medium rounded-lg hover:bg-gray-100 transition">
-            Start Your Free Trial
+          <button className="px-8 py-3 bg-white text-gray-900  font-bold text-xl rounded-lg hover:bg-gray-100 transition">
+           Sync Your Studies
           </button>
         </div>
       </section>
@@ -429,7 +430,7 @@ export default function Home() {
 
             {/* Company */}
             <div>
-              <h3 className="text-gray-900 font-semibold mb-4">Company</h3>
+              <h3 className="text-gray-900 font-semibold mb-4">About Us</h3>
               <ul className="space-y-3">
                 <li>
                   <a href="#about" className="text-gray-500 hover:text-gray-900 transition text-sm">

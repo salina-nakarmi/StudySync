@@ -30,6 +30,13 @@ async def create_group(
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # DEBUG: Print what we received
+    print("=" * 50)
+    print("Received group_data:")
+    print(f"  group_name: {group_data.group_name}")
+    print(f"  group_type: {group_data.group_type} (type: {type(group_data.group_type)})")
+    print(f"  visibility: {group_data.visibility} (type: {type(group_data.visibility)})")
+    print("=" * 50)
     """
     Create a new group
     

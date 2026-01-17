@@ -43,7 +43,7 @@ export default function PomodoroCircular() {
     .padStart(2, "0")}:${(time % 60).toString().padStart(2, "0")}`;
 
   return (
-    <div className="p-4 px-2 bg-white rounded-2xl border border-gray-200 w-[300px] flex flex-col items-center gap-4 ">
+    <div className="p-4 px-2 bg-white rounded-2xl border border-gray-200 w-[300px] flex flex-col items-center gap-4 h-40 ">
         <h2 className="text-gray-800 font-bold text-lg -mt-2">Flow Timer</h2>
    
      

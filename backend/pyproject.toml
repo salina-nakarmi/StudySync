@@ -11,8 +11,10 @@ dependencies = [
     "cloudinary>=1.44.1",
     "email-validator>=2.3.0",
     "fastapi>=0.118.2",
+    "groq>=1.0.0",
     "python-dotenv>=1.1.1",
     "python-multipart>=0.0.21",
     "sqlalchemy>=2.0.43",
     "uvicorn>=0.37.0",
+    "websocket>=0.2.1",
 ]

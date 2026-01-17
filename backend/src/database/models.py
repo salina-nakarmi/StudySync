@@ -1,4 +1,5 @@
 import enum
+import uuid
 from datetime import datetime
 from .database import Base
 from sqlalchemy.orm import Mapped
@@ -15,7 +16,7 @@ class GroupType(enum.Enum):
     COMMUNITY = "community"  # Any member can manage resources
 
 class GroupVisibility(enum.Enum):
-    PUBLIC = "public"  # Anyone can join
+    PUBLIC = "public" #anyone can join
     PRIVATE = "private"  # Invitation required
 
 class InvitationStatus(enum.Enum):
