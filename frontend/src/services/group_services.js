@@ -16,12 +16,15 @@ const apiCall = async (endpoint, token, options = {}) => {
   const config = {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
       ...options.headers,
     },
   };
-
+  
+  // Don't set Content-Type for FormData - browser will set it with boundary
+  if (!(options.body instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json';
+  }
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
   if (!response.ok) {
@@ -145,6 +148,7 @@ export const groupService = {
   return apiCall("/api/groups/join-by-code", token, {
     method: "POST",
     body: formData, // important: FormData, not JSON
+    headers: {}
   });
   },
 
