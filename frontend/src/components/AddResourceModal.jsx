@@ -116,7 +116,7 @@ export default function AddResourceModal({ isOpen, onClose, onSubmit, groupId })
 
         <button
           onClick={handleSubmit}
-          className="w-full py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          className="w-full py-2 rounded-lg bg-[#1E78CA] text-white hover:bg-[#1664AB]"
         >
           Add Resource
         </button>

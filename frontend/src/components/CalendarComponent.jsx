@@ -36,7 +36,7 @@ export default function CustomCalendar({ streak = 3 }) {
     stripTime(d1).toISOString() === stripTime(d2).toISOString();
 
   return (
-    <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto">
+    <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto sm:item-center">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <h1 className="flex items-center gap-1 font-bold text-gray-800 text-sm">
