@@ -137,6 +137,20 @@ export const groupService = {
   checkResourcePermissions: async (token, groupId) => {
     return apiCall(`/api/groups/${groupId}/can-manage-resources`, token);
   },
+
+  joinGroupByInviteCode: async (token, inviteCode) => {
+  const formData = new FormData();
+  formData.append("invite_code", inviteCode);
+
+  return apiCall("/api/groups/join-by-code", token, {
+    method: "POST",
+    body: formData, // important: FormData, not JSON
+  });
+  },
+
+
 };
+
+
 
 export default groupService;

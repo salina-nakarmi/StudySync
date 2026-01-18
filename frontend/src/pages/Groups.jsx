@@ -133,6 +133,8 @@ const handleAddResource = async (resourceData) => {
         resourceData.description ?? null
       );
     }
+    console.log("Uploading resource to group:", groupId);
+
 
     if (resourceData.type === 'link') {
       await resourceService.createResource(token, {
@@ -220,47 +222,48 @@ const handleAddResource = async (resourceData) => {
   };
 
   const handleJoinGroup = async () => {
-  if (!formData.group_name.trim()) {
-    alert("Please enter the group name");
-    return;
-  }
+  const { invite_code } = formData;
 
   try {
     setSubmitting(true);
     const token = await getToken();
 
-    // 1️⃣ SEARCH GROUP BY NAME (PUBLIC + PRIVATE)
-    const groups = await groupService.getPublicGroups(token, {
-      search: formData.group_name.trim(),
-    });
-
-    if (!groups.length) {
-      alert("No group found with that name");
+    // 1️⃣ PRIVATE GROUP JOIN (invite code only)
+    if (invite_code?.trim()) {
+      await groupService.joinGroupByInviteCode(token, invite_code.trim());
+      await loadGroups();
+      setModalOpen(false);
+      resetForm();
+      alert("Successfully joined the private group!");
       return;
     }
 
-    const group = groups[0];
+    // 2️⃣ PUBLIC GROUPS: list all public groups and let user join
+    const publicGroups = await groupService.getPublicGroups(token);
+    if (publicGroups.length === 0) {
+      alert("No public groups available to join.");
+      return;
+    }
 
-    // 2️⃣ JOIN USING group_id + invite_code
-    await groupService.joinGroup(
-      token,
-      group.id,
-      formData.invite_code?.trim() || null
+    // For demo, pick the first group (replace with a UI list if you like)
+    const groupToJoin = publicGroups[0];
+
+    const confirmJoin = window.confirm(
+      `Join public group "${groupToJoin.group_name}"?`
     );
+    if (!confirmJoin) return;
 
+    await groupService.joinGroup(token, groupToJoin.id);
     await loadGroups();
-    resetForm();
     setModalOpen(false);
-    setIsJoinMode(false);
-
-    alert("Successfully joined the group!");
+    resetForm();
+    alert("Successfully joined the public group!");
   } catch (err) {
-    alert(err.message);
+    alert(`Failed to join group: ${err.message}`);
   } finally {
     setSubmitting(false);
   }
 };
-
 
   const handleLeaveGroup = async (groupId) => {
     if (!confirm("Are you sure you want to leave this group?")) return;

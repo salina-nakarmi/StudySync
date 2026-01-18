@@ -3,7 +3,7 @@ Group management routes
 Handles group CRUD, membership, invitations, and permissions
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException,Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -604,7 +604,7 @@ async def respond_to_invitation(
 
 @router.post("/join-by-code", response_model=dict)
 async def join_group_by_invite(
-    invite_code: str,
+    invite_code: str =  Form(...), 
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
