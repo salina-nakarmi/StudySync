@@ -63,12 +63,12 @@ export const resourceService = {
   },
 
   // Upload file resource
-  uploadFile: async (token, file, groupId = null, description = null) => {
+  uploadFile: async (token, file, groupId, description = null) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('group_id', String(groupId));
     if (description) formData.append('description', description);
-
+    console.log(groupId);
     return apiCall('/api/resources/upload', token, {
       method: 'POST',
       body: formData,

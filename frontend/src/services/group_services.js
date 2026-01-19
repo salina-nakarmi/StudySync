@@ -16,12 +16,15 @@ const apiCall = async (endpoint, token, options = {}) => {
   const config = {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
       ...options.headers,
     },
   };
-
+  
+  // Don't set Content-Type for FormData - browser will set it with boundary
+  if (!(options.body instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json';
+  }
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
   if (!response.ok) {
@@ -137,6 +140,21 @@ export const groupService = {
   checkResourcePermissions: async (token, groupId) => {
     return apiCall(`/api/groups/${groupId}/can-manage-resources`, token);
   },
+
+  joinGroupByInviteCode: async (token, inviteCode) => {
+  const formData = new FormData();
+  formData.append("invite_code", inviteCode);
+
+  return apiCall("/api/groups/join-by-code", token, {
+    method: "POST",
+    body: formData, // important: FormData, not JSON
+    headers: {}
+  });
+  },
+
+
 };
+
+
 
 export default groupService;

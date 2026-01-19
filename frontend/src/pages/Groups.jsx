@@ -108,32 +108,46 @@ export default function Groups() {
     }
   };
 
-  const handleAddResource = async (resourceData) => {
-    if (!activeGroup?.id) {
-      alert("No active group selected");
-      return;
+const handleAddResource = async (resourceData) => {
+  if (!activeGroup?.id) {
+    alert("No active group selected");
+    return;
+  }
+
+  try {
+    const token = await getToken();
+    const groupId = activeGroup.id;
+
+    if (resourceData.type === 'file') {
+      await resourceService.uploadFile(
+        token,
+        resourceData.file,
+        groupId,
+        resourceData.description ?? null
+      );
     }
-    try {
-      const token = await getToken();
-      const groupId = activeGroup.id;
-      if (resourceData.type === 'file') {
-        await resourceService.uploadFile(token, resourceData.file, groupId, resourceData.description ?? null);
-      }
-      if (resourceData.type === 'link') {
-        await resourceService.createResource(token, {
-          title: resourceData.title,
-          url: resourceData.url,
-          description: resourceData.description ?? "",
-          resource_type: "link",
-          group_id: groupId,
-          parent_folder_id: resourceData.parentFolderId ?? null
-        });
-      }
-      await loadGroupResources(groupId);
-    } catch (err) {
-      console.error("❌ Error uploading resource:", err);
+    console.log("Uploading resource to group:", groupId);
+
+
+    if (resourceData.type === 'link') {
+      await resourceService.createResource(token, {
+        title: resourceData.title,
+        url: resourceData.url,
+        description: resourceData.description ?? "",
+        resource_type: "link",
+        group_id: groupId,
+        parent_folder_id: resourceData.parentFolderId ?? null
+      });
     }
-  };
+
+    await loadGroupResources(groupId);
+  } catch (err) {
+    console.error("❌ Error uploading resource:", err);
+  }
+};
+
+
+
 
   const handleDeleteResource = async (resourceId) => {
     if (!confirm('Are you sure you want to delete this resource?')) return;
@@ -187,31 +201,48 @@ export default function Groups() {
   };
 
   const handleJoinGroup = async () => {
-    if (!formData.group_name.trim()) {
-      alert("Please enter the group name");
+  const { invite_code } = formData;
+
+  try {
+    setSubmitting(true);
+    const token = await getToken();
+
+    // 1️⃣ PRIVATE GROUP JOIN (invite code only)
+    if (invite_code?.trim()) {
+      await groupService.joinGroupByInviteCode(token, invite_code.trim());
+      await loadGroups();
+      setModalOpen(false);
+      resetForm();
+      alert("Successfully joined the private group!");
       return;
     }
-    try {
-      setSubmitting(true);
-      const token = await getToken();
-      const groupsFound = await groupService.getPublicGroups(token, { search: formData.group_name.trim() });
-      if (!groupsFound.length) {
-        alert("No group found with that name");
-        return;
-      }
-      const group = groupsFound[0];
-      await groupService.joinGroup(token, group.id, formData.invite_code?.trim() || null);
-      await loadGroups();
-      resetForm();
-      setModalOpen(false);
-      setIsJoinMode(false);
-      alert("Successfully joined the group!");
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSubmitting(false);
+
+    // 2️⃣ PUBLIC GROUPS: list all public groups and let user join
+    const publicGroups = await groupService.getPublicGroups(token);
+    if (publicGroups.length === 0) {
+      alert("No public groups available to join.");
+      return;
     }
-  };
+
+    // For demo, pick the first group (replace with a UI list if you like)
+    const groupToJoin = publicGroups[0];
+
+    const confirmJoin = window.confirm(
+      `Join public group "${groupToJoin.group_name}"?`
+    );
+    if (!confirmJoin) return;
+
+    await groupService.joinGroup(token, groupToJoin.id);
+    await loadGroups();
+    setModalOpen(false);
+    resetForm();
+    alert("Successfully joined the public group!");
+  } catch (err) {
+    alert(`Failed to join group: ${err.message}`);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleLeaveGroup = async (groupId) => {
     if (!confirm("Are you sure you want to leave this group?")) return;

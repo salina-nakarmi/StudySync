@@ -3,7 +3,7 @@ Group management routes
 Handles group CRUD, membership, invitations, and permissions
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException,Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -261,6 +261,32 @@ async def delete_group(
 # ============================================================================
 # MEMBERSHIP ENDPOINTS
 # ============================================================================
+@router.post("/join-by-code", response_model=dict)
+async def join_group_by_invite(
+    invite_code: str = Form(...),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Find group by invite code
+    group = await group_service.get_group_by_invite_code(db, invite_code)
+    if not group:
+        raise HTTPException(status_code=404, detail="Invalid invite code")
+
+    membership = await group_service.join_group(
+        session=db,
+        user_id=current_user.user_id,
+        group_id=group.id,
+        invite_code=invite_code
+    )
+
+    if not membership:
+        raise HTTPException(status_code=400, detail="Cannot join group")
+
+    await db.commit()
+    return {
+        "message": "Successfully joined private group",
+        "group_id": group.id
+    }
 
 @router.post("/{group_id}/join", response_model=dict, status_code=201)
 async def join_group(
@@ -601,6 +627,7 @@ async def respond_to_invitation(
         }
     else:
         return {"message": "Invitation declined"}
+
 
 # ============================================================================
 # UTILITY ENDPOINTS
