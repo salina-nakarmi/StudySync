@@ -3,12 +3,13 @@ from ..schemas.chatbot import ChatRequest, ChatResponse
 from ..services.chatbot_service import ChatbotService
 from ..dependencies import get_current_user
 
-router = APIRouter(prefix="/api/chatbot", tags=["Chatbot"])
+# Remove /api prefix since app.py already adds it
+router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
 @router.post("/", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    current_user: str = Depends(get_current_user)
+    current_user = Depends(get_current_user)  # Returns Users object, not str
 ):
     """
     Simple chatbot endpoint - Just testing Groq connectivity
@@ -19,7 +20,7 @@ async def chat(
     - "what's 2+2"
     """
     try:
-        print(f"📝 User {current_user} asked: {request.message}")
+        print(f"📝 User {current_user.username} asked: {request.message}")
         
         # Create service and get response
         service = ChatbotService()

@@ -25,7 +25,7 @@ const ChatbotWidget = () => {
       // ✨ REPLACE simulateBotResponse with real API call
       const token = await getToken();
       
-      const response = await fetch('http://localhost:8000/api/chatbot', {
+      const response = await fetch('http://localhost:8000/api/chatbot/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
