@@ -20,6 +20,7 @@ from src.database.models import (
     StudySessions,
     Streaks,
     Messages,
+    Replying,
     Notifications
 )
 
@@ -28,7 +29,7 @@ async def init_db():
     print("🔨 Creating database tables...")
     async with engine.begin() as conn:
         # Drop all tables (use with caution!)
-        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)

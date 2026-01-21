@@ -187,15 +187,19 @@ async def get_daily_stats(
         )
     )
     
-    row = result.first()
-    total_seconds = row.total_seconds or 0
+    # Use mappings() to safely access by key
+    row = result.mappings().first()
+    
+    # Handle case where row is None or values are None
+    total_seconds = (row['total_seconds'] if row and row['total_seconds'] else 0)
+    session_count = (row['session_count'] if row and row['session_count'] else 0)
     
     return {
         'date': target_date.isoformat(),
         'total_seconds': total_seconds,
         'total_minutes': total_seconds // 60,
         'total_hours': round(total_seconds / 3600, 2),
-        'session_count': row.session_count or 0
+        'session_count': session_count
     }
 
 async def get_weekly_stats(

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { useApi, useStreaks, useStudySessions } from "../utils/api"; 
+import { useDashboard, useStreaks, useStudySessions } from "../utils/api"; 
 
 import {
   Cog6ToothIcon,
@@ -22,26 +22,22 @@ import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
 import ContributionGraph from "../components/ContributionGraph";
-import { DiVim } from "react-icons/di";
+// import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
+  //react query hooks
+  const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = useDashboard();
+  const { streak, isLoading: streakLoading, error: streakError } = useStreaks();
+  const { todaySummary, isLoading: sessionsLoading } = useStudySessions();
+
   // ----------------- STATE -----------------
   // const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const [dashboardData, setDashboardData] = useState(null);
-  const [streakData, setStreakData] = useState(null);
-  const [todayData, setTodayData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [contributions, setContributions] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
 
   const { user, isLoaded, isSignedIn } = useUser();
-  const { makeRequest } = useApi();
-  const { getMyStreak } = useStreaks();
-  const { getTodaySummary } = useStudySessions(); 
-
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -56,6 +52,10 @@ export default function Dashboard() {
     { day: "S", hours: 1.5 },
   ];
 
+  const refreshDashboard = () => {
+    refetchDashboard();
+  };
+
   // ----------------- EFFECTS -----------------
   // Set active tab based on URL
   useEffect(() => {
@@ -65,48 +65,19 @@ export default function Dashboard() {
     setActiveTab("Groups"); 
   }, [location.pathname]);
 
-  // Fetch dashboard & streak data
+  // set contributions from cached data
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (dashboardData?.contributions) {
+      setContributions(dashboardData.contributions);
+    }
+  }, [dashboardData]);
 
-    let mounted = true;
-
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [dashboard, streak, today] = await Promise.all([
-          makeRequest("dashboard"),
-          getMyStreak(),
-          getTodaySummary(),
-        ]);
-
-        if (mounted) {
-          setDashboardData(dashboard);
-          setStreakData(streak);
-          setTodayData(today);
-          setContributions(dashboard.contributions || []);
-        }
-      } catch (err) {
-        if (mounted) setError(err.message);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-    return () => (mounted = false);
-  }, [isLoaded, isSignedIn, makeRequest, getMyStreak, getTodaySummary]);
+    // ✅ REMOVED: Manual data fetching - React Query auto-fetches
+  // useEffect(() => {
+  //   const fetchData = async () => { ... }
+  // }, [isLoaded, isSignedIn]);
 
   // ----------------- HANDLERS -----------------
-  const refreshDashboard = async () => {
-    const [streak, today] = await Promise.all([
-      getMyStreak(),
-      getTodaySummary(),
-    ]);
-    setStreakData(streak);
-    setTodayData(today);
-  };
-
   const handleNewActivity = (dayIndex) => {
     setContributions((prev) => {
       const updated = [...prev];
@@ -122,8 +93,13 @@ export default function Dashboard() {
     if (item === "Groups") navigate("/groups");
   };
 
-  // ----------------- LOADING / ERROR STATES -----------------
-  if (!isLoaded || loading) {
+  // CHANGED: Use React Query loading states
+  const loading = !isLoaded || dashboardLoading || streakLoading || sessionsLoading;
+  const error = dashboardError || streakError;
+  if (!isSignedIn) return <RedirectToSignIn />;
+
+  // Loading state
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="text-center">
@@ -136,6 +112,7 @@ export default function Dashboard() {
 
   if (!isSignedIn) return <RedirectToSignIn />;
 
+  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -154,7 +131,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!dashboardData || !streakData) {
+  if (!dashboardData || !streak) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <p className="text-gray-600">No data available</p>
@@ -169,35 +146,30 @@ export default function Dashboard() {
       <Navbar />
     
     <div className="min-h-screen bg-white">
-
-
-      {/* MAIN CONTENT */}
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
-     
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
             Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
 
-          {/* ✅ NEW: Show today's study time */}
-          {todayData && (
+            {/* ✅ CHANGED: Use React Query data */}
+            {todaySummary && (
               <p className="text-gray-600 mt-2">
-                Today: {todayData.today.total_minutes} minutes studied
-                {todayData.trend === "up" && " 📈"}
-                {todayData.trend === "down" && " 📉"}
+                Today: {todaySummary.today.total_minutes} minutes studied
+                {todaySummary.trend === "up" && " 📈"}
+                {todaySummary.trend === "down" && " 📉"}
               </p>
             )}
           </div>
 
-
-        {/* Streak Display */}
-        <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
-          <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
-          <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
-          <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
-            {streakData.current_streak}
-          </span>
-        </div>
+          {/* ✅ CHANGED: Use streak from React Query */}
+            <div className="mt-3 w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center relative">
+            <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
+            <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
+            <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
+              {streak?.current_streak || 0}
+            </span>
+          </div>
 
         {/* Timer & Focus Goal */}
      <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
@@ -220,15 +192,12 @@ export default function Dashboard() {
 
         </div>  
       
-      {/* Calendar, ProgressCard, Shared Links, Tasks */}
-      <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-        <CalendarComponent
-          streakDays={[...Array(streakData?.current_streak || 0).keys()].map((i) => i + 1)}
-        />
-
-      <div className="w-11/12 sm:w-[300px] h-[240px] bg-white rounded-2xl border border-gray-200 p-5 mx-auto">
-  <ProgressCard screenTime={screenTimeData} title="Progress" />
-</div>
+        {/* Calendar, ProgressCard, etc. */}
+        <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
+          {/* ✅ CHANGED: Use streak from React Query */}
+          <CalendarComponent
+            streakDays={[...Array(streak?.current_streak || 0).keys()].map((i) => i + 1)}
+          />
 
 
         <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">

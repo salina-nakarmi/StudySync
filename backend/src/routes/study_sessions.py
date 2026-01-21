@@ -499,11 +499,14 @@ async def get_week_summary(
     days_studied = sum(1 for day in week_stats['daily_breakdown'] if day['session_count'] > 0)
     avg_per_day = week_stats['total_minutes'] // 7 if week_stats['total_minutes'] > 0 else 0
     
+    # ✅ FIX: Convert daily_breakdown first, then pass to WeeklyStudyStats
+    week_stats_copy = week_stats.copy()
+    week_stats_copy['daily_breakdown'] = [
+        DailyStudyStats(**day) for day in week_stats['daily_breakdown']
+    ]
+    
     return {
-        "week": WeeklyStudyStats(
-            **week_stats,
-            daily_breakdown=[DailyStudyStats(**day) for day in week_stats['daily_breakdown']]
-        ),
+        "week": WeeklyStudyStats(**week_stats_copy),
         "days_studied": days_studied,
         "average_minutes_per_day": avg_per_day,
         "consistency_percentage": round((days_studied / 7) * 100, 1)

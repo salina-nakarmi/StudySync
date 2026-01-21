@@ -1,11 +1,13 @@
 // UnifiedStudyTimer.jsx - With Real API Integration
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Square, Clock, Zap, Coffee, Trophy } from 'lucide-react';
-import { useStudySessions } from '../utils/api'; // Your API hook
+import { useStudySessions } from '../utils/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function UnifiedStudyTimer({ onSessionComplete, groupId = null }) {
-  // Import API functions
+  // use mutations from api.js
   const { createSession } = useStudySessions();
+  const queryClient = useQueryClient(); // ✅ NEW: For manual refresh
 
   // Constants for different modes
   const MODES = {
@@ -22,7 +24,6 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
   const [sessionStarted, setSessionStarted] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
-  const [isLogging, setIsLogging] = useState(false);
 
   // Timer logic
   useEffect(() => {
@@ -69,51 +70,46 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
     setSessionNotes('');
   };
 
-  const handleEndSession = async () => {
-    if (totalStudied < 60) {
-      alert("Session too short (minimum 1 minute)");
-      return;
-    }
-
-    setIsLogging(true);
-    
-    try {
-      // 🚀 REAL API CALL - Log the session to your backend
-      const session = await createSession({
-        duration_seconds: totalStudied,
-        session_notes: sessionNotes || `${MODES[mode].label} session`,
-        group_id: groupId, // Optional: if studying with a group
-      });
-
-      console.log("✅ Session logged successfully:", session);
-
-      // Call parent callback to refresh dashboard
-      if (onSessionComplete) {
-        onSessionComplete();
+    // ✅ CHANGED: Use mutation instead of manual API call
+    const handleEndSession = async () => {
+      if (totalStudied < 60) {
+        alert("Session too short (minimum 1 minute)");
+        return;
       }
-
-      alert(`Session saved! ${Math.floor(totalStudied / 60)} minutes logged 🎉`);
-      
-      // Reset everything
-      setShowEndModal(false);
-      resetTimer();
-    } catch (error) {
-      console.error("❌ Failed to log session:", error);
-      alert(`Failed to save session: ${error.message}`);
-    } finally {
-      setIsLogging(false);
-    }
-  };
-
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const CurrentIcon = MODES[mode].icon;
-  const progress = ((MODES[mode].time - timeLeft) / MODES[mode].time) * 100;
+  
+      try {
+        await createSession.mutateAsync({
+          duration_seconds: totalStudied,
+          session_notes: sessionNotes || `${MODES[mode].label} session`,
+          group_id: groupId,
+        });
+  
+        console.log("✅ Session logged successfully");
+        
+        // ✅ NEW: Manually invalidate queries to refresh UI
+        queryClient.invalidateQueries(['dashboard']);
+        queryClient.invalidateQueries(['streaks']);
+        queryClient.invalidateQueries(['study-sessions']);
+  
+        alert(`Session saved! ${Math.floor(totalStudied / 60)} minutes logged 🎉`);
+        
+        setShowEndModal(false);
+        resetTimer();
+      } catch (error) {
+        console.error("❌ Failed to log session:", error);
+        alert(`Failed to save session: ${error.message}`);
+      }
+    };
+  
+    const formatTime = (seconds) => {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+  
+    const CurrentIcon = MODES[mode].icon;
+    const progress = ((MODES[mode].time - timeLeft) / MODES[mode].time) * 100;
 
   return (
     <>
@@ -285,17 +281,17 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
                   setShowEndModal(false);
                   setIsRunning(false);
                 }}
-                disabled={isLogging}
+                disabled={createSession.isLoading}
                 className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEndSession}
-                disabled={isLogging}
+                disabled={createSession.isLoading}
                 className="flex-[2] py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isLogging ? (
+                {createSession.isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     Saving...

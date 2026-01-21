@@ -50,7 +50,7 @@ class Users(Base):
     """
     __tablename__ = 'users'
 
-    user_id:Mapped[int]=mapped_column(primary_key=True) # from Clerk
+    user_id:Mapped[str]=mapped_column(primary_key=True) # from Clerk
 
     # Cache these for performance (sync from Clerk on create/update)
     username:Mapped[str]= mapped_column(unique=True, index=True) #index true for faster search
@@ -81,7 +81,7 @@ class Groups(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
      # Creator (first leader)
-    creator_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    creator_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     
     group_name: Mapped[str] = mapped_column(index=True) #creates a "map" that lets the database find that name instantly.
     description: Mapped[str | None]
@@ -112,7 +112,7 @@ class Groupings(Base):
     """
     __tablename__ = 'groupings'
 
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'))
 
     role: Mapped[GroupRole] = mapped_column(Enum(GroupRole), default=GroupRole.MEMBER)
@@ -165,7 +165,7 @@ class Resources(Base):
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
 
-    uploaded_by: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    uploaded_by: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id')) #Optional for private resource tracking as well
 
     url: Mapped[str]
@@ -191,7 +191,7 @@ class ResourceProgress(Base):
     __tablename__ = 'resource_progress'
     
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     resource_id: Mapped[int] = mapped_column(ForeignKey('resources.id'))
     
     # Self-reported status
@@ -224,7 +224,7 @@ class StudySessions(Base):
     __tablename__ = 'study_sessions'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id'))  # Optional: can study without group
     
     # Session details
@@ -243,7 +243,7 @@ class Streaks(Base):
     __tablename__ = 'streaks'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.user_id'), unique=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), unique=True)
 
     current_streak: Mapped[int] = mapped_column(default=0)
     longest_streak: Mapped[int] = mapped_column(default=0)
@@ -261,7 +261,7 @@ class Messages(Base):
     __tablename__='messages'
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
-    user_id:Mapped[int]=mapped_column(ForeignKey('users.user_id'))
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
     group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
     
     content:Mapped[str]
@@ -281,7 +281,7 @@ class Replying(Base):
     __tablename__ = "replying"
     
     id:Mapped[int] = mapped_column(primary_key=True, autoincrement = True)
-    message_id:Mapped[int] = mapped_column(ForeignKey('messages.message_id'))
+    message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
     group_id:Mapped[int] = mapped_column(ForeignKey('groups.id'))
     replied_message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
     replied_to_id:Mapped[int] = mapped_column(ForeignKey('users.user_id'))
@@ -296,7 +296,7 @@ class Notifications(Base):
     __tablename__ = 'notifications'
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
-    user_id:Mapped[int]=mapped_column(ForeignKey('users.user_id'))
+    user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
 
     notification_message:Mapped[str]
     notification_type: Mapped[str]  # e.g., 'invitation', 'mention', 'resource_added'
