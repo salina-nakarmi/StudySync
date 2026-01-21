@@ -127,3 +127,17 @@ export const useStudySessions = () => {
       isLoading: getTodaySummary.isLoading || getWeeklySummary.isLoading,
     };
   };
+
+// ============================================================================
+// NEW: CONTRIBUTIONS
+// ============================================================================
+export const useContributions = () => {
+  const { makeRequest } = useApi();
+
+  return useQuery({
+    queryKey: ['contributions'],
+    queryFn: () => makeRequest('contributions'),
+    // Optional: Configure stale time (how long data stays fresh)
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};

@@ -33,7 +33,6 @@ export default function Dashboard() {
   // ----------------- STATE -----------------
   // const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const [contributions, setContributions] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
 
@@ -65,26 +64,8 @@ export default function Dashboard() {
     setActiveTab("Groups"); 
   }, [location.pathname]);
 
-  // set contributions from cached data
-  useEffect(() => {
-    if (dashboardData?.contributions) {
-      setContributions(dashboardData.contributions);
-    }
-  }, [dashboardData]);
-
-    // ✅ REMOVED: Manual data fetching - React Query auto-fetches
-  // useEffect(() => {
-  //   const fetchData = async () => { ... }
-  // }, [isLoaded, isSignedIn]);
 
   // ----------------- HANDLERS -----------------
-  const handleNewActivity = (dayIndex) => {
-    setContributions((prev) => {
-      const updated = [...prev];
-      updated[dayIndex] = Math.min((updated[dayIndex] || 0) + 1, 4);
-      return updated;
-    });
-  };
 
   const handleNavClick = (item) => {
     setActiveTab(item);
@@ -93,9 +74,10 @@ export default function Dashboard() {
     if (item === "Groups") navigate("/groups");
   };
 
-  // CHANGED: Use React Query loading states
+  //Use React Query loading states
   const loading = !isLoaded || dashboardLoading || streakLoading || sessionsLoading;
   const error = dashboardError || streakError;
+
   if (!isSignedIn) return <RedirectToSignIn />;
 
   // Loading state
@@ -110,7 +92,6 @@ export default function Dashboard() {
     );
   }
 
-  if (!isSignedIn) return <RedirectToSignIn />;
 
   // Error state
   if (error) {
@@ -152,7 +133,7 @@ export default function Dashboard() {
             Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
 
-            {/* ✅ CHANGED: Use React Query data */}
+            {/* Use React Query data */}
             {todaySummary && (
               <p className="text-gray-600 mt-2">
                 Today: {todaySummary.today.total_minutes} minutes studied
@@ -162,7 +143,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ✅ CHANGED: Use streak from React Query */}
+          {/* Use streak from React Query */}
             <div className="mt-3 w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center relative">
             <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
             <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
@@ -194,10 +175,7 @@ export default function Dashboard() {
       
         {/* Calendar, ProgressCard, etc. */}
         <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-          {/* ✅ CHANGED: Use streak from React Query */}
-          <CalendarComponent
-            streakDays={[...Array(streak?.current_streak || 0).keys()].map((i) => i + 1)}
-          />
+          <CalendarComponent/>
 
 
         <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
@@ -240,7 +218,7 @@ export default function Dashboard() {
 <div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
   <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
     <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
-    <ContributionGraph contributions={contributions} />
+    <ContributionGraph/>
   </div>
 </div>
 

@@ -1,15 +1,44 @@
 import React from "react";
+import { useContributios } from "../utils/api";
 
 const ContributionGraph = ({ contributions = [] }) => {
+  //React query hook
+  const { data: contributionsData, isLoading, error } = useContributions();
+
   const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
 
   const getColor = (count) => colors[Math.min(count, colors.length - 1)];
 
   const totalDays = 53 * 7;
+
+  // CHANGED: Use API data instead of prop
+  const contributions = contributionsData?.contributions || [];
   const paddedContributions = Array.from(
     { length: totalDays },
     (_, i) => contributions[i] || 0
   );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="w-full overflow-x-auto">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="w-full overflow-x-auto">
+        <div className="text-center py-12 text-gray-500">
+          <p>Failed to load contributions</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full overflow-x-auto">

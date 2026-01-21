@@ -53,6 +53,7 @@ export default function Groups() {
     (member) => member.role === "leader"
   );
 
+
   // --- LOGIC (UNTOUCHED) ---
   useEffect(() => {
     if (isSignedIn) {
@@ -268,6 +269,10 @@ const handleAddResource = async (resourceData) => {
       invite_code: "",
     });
   };
+
+  // const refreshGroups = () => {
+  //   refetchGroups();
+  // };
 
   const handleNavClick = (item) => {
     if (item === "Dashboard") navigate("/dashboard");

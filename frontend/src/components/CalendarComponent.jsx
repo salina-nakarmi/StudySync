@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useStreaks } from "../utils/api";
 
 
 const getDaysInMonth = (year, month) => {
@@ -15,14 +16,20 @@ const getDaysInMonth = (year, month) => {
 const stripTime = (date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-export default function CustomCalendar({ streak = 3 }) {
+export default function CustomCalendar() {
+    //Use React Query hook
+  const { streak, isLoading } = useStreaks();
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const daysInMonth = getDaysInMonth(
     currentMonth.getFullYear(),
     currentMonth.getMonth()
   );
 
+  //Get streak from API instead of prop
+  const streakCount = streak?.current_streak || 0;
  
+  // Generate streak dates based on current streak
   const streakDates = [];
   const today = new Date();
   for (let i = 0; i < streak; i++) {
@@ -31,9 +38,19 @@ export default function CustomCalendar({ streak = 3 }) {
     streakDates.push(stripTime(d));
   }
 
+
   const todayStr = stripTime(today).toISOString();
   const isSameDay = (d1, d2) =>
     stripTime(d1).toISOString() === stripTime(d2).toISOString();
+
+    // Show loading state
+  if (isLoading) {
+    return (
+      <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex items-center justify-center mx-auto">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto sm:item-center">
