@@ -1,7 +1,7 @@
 import React from "react";
-import { useContributios } from "../utils/api";
+import { useContributions } from "../utils/api";
 
-const ContributionGraph = ({ contributions = [] }) => {
+const ContributionGraph = () => {
   //React query hook
   const { data: contributionsData, isLoading, error } = useContributions();
 

@@ -107,6 +107,7 @@ export const useStudySessions = () => {
         queryClient.invalidateQueries(['study-sessions']);
         queryClient.invalidateQueries(['streaks']);
         queryClient.invalidateQueries(['dashboard']);
+        queryClient.invalidateQueries(['contributions']);
       },
     });
   
@@ -132,12 +133,11 @@ export const useStudySessions = () => {
 // NEW: CONTRIBUTIONS
 // ============================================================================
 export const useContributions = () => {
-  const { makeRequest } = useApi();
+  const { data: dashboardData, isLoading, error } = useDashboard();
 
-  return useQuery({
-    queryKey: ['contributions'],
-    queryFn: () => makeRequest('contributions'),
-    // Optional: Configure stale time (how long data stays fresh)
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  return {
+    data: dashboardData ? { contributions: dashboardData.contributions || [] } : null,
+    isLoading,
+    error,
+  };
 };
