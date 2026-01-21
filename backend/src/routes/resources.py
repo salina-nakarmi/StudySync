@@ -987,12 +987,14 @@ from ..services.upload_service import (
 @router.post("/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: UploadFile = File(...),
-    group_id: Optional[int] = None,
-    description: Optional[str] = None,
-    parent_folder_id: Optional[int] = None,
+    group_id: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    parent_folder_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
+    print("GROUP ID RECEIVED:", group_id)
+
     """
     Upload file to Cloudinary and create resource
     

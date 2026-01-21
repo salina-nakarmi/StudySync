@@ -1,6 +1,7 @@
 from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions
+from .routes import chatbot
 # from .services import socket_services
 
 app = FastAPI(
@@ -12,7 +13,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173","http://127.0.0.1:5173", "http://localhost:5174"], # In production, specify exact origins
+    allow_origins=["http://localhost:5173", "http://localhost:5174"], # In production, specify exact origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -26,6 +27,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(resources.router, prefix="/api")
 app.include_router(groups.router, prefix="/api") 
 app.include_router(study_sessions.router, prefix="/api") 
+app.include_router(chatbot.router, prefix="/api")
 
 
 @app.get("/")
@@ -40,6 +42,3 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()

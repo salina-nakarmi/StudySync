@@ -551,6 +551,16 @@ async def respond_to_invitation(
     await session.flush()
     return membership
 
+async def get_group_by_invite_code(
+    session: AsyncSession,
+    invite_code: str
+):
+    result = await session.execute(
+        select(Groups).where(Groups.invite_code == invite_code)
+    )
+    return result.scalar_one_or_none()
+
+
 # ============================================================================
 # PERMISSION CHECKS
 # ============================================================================
