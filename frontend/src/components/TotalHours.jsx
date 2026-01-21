@@ -9,7 +9,7 @@ const TotalTimeSpent = () => {
   const minutes = totalMinutes % 60;
 
   return (
-    <div className="w-[320px] h-40 bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center">
+    <div className="w-11/12 sm:w-[240px] md:w-[280px] lg:w-[320px] h-40 bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center mx-auto">
       
       {/* Icon */}
       <div className="w-9 h-9 flex items-center justify-center rounded-full bg-black mb-2">
@@ -17,18 +17,14 @@ const TotalTimeSpent = () => {
       </div>
 
       {/* Title */}
-      <h2 className="text-gray-800 font-bold text-lg">
-        Total Time Spent
-      </h2>
+      <h2 className="text-gray-800 font-bold text-lg">Total Time Spent</h2>
 
       {/* Time */}
       <p className="text-2xl font-bold text-black mt-1">
         {hours}h {minutes}m
       </p>
 
-      <p className="text-xs text-gray-500 mt-1">
-        Across entire app
-      </p>
+      <p className="text-xs text-gray-500 mt-1">Across entire app</p>
     </div>
   );
 };

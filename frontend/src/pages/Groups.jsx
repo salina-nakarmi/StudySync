@@ -16,6 +16,7 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 import { groupService } from "../services/group_services";
 import AddResourceModal from "../components/AddResourceModal";
 import { resourceService } from "../services/resource_services";
+import Navbar from "../components/Navbar";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -26,7 +27,7 @@ export default function Groups() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeTab, setActiveTab] = useState("Resources");
   const [modalOpen, setModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false); // For Mobile Nav
+  // const [menuOpen, setMenuOpen] = useState(false); // For Mobile Nav
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [resources, setResources] = useState([]);
@@ -34,7 +35,7 @@ export default function Groups() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
+  // const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
 
   // Form state
   const [formData, setFormData] = useState({
@@ -269,9 +270,11 @@ export default function Groups() {
   }
 
   return (
+     <>
+      <Navbar />
     <div className="min-h-screen bg-white">
       {/* NAVBAR (Cloned from Dashboard) */}
-      <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
+      {/* <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
@@ -327,7 +330,7 @@ export default function Groups() {
             </div>
           </div>
         )}
-      </nav>
+      </nav> */}
 
       {/* MAIN CONTENT AREA */}
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col gap-6">
@@ -592,5 +595,6 @@ export default function Groups() {
         </div>
       )}
     </div>
+    </>
   );
 }
