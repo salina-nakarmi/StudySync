@@ -30,11 +30,12 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [dashboardData, setDashboardData] = useState(null);
   const [streakData, setStreakData] = useState(null);
-  const [todaySummary, setTodaySummary] = useState(null);
+  const [todayData, setTodayData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [contributions, setContributions] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
 
   const { user, isLoaded, isSignedIn } = useUser();
   const { makeRequest } = useApi();
@@ -82,7 +83,7 @@ export default function Dashboard() {
         if (mounted) {
           setDashboardData(dashboard);
           setStreakData(streak);
-          setTodaySummary(today);
+          setTodayData(today);
           setContributions(dashboard.contributions || []);
         }
       } catch (err) {
@@ -103,7 +104,7 @@ export default function Dashboard() {
       getTodaySummary(),
     ]);
     setStreakData(streak);
-    setTodaySummary(today);
+    setTodayData(today);
   };
 
   const handleNewActivity = (dayIndex) => {
@@ -179,11 +180,11 @@ export default function Dashboard() {
           </h1>
 
           {/* ✅ NEW: Show today's study time */}
-          {todaySummary && (
+          {todayData && (
               <p className="text-gray-600 mt-2">
-                Today: {todaySummary.today.total_minutes} minutes studied
-                {todaySummary.trend === "up" && " 📈"}
-                {todaySummary.trend === "down" && " 📉"}
+                Today: {todayData.today.total_minutes} minutes studied
+                {todayData.trend === "up" && " 📈"}
+                {todayData.trend === "down" && " 📉"}
               </p>
             )}
           </div>
