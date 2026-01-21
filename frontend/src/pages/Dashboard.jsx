@@ -1,14 +1,9 @@
 // Dashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useApi } from "../utils/api";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Navbar from "../components/Navbar";
-import NotificationPanel from "./NotificationPanel";
 
-
-
-
+import { useApi, useStreaks, useStudySessions } from "../utils/api"; 
 
 import {
   Cog6ToothIcon,
@@ -19,8 +14,10 @@ import {
 } from "@heroicons/react/24/outline";
 
 import fireIcon from "../assets/fire.png";
+import Navbar from "../components/Navbar";
+import NotificationPanel from "./NotificationPanel";
 import CalendarComponent from "../components/CalendarComponent";
-import PomodoroTimer from "../components/PomodoroTimer";
+import UnifiedStudyTimer from "../components/UnifiedStudyTimer";
 import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
@@ -33,18 +30,19 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [dashboardData, setDashboardData] = useState(null);
   const [streakData, setStreakData] = useState(null);
+  const [todaySummary, setTodaySummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [contributions, setContributions] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const { user, isLoaded, isSignedIn } = useUser();
   const { makeRequest } = useApi();
+  const { getMyStreak } = useStreaks();
+  const { getTodaySummary } = useStudySessions(); 
+
   const navigate = useNavigate();
   const location = useLocation();
-const [showNotifications, setShowNotifications] = useState(false);
-
-
-
 
 
   const screenTimeData = [
@@ -68,42 +66,46 @@ const [showNotifications, setShowNotifications] = useState(false);
 
   // Fetch dashboard & streak data
   useEffect(() => {
-    let isMounted = true;
+    if (!isLoaded || !isSignedIn) return;
 
-    async function fetchData() {
-      if (!isLoaded || !isSignedIn) {
-        setLoading(false);
-        return;
-      }
+    let mounted = true;
 
+    const fetchData = async () => {
       try {
         setLoading(true);
-        setError(null);
-
-        const [dashboard, streak] = await Promise.all([
+        const [dashboard, streak, today] = await Promise.all([
           makeRequest("dashboard"),
-          makeRequest("streaks/me"),
+          getMyStreak(),
+          getTodaySummary(),
         ]);
 
-        if (isMounted) {
+        if (mounted) {
           setDashboardData(dashboard);
           setStreakData(streak);
+          setTodaySummary(today);
           setContributions(dashboard.contributions || []);
-          console.log("✅ Data loaded:", { dashboard, streak });
         }
       } catch (err) {
-        console.error("❌ Data fetch error:", err);
-        if (isMounted) setError(err.message);
+        if (mounted) setError(err.message);
       } finally {
-        if (isMounted) setLoading(false);
+        if (mounted) setLoading(false);
       }
-    }
+    };
 
     fetchData();
-    return () => (isMounted = false);
-  }, [isLoaded, isSignedIn]);
+    return () => (mounted = false);
+  }, [isLoaded, isSignedIn, makeRequest, getMyStreak, getTodaySummary]);
 
   // ----------------- HANDLERS -----------------
+  const refreshDashboard = async () => {
+    const [streak, today] = await Promise.all([
+      getMyStreak(),
+      getTodaySummary(),
+    ]);
+    setStreakData(streak);
+    setTodaySummary(today);
+  };
+
   const handleNewActivity = (dayIndex) => {
     setContributions((prev) => {
       const updated = [...prev];
@@ -116,24 +118,7 @@ const [showNotifications, setShowNotifications] = useState(false);
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     if (item === "Dashboard") navigate("/dashboard");
-      if (item === "Groups") navigate("/groups");
-  };
-
-  // ----------------- NAV BUTTON COMPONENT -----------------
-  const NavButton = ({ item }) => {
-    const isActive = activeTab === item;
-    return (
-      <button
-        onClick={() => handleNavClick(item)}
-        className={`px-4 py-2 rounded-full transition-all text-sm font-medium ${
-          isActive
-            ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
-            : "text-gray-700 hover:bg-gray-100"
-        }`}
-      >
-        {item}
-      </button>
-    );
+    if (item === "Groups") navigate("/groups");
   };
 
   // ----------------- LOADING / ERROR STATES -----------------
@@ -176,6 +161,7 @@ const [showNotifications, setShowNotifications] = useState(false);
     );
   }
 
+
   // ----------------- MAIN RENDER -----------------
   return (
      <>
@@ -191,7 +177,17 @@ const [showNotifications, setShowNotifications] = useState(false);
           <h1 className="text-2xl font-bold text-gray-900">
             Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
-        </div>
+
+          {/* ✅ NEW: Show today's study time */}
+          {todaySummary && (
+              <p className="text-gray-600 mt-2">
+                Today: {todaySummary.today.total_minutes} minutes studied
+                {todaySummary.trend === "up" && " 📈"}
+                {todaySummary.trend === "down" && " 📉"}
+              </p>
+            )}
+          </div>
+
 
         {/* Streak Display */}
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
@@ -204,7 +200,7 @@ const [showNotifications, setShowNotifications] = useState(false);
 
         {/* Timer & Focus Goal */}
      <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
-  <PomodoroTimer />
+     <UnifiedStudyTimer onSessionComplete={refreshDashboard} />
  <div className="w-11/13 sm:w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center h-40 mx-auto">
   <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
   <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
