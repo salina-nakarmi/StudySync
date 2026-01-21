@@ -29,7 +29,7 @@ import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
   // ----------------- STATE -----------------
-  const [menuOpen, setMenuOpen] = useState(false);
+  // const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [dashboardData, setDashboardData] = useState(null);
   const [streakData, setStreakData] = useState(null);
@@ -45,7 +45,7 @@ const [showNotifications, setShowNotifications] = useState(false);
 
 
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
+
 
   const screenTimeData = [
     { day: "S", hours: 2 },
@@ -178,118 +178,22 @@ const [showNotifications, setShowNotifications] = useState(false);
 
   // ----------------- MAIN RENDER -----------------
   return (
+     <>
+      <Navbar />
     
     <div className="min-h-screen bg-white">
-      {/* NAVBAR */}
-      <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg sm:text-xl">S</span>
-              </div>
-              <span className="text-xl font-bold text-gray-900">StudySync</span>
-            </div>
 
-            {/* Desktop Nav */}
-            <div className="hidden md:flex flex-1 justify-center mx-10">
-              <div className="flex space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
-                {navItems.map((item) => (
-                  <NavButton key={item} item={item} />
-                ))}
-              </div>
-            </div>
-
-            {/* Desktop Icons */}
-            <div className="hidden md:flex items-center space-x-2">
-              {/* <button className="flex items-center space-x-2 px-4 py-2 rounded-full text-gray-700 hover:bg-gray-100 border border-gray-200">
-                <Cog6ToothIcon className="w-5 h-5" />
-                <span className="text-sm font-medium">Settings</span>
-              </button> */}
-            <button
-  onClick={() => setShowNotifications(true)}
-  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
->
-  <BellIcon className="w-6 h-6 text-gray-700" />
-  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-</button>
-
-              <button
-                           onClick={() => navigate("/profile")}
-                           className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
-                         >
-                           <UserIcon className="w-6 h-6 text-gray-700" />
-                         </button>
-                       
-            </div>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden flex items-center">
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="p-2 rounded-full text-gray-800 hover:bg-gray-100"
-              >
-                {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Dropdown */}
-        {menuOpen && (
-          <div className="md:hidden px-4 pb-4 space-y-2 border-t border-gray-100 bg-white">
-            <div className="flex flex-col space-y-1 p-2 bg-gray-50 rounded-lg">
-              {navItems.map((item) => (
-                <button
-                  key={item}
-                  onClick={() => {
-                    handleNavClick(item);
-                    setMenuOpen(false);
-                  }}
-                  className={`px-3 py-2 rounded-lg text-left text-base font-medium ${
-                    activeTab === item ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-between mt-2 pt-2 border-t border-gray-200">
-              {/* <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 text-gray-700 w-1/3 justify-center">
-                <Cog6ToothIcon className="w-5 h-5" />
-              </button> */}
-              
-          <button
-  onClick={() => setShowNotifications(true)}
-  className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative"
->
-  <BellIcon className="w-6 h-6 text-gray-700" />
-  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-</button>
-
-
-              <button
-               onClick={() => navigate("/profile")}
-               className="hover:bg-gray-100 rounded-lg p-2 text-gray-700 w-1/3 flex justify-center">
-                <UserIcon className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        )}
-      </nav>
 
       {/* MAIN CONTENT */}
       <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
-        {/* Greeting */}
+     
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
             Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
           </h1>
         </div>
 
-        {/* Streak Badge */}
+        {/* Streak Display */}
         <div className="absolute left-6 sm:left-20 lg:left-40 top-[150px] w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center">
           <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
           <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
@@ -306,9 +210,9 @@ const [showNotifications, setShowNotifications] = useState(false);
   <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
 
   <div className="flex flex-col items-center mt-2 w-full">
-    {/* Gray bar */}
+  
     <div className="w-3/4 sm:w-full h-3 bg-gray-200 rounded-2xl">
-      {/* Blue bar */}
+   
       <div className="h-3 bg-[#2C76BA] rounded-2xl w-1/4 sm:w-1/2"></div>
     </div>
     <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
@@ -381,5 +285,6 @@ const [showNotifications, setShowNotifications] = useState(false);
 
     </div>
     
+    </>
   );
 }

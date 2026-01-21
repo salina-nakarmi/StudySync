@@ -1,7 +1,10 @@
 import React from "react";
 
-const ScreenTimeCard = () => {
-  const data = [
+const ProgressCard = ({ title = "Progress" }) => {
+  const maxHours = 12;
+
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const screenTime = [
     { day: "Sun", hours: 3.5 },
     { day: "Mon", hours: 10.0 },
     { day: "Tue", hours: 9.1 },
@@ -12,63 +15,51 @@ const ScreenTimeCard = () => {
   ];
 
   const todayIndex = new Date().getDay();
-  const today = data[todayIndex];
-  const maxHours = 12;
-
-  const formattedDate = new Date().toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const todayLetter = days[todayIndex];
 
   return (
-    /* Reduced width from 820px to 380px and centered it */
-    <div className="w-full max-w-[600px] h-60 bg-white rounded-2xl border border-gray-200 p-4">
-      
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-gray-700 font-semibold text-sm">Screen Time</p>
-          <p className="text-black font-bold text-lg">
-            {Math.floor(today.hours)}h {Math.round((today.hours % 1) * 60)} min
-          </p>
+    <div className="w-11/12 sm:w-[240px] md:w-[280px] lg:w-[320px] h-60 border border-gray-200 p-5 flex flex-col mx-auto rounded-2xl bg-white">
+      <div className="flex flex-col self-start -ml-3">
+        <h2 className="text-gray-800 font-bold text-lg -mt-2">{title}</h2>
+        <div className="flex items-center gap-2 mt-2">
+          <h3 className="text-gray-800 font-bold text-sm">
+            {screenTime.reduce((a, b) => a + b.hours, 0)}h
+          </h3>
+          <h4 className="text-gray-400 font-medium text-sm">This week</h4>
         </div>
-        <p className="text-gray-400 text-xs">{formattedDate}</p>
       </div>
 
-      {/* Chart - Reduced gaps to fit the smaller width */}
-      <div className="flex justify-between items-end h-[130px] px-2">
-        {data.map((item, index) => {
-          const isToday = index === todayIndex;
-          return (
-            <div key={index} className="flex flex-col items-center">
-              {/* Time label only for today */}
-              {isToday && (
-                <span className="text-orange-500 text-[10px] font-bold mb-1">
-                  {Math.floor(item.hours)}h
+      {/* Bar Chart */}
+      <div className="flex flex-1 items-center justify-center -mt-1 w-full">
+        <div className="flex items-end justify-between w-full gap-0.5 sm:gap-2">
+          {screenTime.map((bar, i) => {
+            const isToday = bar.day === todayLetter;
+            return (
+              <div key={i} className="flex flex-col items-center w-[11%] sm:w-[12%]">
+                <span
+                  className={`text-xs font-bold mb-1 ${
+                    isToday ? "text-orange-500" : "text-gray-700"
+                  }`}
+                >
+                  {bar.hours}h
                 </span>
-              )}
 
-              {/* Bar */}
-              <div
-                className={`w-3 rounded-[4px] ${isToday ? "bg-orange-400" : "bg-gray-900"}`}
-                style={{
-                  height: `${(item.hours / maxHours) * 80}px`,
-                }}
-              />
+                {/* Bar */}
+                <div
+                  className={`w-full rounded-t-sm ${
+                    isToday ? "bg-orange-500" : "bg-gray-900"
+                  }`}
+                  style={{ height: `${(bar.hours / maxHours) * 130}px` }}
+                ></div>
 
-              {/* Dot */}
-              <div
-                className={`w-2.5 h-2.5 rounded-full mt-2 ${isToday ? "bg-orange-400" : "bg-black"}`}
-              />
-
-              {/* Day */}
-              <span className="text-[10px] mt-1 text-gray-500">{item.day[0]}</span>
-            </div>
-          );
-        })}
+                <span className="text-xs mt-2 text-gray-600">{bar.day}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 };
 
-export default ScreenTimeCard;
+export default ProgressCard;
