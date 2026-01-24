@@ -6,13 +6,13 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from datetime import datetime, timedelta
 from ..database.models import Users
-from ..database.models import Users, Streaks, StudySessions, ResourceProgress, Resources
+from ..database.models import Users, Streaks, StudySessions, ResourceProgress, Resources, ResourceStatus
 import os
 
 class ChatbotService:
-    def __init__(self, db: AsyncSession, Users: str):
+    def __init__(self, db: AsyncSession, user: Users):
         self.db = db
-        self.user_id = Users.user_id if Users else None
+        self.user_id = user.user_id if user else None
 
         # Initialize Groq client (uses OpenAI-compatible API)
         self.client = AsyncOpenAI(
@@ -60,7 +60,7 @@ class ChatbotService:
             select(ResourceProgress, Resources)
             .join(Resources)
             .where(ResourceProgress.user_id == self.user_id)
-            .where(ResourceProgress.status == 'in_progress')
+            .where(ResourceProgress.status == ResourceStatus.IN_PROGRESS)
             .limit(5)
         )
         in_progress = progress_result.all()
@@ -69,7 +69,7 @@ class ChatbotService:
         completed_result = await self.db.execute(
             select(func.count(ResourceProgress.id))
             .where(ResourceProgress.user_id == self.user_id)
-            .where(ResourceProgress.status == 'completed')
+            .where(ResourceProgress.status == ResourceStatus.COMPLETED)
             .where(ResourceProgress.completed_at >= week_ago)
         )
         completed_count = completed_result.scalar() or 0
@@ -99,7 +99,7 @@ class ChatbotService:
             "total_study_hours": (user.total_study_time // 3600) if user else 0,
         }
         
-        print(f"✅ Context built: {context['first_name']} - {context['current_streak']} day streak")
+        print(f" Context built: {context['first_name']} - {context['current_streak']} day streak")
         return context
     
     def _build_system_prompt(self, context: dict) -> str:  # ✨ FIXED: typo in function signature
@@ -161,7 +161,7 @@ Avoid generic responses. Always use their actual data!
                         "content": system_prompt
                     },
                     {
-                        "role": "user",  # ✨ FIXED: Should be "user" not "Users"
+                        "role": "user",  
                         "content": user_message
                     }
                 ],
