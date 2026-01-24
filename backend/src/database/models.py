@@ -305,5 +305,29 @@ class Notifications(Base):
     created_at:Mapped[datetime]=mapped_column(default=func.now())  
 
 
+class ChatConversations(Base):
+    """
+    Store chatbot conversation history for personalized AI responses
+    Each message (user + assistant) is stored separately
+    """
+    __tablename__ = 'chat_conversations'
     
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    
+    # Message content
+    role: Mapped[str]  # 'user' or 'assistant'
+    content: Mapped[str]  # The actual message
+    
+    # Optional: Session grouping (for future multi-conversation support)
+    session_id: Mapped[str | None] = mapped_column(index=True)
+    
+    # Metadata
+    tokens_used: Mapped[int | None]  # Track AI token usage
+    model_used: Mapped[str | None]  # Which AI model was used
+    
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+    
+    # For soft deletion (keep history but hide from UI)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
  

@@ -5,20 +5,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
 from sqlalchemy.future import select
 from datetime import datetime, timedelta
+from typing import List, Optional
 from ..database.models import Users
 from ..database.models import Users, Streaks, StudySessions, ResourceProgress, Resources, ResourceStatus
+from .chatbot_conversation_service import ConversationService
 import os
 
 class ChatbotService:
     def __init__(self, db: AsyncSession, user: Users):
         self.db = db
         self.user_id = user.user_id if user else None
+        self.user = user
 
         # Initialize Groq client (uses OpenAI-compatible API)
         self.client = AsyncOpenAI(
             api_key=os.getenv("GROQ_API_KEY"),
             base_url="https://api.groq.com/openai/v1"
         )
+
+        # Initialize conversation service
+        if self.user_id:
+            self.conversation = ConversationService(db, self.user_id)
 
     async def build_user_context(self) -> dict:
         """Query the Database to get user's actual study data"""
@@ -95,14 +102,14 @@ class ChatbotService:
             "in_progress_count": len(in_progress),
             "in_progress_titles": [item.Resources.title for item in in_progress[:3]],
             
-            # Total stats - ✨ FIXED: user not Users
+            # Total stats - 
             "total_study_hours": (user.total_study_time // 3600) if user else 0,
         }
         
         print(f" Context built: {context['first_name']} - {context['current_streak']} day streak")
         return context
     
-    def _build_system_prompt(self, context: dict) -> str:  # ✨ FIXED: typo in function signature
+    def _build_system_prompt(self, context: dict) -> str:  # 
         """Create personalized system prompt based on user context"""
         prompt = f"""You are a helpful and encouraging study assistant for {context['first_name']}.
 
@@ -141,39 +148,87 @@ Avoid generic responses. Always use their actual data!
 """
         return prompt
     
-    async def get_personalized_response(self, user_message: str) -> str:
+    async def get_personalized_response(
+            self, 
+            user_message: str,
+            session_id: Optional[str] = None
+            ) -> tuple[str, str]:
         """
-        Get AI response with user context
+        Get AI response with user context and converstaion history
         """
         try:
+            #get or create session_id
+            if not session_id:
+                session_id = await self.conversation.get_or_create_session_id()
+
+            # Save user message to DB
+            await self.conversation.save_message(
+                role="user",
+                content=user_message,
+                session_id=session_id
+            )
+            
             # Build context from DB
             context = await self.build_user_context()
+
+            #Load recent conversation history
+            history = await self.conversation.get_recent_history(
+                limit=10, #last 5 exchanges 10 message
+                session_id=session_id
+            )
             
             # Create personalized system prompt
             system_prompt = self._build_system_prompt(context)
             
-            # Call Groq API
+            # build messages for AI (system + history + current message)
+            messages = [{"role": "system", "content": system_prompt}]
+
+            # add conversation history (excluding the current message we just saved)
+            for msg in history[:-1]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+            # add current user message
+            messages.append({
+                "role": "user",
+                "content": user_message
+            })
+
+            print(f"💬 Sending to Groq with {len(messages)} messages in context")
+
+            # Call Groq API with full context
             response = await self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",  
-                        "content": user_message
-                    }
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=300
             )
-            
-            # ✨ FIXED: Actually return the response!
-            return response.choices[0].message.content
+
+            assistant_message = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens if hasattr(response, 'usage') else None
+
+            # Save assistant response to DB
+            await self.conversation.save_message(
+                role="assistant",
+                content=assistant_message,
+                session_id=session_id,
+                tokens_used=tokens_used,
+                modle_used="llama-3.3-70b-versatile"
+            )
+
+            #commit all changes to database
+            await self.db.commit()
+
+            print(f"response generated and saved (session: {session_id[:8]}...)")
+
+            return assistant_message, session_id
+        
             
         except Exception as e:
             print(f"❌ Error getting personalized response: {e}")
+            await self.db.rollback()
             raise Exception(f"Failed to get response from AI: {str(e)}")
 
     # Keep the simple version for testing
@@ -192,7 +247,7 @@ Avoid generic responses. Always use their actual data!
                         "content": "You are a helpful and friendly study assistant. Keep responses concise and encouraging."
                     },
                     {
-                        "role": "user",  # ✨ FIXED: Should be "user" not "Users"
+                        "role": "user",  
                         "content": user_message
                     }
                 ],
