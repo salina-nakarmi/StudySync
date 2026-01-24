@@ -32,6 +32,16 @@ const ChatWindow = ({ messages, onSendMessage, onClose, isLoading }) => {
         </div>
         
         <button
+          onClick={() => {
+            setMessages([]);
+            setSessionId(null); // Clear session to start fresh
+          }}
+          className="text-white hover:bg-gray-700 rounded p-2"
+        >
+          🔄 Clear
+        </button>
+
+        <button
           onClick={onClose}
           className="text-white hover:bg-gray-800 rounded-full p-2 transition-colors"
           aria-label="Close chat"

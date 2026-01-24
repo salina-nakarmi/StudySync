@@ -8,6 +8,7 @@ const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
 
   const { getToken } = useAuth();
 
@@ -22,7 +23,6 @@ const ChatbotWidget = () => {
     setIsLoading(true);
 
     try {
-      // ✨ REPLACE simulateBotResponse with real API call
       const token = await getToken();
       
       const response = await fetch('http://localhost:8000/api/chatbot/', {
@@ -33,7 +33,7 @@ const ChatbotWidget = () => {
         },
         body: JSON.stringify({
           message: userMessage,
-          conversation_history: messages,
+          session_id: sessionId,
         }),
       });
 
@@ -43,6 +43,12 @@ const ChatbotWidget = () => {
 
       const data = await response.json();
 
+      // Save session_id from backend response
+      if (data.sessionId && !sessionId) {
+        console.log(`📝 New session started: ${data.session_id}`);
+        setSessionId(data.session_id);
+      }
+      
       const botMsg = {
         role: 'assistant',
         content: data.response,
