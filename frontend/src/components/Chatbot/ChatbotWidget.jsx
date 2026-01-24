@@ -44,11 +44,11 @@ const ChatbotWidget = () => {
       const data = await response.json();
 
       // Save session_id from backend response
-      if (data.sessionId && !sessionId) {
+      if (data.session_id && !sessionId) {
         console.log(`📝 New session started: ${data.session_id}`);
         setSessionId(data.session_id);
       }
-      
+
       const botMsg = {
         role: 'assistant',
         content: data.response,
@@ -70,6 +70,12 @@ const ChatbotWidget = () => {
       setIsLoading(false);
     }
   };
+
+  const handleClearConversation = () => {
+    setMessages([]);
+    setSessionId(null);
+    console.log('🗑️ Conversation cleared and session reset.');
+  }
 
   return (
     <>
@@ -109,6 +115,7 @@ const ChatbotWidget = () => {
             messages={messages}
             onSendMessage={handleSendMessage}
             onClose={() => setIsOpen(false)}
+            onClear={handleClearConversation}
             isLoading={isLoading}
           />
         </div>

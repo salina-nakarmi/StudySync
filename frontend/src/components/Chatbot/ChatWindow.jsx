@@ -4,11 +4,13 @@ import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 
-const ChatWindow = ({ messages, onSendMessage, onClose, isLoading }) => {
+const ChatWindow = ({ messages, onSendMessage, onClose, onClear, isLoading }) => {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
@@ -31,15 +33,17 @@ const ChatWindow = ({ messages, onSendMessage, onClose, isLoading }) => {
           </div>
         </div>
         
-        <button
-          onClick={() => {
-            setMessages([]);
-            setSessionId(null); // Clear session to start fresh
-          }}
-          className="text-white hover:bg-gray-700 rounded p-2"
-        >
-          🔄 Clear
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Clear button */}
+          {messages.length > 0 && onClear && (
+            <button
+              onClick={onClear}
+              className="text-white hover:bg-gray-700 rounded p-2 transition-colors"
+              title="Clear conversation"
+            >
+              🔄
+            </button>
+          )}
 
         <button
           onClick={onClose}
@@ -60,6 +64,7 @@ const ChatWindow = ({ messages, onSendMessage, onClose, isLoading }) => {
             />
           </svg>
         </button>
+        </div> 
       </div>
 
       {/* Messages area */}
