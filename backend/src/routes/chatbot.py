@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from ..schemas.chatbot import ChatRequest, ChatResponse
 from ..services.chatbot_service import ChatbotService
-from ..dependencies import get_current_user
+from ..database.models import Users
+from ..dependencies import get_current_user, get_db
 
 # Remove /api prefix since app.py already adds it
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
@@ -9,28 +12,25 @@ router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 @router.post("/", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    current_user = Depends(get_current_user)  # Returns Users object, not str
+    current_user: Users = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Simple chatbot endpoint - Just testing Groq connectivity
-    
-    Test with:
-    - "tell me a joke"
-    - "hello"
-    - "what's 2+2"
+    Personalized chat endpoint - uses real user data!
     """
     try:
-        print(f"📝 User {current_user.username} asked: {request.message}")
+        user = current_user.username
+        print(f"📝 User {user} asked: {request.message}")
         
         # Create service and get response
-        service = ChatbotService()
-        response = await service.get_simple_response(request.message)
+        service = ChatbotService(db, current_user)
+        response = await service.get_personalized_response(request.message)
         
         print(f"🤖 AI responded: {response[:50]}...")
         
         return ChatResponse(
             response=response,
-            suggestions=["Tell me a joke", "How can you help me?", "What's my progress?"]
+            suggestions=["How's my progress?", "What should I study?", "Show my streak"]
         )
         
     except Exception as e:
@@ -41,14 +41,24 @@ async def chat(
         )
 
 @router.get("/test")
-async def test_groq():
+async def test_groq(
+    current_user: Optional[str] = Depends(lambda: None)
+):
     """
-    Simple test endpoint to verify Groq API key works
-    No authentication needed - just for testing
+    Test endpoint - NO authentication, NO database
     """
     try:
-        service = ChatbotService()
-        response = await service.get_simple_response("Say 'Hello, Groq is working!' in a friendly way")
+        print("🧪 Testing Groq API connection...")
+        # Use simple response (no db needed)
+        service = ChatbotService(None, None)
+        response = await service.get_simple_response("Say hello in a friendly way")
+        print(f"✅ Groq test successful")
         return {"status": "success", "response": response}
     except Exception as e:
+        print(f"❌ Groq test failed: {e}")
         return {"status": "error", "error": str(e)}
+
+@router.get("/health")
+async def chatbot_health():
+    """Health check"""
+    return {"status": "healthy", "service": "chatbot"}
