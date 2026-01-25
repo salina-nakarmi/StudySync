@@ -31,50 +31,45 @@ async def create_resource(
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
-    # check permission
-    if not await resources_service.can_user_upload_resource(
+    # Check permission
+    can_upload = await resources_service.can_user_upload_resource(
         db, current_user.user_id, payload.group_id
-    ):
-        if payload.group_id is None:
-            # This shouldn't happen (personal always allowed)
-            # But good to have defensive check
-            raise HTTPException(
-                status_code=403, 
-                detail="Cannot create personal resources"
-            )
-    else:
-            raise HTTPException(
-                status_code=403,
-                detail="You don't have permission to upload to this group"
-            )
+    )
     
- # Step 2: If group resource, verify group exists
+    if not can_upload:
+        # User does NOT have permission
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to upload to this group"
+        )
+    
+    # If group resource, verify group exists
     if payload.group_id:
         from ..services.group_service import get_group_by_id
         group = await get_group_by_id(db, payload.group_id)
         if not group:
             raise HTTPException(status_code=404, detail="Group not found")
 
-    # Step 3: Create resource (uses Part 2 of service!)
+    # Create resource
     resource = await resources_service.create_resource(
         session=db,
         user_id=current_user.user_id,
         title=payload.title,
         url=payload.url,
         resource_type=payload.resource_type,
-        group_id=payload.group_id,
+        group_id=payload.group_id,  # ← This stays exactly as provided in payload
         description=payload.description,
         parent_folder_id=payload.parent_folder_id,
         file_size=payload.file_size
     )
     
-    # Step 4: Commit transaction
+    # Commit transaction
     await db.commit()
     
-    # Step 5: Return response
+    # Return response
     return ResourceResponse(
         **resource.__dict__,
-        is_personal=(resource.group_id is None)  # Computed field
+        is_personal=(resource.group_id is None)
     )
 
 
