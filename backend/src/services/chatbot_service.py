@@ -173,7 +173,7 @@ Avoid generic responses. Always use their actual data!
 
             #Load recent conversation history
             history = await self.conversation.get_recent_history(
-                limit=10, #last 5 exchanges 10 message
+                limit=30, #last 30 exchanges 15 message
                 session_id=session_id
             )
             
