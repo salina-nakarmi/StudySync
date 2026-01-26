@@ -17,22 +17,7 @@ export const createGroupHandlers = ({
   formData,
   refetch,
 }) => {
-  const loadGroups = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const token = await getToken();
-      const data = await groupService.getMyGroups(token);
-      setGroups(data);
-    } catch (err) {
-      setError(err.message);
-      if (err.message.includes("Not authenticated") || err.message.includes("401")) {
-        navigate("/sign-in");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const loadGroupDetails = async (groupId) => {
     try {
