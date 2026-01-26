@@ -56,9 +56,17 @@ export const resourceService = {
 
   // Create resource (URL/link)
   createResource: async (token, resourceData) => {
+    // Ensure optional integer fields are null instead of string "null" or undefined
+    const payload = {
+      ...resourceData,
+      group_id: resourceData.group_id ?? null,
+      parent_folder_id: resourceData.parent_folder_id ?? null,
+      file_size: resourceData.file_size ?? 0,
+    };
+
     return apiCall('/api/resources', token, {
       method: 'POST',
-      body: JSON.stringify(resourceData),
+      body: JSON.stringify(payload),
     });
   },
 
