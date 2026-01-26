@@ -15,6 +15,7 @@ export const createGroupHandlers = ({
   setIsJoinMode,
   activeGroup,
   formData,
+  refetch,
 }) => {
   const loadGroups = async () => {
     try {
@@ -107,7 +108,7 @@ export const createGroupHandlers = ({
     try {
       const token = await getToken();
       await groupService.deleteGroup(token, groupId);
-      await loadGroups();
+      await refetch();
       setActiveGroup(null);
     } catch (err) {
       alert(`Failed to delete group: ${err.message}`);
@@ -130,7 +131,7 @@ export const createGroupHandlers = ({
         max_members: formData.max_members ? parseInt(formData.max_members) : null,
       };
       const newGroup = await groupService.createGroup(token, groupData);
-      await loadGroups();
+      await refetch();
       setActiveGroup(newGroup);
       resetForm();
       setModalOpen(false);
@@ -152,7 +153,7 @@ export const createGroupHandlers = ({
       // 1️⃣ PRIVATE GROUP JOIN (invite code only)
       if (invite_code?.trim()) {
         await groupService.joinGroupByInviteCode(token, invite_code.trim());
-        await loadGroups();
+        await refetch();
         setModalOpen(false);
         resetForm();
         alert("Successfully joined the private group!");
@@ -175,7 +176,7 @@ export const createGroupHandlers = ({
       if (!confirmJoin) return;
 
       await groupService.joinGroup(token, groupToJoin.id);
-      await loadGroups();
+      await refetch();
       setModalOpen(false);
       resetForm();
       alert("Successfully joined the public group!");
@@ -191,7 +192,7 @@ export const createGroupHandlers = ({
     try {
       const token = await getToken();
       await groupService.leaveGroup(token, groupId);
-      await loadGroups();
+      await refetch();
       if (activeGroup?.id === groupId) setActiveGroup(null);
       alert("Successfully left the group");
     } catch (err) {
@@ -217,7 +218,6 @@ export const createGroupHandlers = ({
   };
 
   return {
-    loadGroups,
     loadGroupDetails,
     loadGroupResources,
     handleAddResource,

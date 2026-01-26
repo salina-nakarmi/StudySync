@@ -13,6 +13,7 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 import AddResourceModal from "../components/AddResourceModal";
 import Navbar from "../components/Navbar";
 import { createGroupHandlers } from "../handlers/groupHandlers";
+import { useGroups } from "../hooks/useGroups";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -22,17 +23,18 @@ export default function Groups() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // use react query hook
+  const {data: groups = [], isLoading, error: queryError, refetch } = useGroups();
+
   // State
-  const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeTab, setActiveTab] = useState("Resources");
   const [modalOpen, setModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [resources, setResources] = useState([]);
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -46,31 +48,27 @@ export default function Groups() {
   const handlers = createGroupHandlers({
     getToken,
     navigate,
-    setGroups,
     setActiveGroup,
     setResources,
-    setLoading,
-    setError,
     setModalOpen,
     setFormData,
     setSubmitting,
     setIsJoinMode,
     activeGroup,
     formData,
+    refetch,
   });
 
   const currentUserIsLeader = activeGroup?.members?.some(
     (member) => member.role === "leader"
   );
 
-  // Effects
+  //set error from query
   useEffect(() => {
-    if (isSignedIn) {
-      handlers.loadGroups();
-    } else {
-      navigate("/sign-in");
+    if (queryError) {
+      setError(queryError.message);
     }
-  }, [isSignedIn]);
+  }, [queryError]);
 
   useEffect(() => {
     if (activeGroup) {
@@ -98,7 +96,7 @@ export default function Groups() {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border[#2C76BA] mx-auto mb-4"></div>
