@@ -339,6 +339,15 @@ export default function Groups() {
                       <option value="community">Community (Public Management)</option>
                       <option value="leader_controlled">Leader Controlled</option>
                     </select>
+
+                     <select
+                      value={formData.visibility}
+                      onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring[#2C76BA] outline-none text-sm transition"
+                    >
+                      <option value="public">Public</option>
+                      <option value="private">Private</option>
+                    </select>
                   </>
                 ) : (
                   <input
