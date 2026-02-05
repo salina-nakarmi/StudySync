@@ -13,29 +13,36 @@ from ..dependencies import get_current_user
 
 
 
-router = APIRouter(prefix="/{user_id}/{group_id}/ws")
+router = APIRouter(prefix="/{user_id}/{group_id}")
 
-connection_manager= ConnectionManager
+connection_manager= ConnectionManager()
 
 
 ROUTES = {
     "load_history":handle_history,
     "send_message":handle_broadcast,
     "typing":handle_typing,
-    "edit": handle_edit
+    "edit": handle_editing
 }
 @router.websocket("/ws")
 async def websocket_endpoint(websocket:WebSocket, group_id: str, user_id: str, db=Depends(get_db)):
     await websocket.accept()
     
-    while True:
 
-        data = await websocket.receive_json() # the json structure will be  JSON{ "action": str, }
-        handler= data.get("action")
-        frontend_data = data.get("payload")
+    try:
+        while True:
+            await connection_manager.connect(websocket,group_id)
+            data = await websocket.receive_json() # the json structure will be  JSON{ "action": str, }
+            action= data.get("action")
+            payload = data.get("payload")
 
-        try:
-            if handler:
-                await response_data = handler(frontend_data, db, websocket)
-       
+        
+        if action in ROUTES:                
+              await  ROUTES[action](payload, db, websocket, group_id) 
+        else:
+              await websocket.send_json({"error"}:"unknown action")
 
+    except WebSocketDisconnect:
+            connection_manager.disconnect(websocket, group_id) 
+            print(f"User{user_id} disconnected from group {group_id}") 
+  
