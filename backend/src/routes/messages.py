@@ -21,7 +21,6 @@ connection_manager= ConnectionManager()
 ROUTES = {
     "load_history":handle_history,
     "send_message":handle_broadcast,
-    "typing":handle_typing,
     "edit": handle_editing,
     "reply":handle_replying,
     "delete":handle_deleting
@@ -39,9 +38,9 @@ async def websocket_endpoint(websocket:WebSocket, group_id: str, user_id: str, d
             payload = data.get("payload")
 
         
-        if action in ROUTES:                
-              await  ROUTES[action](payload, db, websocket, group_id) 
-        else:
+            if action in ROUTES:                
+                await  ROUTES[action](payload, db, websocket, group_id) 
+            else:
                 await websocket.send_json({"error": "Invalid action"})
 
     except WebSocketDisconnect:

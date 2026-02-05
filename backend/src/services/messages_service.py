@@ -27,24 +27,17 @@ class ConnectionManager:
 
     async def broadcast(self, data: Messages, websocket:WebSocket, session: AsyncSession):
       
-       response=StoreMessageRequest ( 
+       response=MessageResponse ( 
                sender_id =data.user_id ,
                group_id = data.group_id,
                type = str(data.message_type),
                content = data.content)
        
        await store_message(response, session)
-       
+       await session.commit()
        if data.group_id in self.active_connections: 
            for connection in self.active_connections[data.group_id]:
              await connection.send_json(response.model_dump())
-       
-
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import WebSocket
-
-from ..database.models import Messages
-from ..schemas.messages import StoreMessageRequest
 
 
 async def handle_broadcast(
@@ -54,15 +47,12 @@ async def handle_broadcast(
     group_id: int,
     connection_manager
 ):
-    # ✅ 1. Validate incoming payload
     frontend_data = StoreMessageRequest(**data)
 
-    # ✅ 2. Safety check (no group spoofing)
     if frontend_data.group_id != group_id:
         await websocket.send_json({"error": "Invalid group"})
         return
 
-    # ✅ 3. Create Messages object (NOT saved yet)
     message = Messages(
         user_id=frontend_data.user_id,
         group_id=frontend_data.group_id,
@@ -70,7 +60,6 @@ async def handle_broadcast(
         message_type=frontend_data.type
     )
 
-    # ✅ 4. Let ConnectionManager handle storage + broadcast
     await connection_manager.broadcast(message, websocket, session)
 
 
