@@ -284,8 +284,8 @@ class Replying(Base):
     message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
     group_id:Mapped[int] = mapped_column(ForeignKey('groups.id'))
     replied_message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
-    replied_to_id:Mapped[int] = mapped_column(ForeignKey('users.user_id'))
-    replied_by_id:Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    replied_to_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    replied_by_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
 
 
 
