@@ -104,7 +104,7 @@ class ConversationService:
             
             # If session exists and is recent (< 1 hour), use it
             if session_msg and \
-               (datetime.now() - session_msg.created_at) < timedelta(hours=24):
+               (datetime.now() - session_msg.created_at) < timedelta(hours=1):
                 print(f"♻️ Using provided session: {provided_session_id[:8]}...")
                 return provided_session_id
         

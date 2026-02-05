@@ -13,7 +13,6 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 import AddResourceModal from "../components/AddResourceModal";
 import Navbar from "../components/Navbar";
 import { createGroupHandlers } from "../handlers/groupHandlers";
-import { useGroups } from "../hooks/useGroups";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -23,18 +22,17 @@ export default function Groups() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // use react query hook
-  const {data: groups = [], isLoading, error: queryError, refetch } = useGroups();
-
   // State
+  const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeTab, setActiveTab] = useState("Resources");
   const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [resources, setResources] = useState([]);
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
-  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -48,27 +46,31 @@ export default function Groups() {
   const handlers = createGroupHandlers({
     getToken,
     navigate,
+    setGroups,
     setActiveGroup,
     setResources,
+    setLoading,
+    setError,
     setModalOpen,
     setFormData,
     setSubmitting,
     setIsJoinMode,
     activeGroup,
     formData,
-    refetch,
   });
 
   const currentUserIsLeader = activeGroup?.members?.some(
     (member) => member.role === "leader"
   );
 
-  //set error from query
+  // Effects
   useEffect(() => {
-    if (queryError) {
-      setError(queryError.message);
+    if (isSignedIn) {
+      handlers.loadGroups();
+    } else {
+      navigate("/sign-in");
     }
-  }, [queryError]);
+  }, [isSignedIn]);
 
   useEffect(() => {
     if (activeGroup) {
@@ -96,7 +98,7 @@ export default function Groups() {
     );
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border[#2C76BA] mx-auto mb-4"></div>
@@ -338,15 +340,6 @@ export default function Groups() {
                     >
                       <option value="community">Community (Public Management)</option>
                       <option value="leader_controlled">Leader Controlled</option>
-                    </select>
-
-                     <select
-                      value={formData.visibility}
-                      onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring[#2C76BA] outline-none text-sm transition"
-                    >
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
                     </select>
                   </>
                 ) : (

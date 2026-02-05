@@ -1,6 +1,6 @@
 // frontend/src/components/Chatbot/ChatbotWidget.jsx
 
-import React, { useState,useEffect } from 'react';
+import React, { useState } from 'react';
 import ChatWindow from './ChatWindow';
 import { useAuth } from '@clerk/clerk-react'; 
 
@@ -8,26 +8,9 @@ const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // load session from local storage on component mount
-  const [sessionId, setSessionId] = useState(() => {
-    const savedSession = localStorage.getItem('chatbot_session_id');
-    if (savedSession) {
-      console.log(`🔄 Restored session from localStorage: ${savedSession.substring(0, 8)}...`);
-      return savedSession;
-    }
-    return null;
-  });
+  const [sessionId, setSessionId] = useState(null);
 
   const { getToken } = useAuth();
-
-  //  Save session to localStorage whenever it changes
-  useEffect(() => {
-    if (sessionId) {
-      localStorage.setItem('chatbot_session_id', sessionId);
-      console.log(`💾 Session saved to localStorage: ${sessionId.substring(0, 8)}...`);
-    }
-  }, [sessionId]);
 
   const handleSendMessage = async (userMessage) => {
     const userMsg = {
@@ -41,8 +24,6 @@ const ChatbotWidget = () => {
 
     try {
       const token = await getToken();
-
-      console.log(`📤 Sending message with session_id: ${sessionId || 'null'}`);
       
       const response = await fetch('http://localhost:8000/api/chatbot/', {
         method: 'POST',
@@ -63,15 +44,10 @@ const ChatbotWidget = () => {
       const data = await response.json();
 
       // Save session_id from backend response
-      if (data.session_id) {
-        if (!sessionId) {
-          console.log(`📝 New session started: ${data.session_id.substring(0, 8)}...`);
-        } else if (data.session_id !== sessionId) {
-          console.log(`🔄 Session changed: ${data.session_id.substring(0, 8)}...`);
-        }
+      if (data.session_id && !sessionId) {
+        console.log(`📝 New session started: ${data.session_id}`);
         setSessionId(data.session_id);
       }
-
 
       const botMsg = {
         role: 'assistant',
@@ -98,7 +74,6 @@ const ChatbotWidget = () => {
   const handleClearConversation = () => {
     setMessages([]);
     setSessionId(null);
-    localStorage.removeItem('chatbot_session_id'); //clear from local storage too
     console.log('🗑️ Conversation cleared and session reset.');
   }
 
