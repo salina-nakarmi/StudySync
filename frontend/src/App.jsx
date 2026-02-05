@@ -12,6 +12,7 @@ import ProgressTracking from "./pages/ProgressTracking.jsx";
 import Profile from "./pages/Profile.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import Groups from "./pages/Groups.jsx";
+import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
 
@@ -108,6 +109,7 @@ function App() {
         <Route path="*" element={<RedirectToSignIn />} />
         
       </Routes>
+      <UnifiedStudyTimer/>
       {/* Chatbot Widget - Shows on ALL pages */}
       <ChatbotWidget />
     </ClerkProviderWithRoutes>

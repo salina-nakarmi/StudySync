@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Play, Pause, Square, Clock, Zap, Coffee, Trophy } from 'lucide-react';
 import { useStudySessions } from '../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
+import { Minus, Maximize2 } from 'lucide-react';
+
 
 export default function UnifiedStudyTimer({ onSessionComplete, groupId = null }) {
   const { createSession } = useStudySessions();
@@ -36,6 +38,8 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
   const [mode, setMode] = useState(savedState?.mode || 'POMO');
   const [timeLeft, setTimeLeft] = useState(savedState?.timeLeft || MODES.POMO.time);
   const [isRunning, setIsRunning] = useState(false); // Always start paused after refresh
+  const [isMinimized, setIsMinimized] = useState(false);
+
   const [totalStudied, setTotalStudied] = useState(savedState?.totalStudied || 0);
   const [sessionStarted, setSessionStarted] = useState(savedState?.sessionStarted || false);
   const [showEndModal, setShowEndModal] = useState(false);
@@ -159,118 +163,139 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
 
   return (
     <>
-      {/* Main Timer Widget */}
+      {/* Floating Timer Container */}
       <div className="fixed bottom-6 right-6 z-40">
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-80">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
-              <h3 className="font-bold text-gray-800">Study Hub</h3>
+        {/* ================= FULL TIMER ================= */}
+        {!isMinimized && (
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-80">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                  }`}
+                ></div>
+                <h3 className="font-bold text-gray-800">Study Hub</h3>
+              </div>
+  
+              {/* Minimize Button */}
+              <button
+                onClick={() => setIsMinimized(true)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
             </div>
-            <span className="text-xs font-bold px-3 py-1 bg-green-100 text-green-700 rounded-full">
-              {Math.floor(totalStudied / 60)}m logged
-            </span>
-          </div>
-
-          {/* Mode Selector */}
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {Object.keys(MODES).map((m) => {
-              const ModeIcon = MODES[m].icon;
-              return (
-                <button
-                  key={m}
-                  onClick={() => switchMode(m)}
-                  className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    mode === m 
-                      ? `${MODES[m].color} text-white shadow-lg scale-105` 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+  
+            {/* Mode Selector */}
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {Object.keys(MODES).map((m) => {
+                const ModeIcon = MODES[m].icon;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => switchMode(m)}
+                    className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                      mode === m
+                        ? `${MODES[m].color} text-white shadow-lg scale-105`
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <ModeIcon className="w-3.5 h-3.5" />
+                    {MODES[m].label}
+                  </button>
+                );
+              })}
+            </div>
+  
+            {/* Timer Display */}
+            <div className="relative mb-6">
+              <div className="flex flex-col items-center justify-center py-6">
+                <div className={`mb-3 p-3 rounded-full ${MODES[mode].color} bg-opacity-10`}>
+                  <CurrentIcon className={`w-6 h-6 ${MODES[mode].color.replace('bg-', 'text-')}`} />
+                </div>
+  
+                <div
+                  className={`text-5xl font-mono font-bold mb-2 ${
+                    isRunning ? 'text-gray-800' : 'text-gray-400'
                   }`}
                 >
-                  <ModeIcon className="w-3.5 h-3.5" />
-                  {MODES[m].label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Timer Display */}
-          <div className="relative mb-6">
-            <div className="flex flex-col items-center justify-center py-6">
-              {/* Icon */}
-              <div className={`mb-3 p-3 rounded-full ${MODES[mode].color} bg-opacity-10`}>
-                <CurrentIcon className={`w-6 h-6 ${MODES[mode].color.replace('bg-', 'text-')}`} />
+                  {formatTime(timeLeft)}
+                </div>
+  
+                <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">
+                  {MODES[mode].label}
+                </p>
               </div>
-              
-              {/* Time */}
-              <div className={`text-5xl font-mono font-bold mb-2 transition-colors ${
-                isRunning ? 'text-gray-800' : 'text-gray-400'
-              }`}>
-                {formatTime(timeLeft)}
+  
+              <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
+                <div
+                  className={`h-2 rounded-full transition-all duration-1000 ${MODES[mode].color}`}
+                  style={{ width: `${progress}%` }}
+                ></div>
               </div>
-              
-              {/* Mode Label */}
-              <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">
-                {MODES[mode].label}
-              </p>
             </div>
-
-            {/* Progress Bar */}
-            <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
-              <div 
-                className={`h-2 rounded-full transition-all duration-1000 ${MODES[mode].color}`}
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => { 
-                setIsRunning(!isRunning); 
-                if (!sessionStarted) setSessionStarted(true);
-              }}
-              className={`flex-[2] py-3 rounded-xl font-bold text-white transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                isRunning 
-                  ? 'bg-orange-500 hover:bg-orange-600' 
-                  : 'bg-gray-800 hover:bg-gray-900'
-              }`}
-            >
-              {isRunning ? (
-                <>
-                  <Pause className="w-4 h-4" />
-                  PAUSE
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  START
-                </>
-              )}
-            </button>
-            
-            {sessionStarted && (
+  
+            {/* Controls */}
+            <div className="flex gap-3">
               <button
-                onClick={() => setShowEndModal(true)}
-                className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold transition-all flex items-center justify-center"
+                onClick={() => {
+                  setIsRunning(!isRunning);
+                  if (!sessionStarted) setSessionStarted(true);
+                }}
+                className={`flex-[2] py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                  isRunning
+                    ? 'bg-orange-500 hover:bg-orange-600'
+                    : 'bg-gray-800 hover:bg-gray-900'
+                }`}
               >
-                <Square className="w-4 h-4" />
+                {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {isRunning ? 'PAUSE' : 'START'}
               </button>
+  
+              {sessionStarted && (
+                <button
+                  onClick={() => setShowEndModal(true)}
+                  className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold flex items-center justify-center"
+                >
+                  <Square className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+  
+            {/* Quick Stats */}
+            {totalStudied > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Session time:</span>
+                  <span className="font-bold">{formatTime(totalStudied)}</span>
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Quick Stats */}
-          {totalStudied > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex justify-between text-xs text-gray-600">
-                <span>Session time:</span>
-                <span className="font-bold">{formatTime(totalStudied)}</span>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
+  
+        {/* ================= MINI TIMER ================= */}
+        {isMinimized && (
+          <button
+            onClick={() => setIsMinimized(false)}
+            className="flex items-center gap-3 bg-gray-900 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-all"
+          >
+            <CurrentIcon className="w-5 h-5" />
+  
+            <span className="font-mono text-sm">
+              {formatTime(timeLeft)}
+            </span>
+  
+            {isRunning && (
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+            )}
+          </button>
+        )}
       </div>
+  
 
       {/* End Session Modal */}
       {showEndModal && (

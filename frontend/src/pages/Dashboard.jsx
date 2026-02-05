@@ -21,7 +21,7 @@ import UnifiedStudyTimer from "../components/UnifiedStudyTimer";
 import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
-import ContributionGraph from "../components/ContributionGraph";
+// import ContributionGraph from "../components/ContributionGraph";
 // import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
@@ -214,13 +214,13 @@ export default function Dashboard() {
       
       </div>
 
-{/* Activity Contribution Graph */}
+{/* Activity Contribution Graph
 <div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
   <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
     <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
     <ContributionGraph/>
   </div>
-</div>
+</div> */}
 
 {showNotifications && (
   <NotificationPanel onClose={() => setShowNotifications(false)} />
