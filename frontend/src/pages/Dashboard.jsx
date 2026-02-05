@@ -21,7 +21,7 @@ import UnifiedStudyTimer from "../components/UnifiedStudyTimer";
 import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
-import ContributionGraph from "../components/ContributionGraph";
+// import ContributionGraph from "../components/ContributionGraph";
 // import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
@@ -144,13 +144,13 @@ export default function Dashboard() {
           </div>
 
           {/* Use streak from React Query */}
-            <div className="mt-3 w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center relative">
-            <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
-            <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
-            <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
-              {streak?.current_streak || 0}
-            </span>
-          </div>
+         <div className="absolute -left-197 top-16 mt-3 w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center relative">
+  <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
+  <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
+  <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
+    {streak?.current_streak || 0}
+  </span>
+</div>
 
         {/* Timer & Focus Goal */}
      <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
@@ -214,13 +214,13 @@ export default function Dashboard() {
       
       </div>
 
-{/* Activity Contribution Graph */}
+{/* Activity Contribution Graph
 <div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
   <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
     <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
     <ContributionGraph/>
   </div>
-</div>
+</div> */}
 
 {showNotifications && (
   <NotificationPanel onClose={() => setShowNotifications(false)} />

@@ -1,94 +1,269 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// ============================================================================
+// FIXED Resource Service
+// frontend/src/services/resource_services.js
+// ============================================================================
 
-const apiCall = async (endpoint, token, options = {}) => {
-  if (!token) {
-    throw new Error('Not authenticated - please sign in');
-  }
-  console.log('📤 Sending request:', {
-    url: `${API_BASE_URL}${endpoint}`,
-    method: options.method || 'GET',
-    body: options.body,
-  });
-  const config = {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      'Authorization': `Bearer ${token}`,
-    },
-  };
-
-  // Don't set Content-Type for FormData - browser will set it with boundary
-  if (!(options.body instanceof FormData)) {
-    config.headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('Not authenticated - please sign in');
-    }
-    
-    const error = await response.json().catch(() => ({ 
-      detail: `HTTP error! status: ${response.status}` 
-    }));
-    throw new Error(error.detail || 'An error occurred');
-  }
-  
-  if (response.status === 204) {
-    return null;
-  }
-  
-  return response.json();
-};
+const API_BASE = "http://localhost:8000/api";
 
 export const resourceService = {
-  // Get group resources
-  getGroupResources: async (token, groupId, params = {}) => {
-    const queryString = new URLSearchParams(
-      Object.entries(params).filter(([_, v]) => v != null)
-    ).toString();
-    return apiCall(
-      `/api/resources/group/${groupId}${queryString ? `?${queryString}` : ''}`,
-      token
-    );
-  },
+  // ========================================================================
+  // CREATE - Upload File (FIXED VERSION)
+  // ========================================================================
+  uploadFile: async (token, file, groupId, description = null, parentFolderId = null) => {
+    console.log("=" . repeat(60));
+    console.log("📤 UPLOADING FILE");
+    console.log("File:", file?.name);
+    console.log("Group ID:", groupId, "Type:", typeof groupId);
+    console.log("Description:", description);
+    console.log("=" . repeat(60));
 
-  // Create resource (URL/link)
-  createResource: async (token, resourceData) => {
-    return apiCall('/api/resources', token, {
-      method: 'POST',
-      body: JSON.stringify(resourceData),
-    });
-  },
-
-  // Upload file resource
-  uploadFile: async (token, file, groupId, description = null) => {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('group_id', String(groupId));
-    if (description) formData.append('description', description);
-    console.log(groupId);
-    return apiCall('/api/resources/upload', token, {
-      method: 'POST',
+    formData.append("file", file);
+    
+    // ⚠️ CRITICAL FIX: Convert null to string "null"
+    // Backend expects string "null" for personal resources
+    formData.append("group_id", groupId === null ? "null" : String(groupId));
+    
+    if (description) {
+      formData.append("description", description);
+    }
+    
+    if (parentFolderId) {
+      formData.append("parent_folder_id", String(parentFolderId));
+    }
+
+    // Debug: Log FormData contents
+    console.log("📦 FormData contents:");
+    for (let pair of formData.entries()) {
+      console.log(`  ${pair[0]}:`, pair[1]);
+    }
+
+    const response = await fetch(`${API_BASE}/resources/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // ⚠️ DO NOT set Content-Type - browser sets it automatically with boundary
+      },
       body: formData,
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+      console.error("❌ Upload failed:", error);
+      throw new Error(error.detail || "Upload failed");
+    }
+
+    const result = await response.json();
+    console.log("✅ Upload successful:", result);
+    return result;
   },
 
-  // Delete resource
-  deleteResource: async (token, resourceId) => {
-    return apiCall(`/api/resources/${resourceId}`, token, {
-      method: 'DELETE',
+  // ========================================================================
+  // CREATE - Link Resource
+  // ========================================================================
+  createResource: async (token, resourceData) => {
+    console.log("🔗 Creating link resource:", resourceData);
+    
+    const response = await fetch(`${API_BASE}/resources`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(resourceData),
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to create resource" }));
+      throw new Error(error.detail);
+    }
+
+    return response.json();
   },
 
-  // Update resource
+  // ========================================================================
+  // READ - Get Personal Resources
+  // ========================================================================
+  getPersonalResources: async (token, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const response = await fetch(`${API_BASE}/resources/personal?${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch personal resources");
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
+  // READ - Get Group Resources
+  // ========================================================================
+  getGroupResources: async (token, groupId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const response = await fetch(`${API_BASE}/resources/group/${groupId}?${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch group resources");
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
+  // READ - Get Single Resource
+  // ========================================================================
+  getResource: async (token, resourceId) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch resource");
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
+  // UPDATE - Modify Resource
+  // ========================================================================
   updateResource: async (token, resourceId, updateData) => {
-    return apiCall(`/api/resources/${resourceId}`, token, {
-      method: 'PATCH',
+    const response = await fetch(`${API_BASE}/resources/${resourceId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(updateData),
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Update failed" }));
+      throw new Error(error.detail);
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
+  // DELETE - Remove Resource
+  // ========================================================================
+  deleteResource: async (token, resourceId) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete resource");
+    }
+
+    // 204 No Content - no body to parse
+    return true;
+  },
+
+  // ========================================================================
+  // PROGRESS TRACKING
+  // ========================================================================
+  updateProgress: async (token, resourceId, progressData) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(progressData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to update progress" }));
+      throw new Error(error.detail);
+    }
+
+    return response.json();
+  },
+
+  getMyProgress: async (token, resourceId) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch progress");
+    }
+
+    return response.json();
+  },
+
+  getAllMyProgress: async (token, status = null) => {
+    const query = status ? `?status=${status}` : "";
+    const response = await fetch(`${API_BASE}/resources/my-progress${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch progress list");
+    }
+
+    return response.json();
+  },
+
+  markCompleted: async (token, resourceId, notes = null) => {
+    const query = notes ? `?notes=${encodeURIComponent(notes)}` : "";
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/mark-completed${query}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to mark as completed");
+    }
+
+    return response.json();
+  },
+
+  markStarted: async (token, resourceId, notes = null) => {
+    const query = notes ? `?notes=${encodeURIComponent(notes)}` : "";
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/mark-started${query}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to mark as started");
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
+  // STATISTICS
+  // ========================================================================
+  getMyStats: async (token) => {
+    const response = await fetch(`${API_BASE}/resources/stats/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch stats");
+    }
+
+    return response.json();
+  },
+
+  getProgressStats: async (token) => {
+    const response = await fetch(`${API_BASE}/resources/progress/stats`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch progress stats");
+    }
+
+    return response.json();
   },
 };
-
-export default resourceService;

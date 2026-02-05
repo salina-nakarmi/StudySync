@@ -284,8 +284,8 @@ class Replying(Base):
     message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
     group_id:Mapped[int] = mapped_column(ForeignKey('groups.id'))
     replied_message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
-    replied_to_id:Mapped[int] = mapped_column(ForeignKey('users.user_id'))
-    replied_by_id:Mapped[int] = mapped_column(ForeignKey('users.user_id'))
+    replied_to_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    replied_by_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
 
 
 
@@ -297,10 +297,8 @@ class Notifications(Base):
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
-
+    title = Mapped[str]
     notification_message:Mapped[str]
-    notification_type: Mapped[str]  # e.g., 'invitation', 'mention', 'resource_added'
-
     is_read:Mapped[bool]=mapped_column(Boolean, default=False) 
     created_at:Mapped[datetime]=mapped_column(default=func.now())  
 

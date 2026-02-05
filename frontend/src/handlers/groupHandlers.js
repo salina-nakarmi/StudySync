@@ -64,30 +64,70 @@ export const createGroupHandlers = ({
       const token = await getToken();
       const groupId = activeGroup.id;
 
+      console.log("=" . repeat(60));
+      console.log("📤 ADDING RESOURCE TO GROUP");
+      console.log("Group ID:", groupId);
+      console.log("Resource type:", resourceData.type);
+      console.log("Resource data:", resourceData);
+      console.log("=" . repeat(60));
+
+      // ====================================================================
+      // FILE UPLOAD
+      // ====================================================================
       if (resourceData.type === 'file') {
+        console.log("📁 Uploading file:", resourceData.file?.name);
+        
+        if (!resourceData.file) {
+          throw new Error("No file provided");
+        }
+
         await resourceService.uploadFile(
           token,
-          resourceData.file,
-          groupId,
-          resourceData.description ?? null
+          resourceData.file,           // The actual file object
+          groupId,                     // Group ID (will be converted to string)
+          resourceData.description ?? null,
+          resourceData.parentFolderId ?? null
         );
+        
+        console.log("✅ File uploaded successfully");
       }
-      console.log("Uploading resource to group:", groupId);
 
-      if (resourceData.type === 'link') {
+      // ====================================================================
+      // LINK CREATION
+      // ====================================================================
+      else if (resourceData.type === 'link') {
+        console.log("🔗 Creating link resource");
+        
+        if (!resourceData.url || !resourceData.title) {
+          throw new Error("Link requires URL and title");
+        }
+
         await resourceService.createResource(token, {
           title: resourceData.title,
           url: resourceData.url,
           description: resourceData.description ?? "",
           resource_type: "link",
-          group_id: groupId,
+          group_id: groupId,  // Backend expects this format
           parent_folder_id: resourceData.parentFolderId ?? null
         });
+        
+        console.log("✅ Link created successfully");
       }
 
+      // ====================================================================
+      // UNKNOWN TYPE
+      // ====================================================================
+      else {
+        throw new Error(`Unknown resource type: ${resourceData.type}`);
+      }
+
+      // Reload group resources to show new item
       await loadGroupResources(groupId);
+      console.log("✅ Resources reloaded");
+
     } catch (err) {
-      console.error("❌ Error uploading resource:", err);
+      console.error("❌ Error adding resource:", err);
+      alert(`Failed to add resource: ${err.message}`);
     }
   };
 

@@ -18,9 +18,9 @@ const ProgressCard = ({ title = "Progress" }) => {
   const todayLetter = days[todayIndex];
 
   return (
-    <div className="w-11/12 sm:w-[240px] md:w-[280px] lg:w-[592px] h-60 border border-gray-200 p-5 flex flex-col mx-auto rounded-2xl bg-white">
-      <div className="flex flex-col self-start -ml-3">
-        <h2 className="text-gray-800 font-bold text-lg -mt-2">{title}</h2>
+    <div className="w-full h-56 sm:h-60 border border-gray-200 p-4 sm:p-5 flex flex-col rounded-2xl bg-white">
+      <div className="flex flex-col items-center">
+        <h2 className="text-gray-800 font-bold text-lg text-center">{title}</h2>
         <div className="flex items-center gap-2 mt-2">
           <h3 className="text-gray-800 font-bold text-sm">
             {screenTime.reduce((a, b) => a + b.hours, 0)}h
@@ -30,7 +30,7 @@ const ProgressCard = ({ title = "Progress" }) => {
       </div>
 
       {/* Bar Chart */}
-      <div className="flex flex-1 items-center justify-center -mt-1 w-full">
+      <div className="flex flex-1 items-center justify-center mt-1 w-full">
         <div className="flex items-end justify-between w-full gap-0.5 sm:gap-2">
           {screenTime.map((bar, i) => {
             const isToday = bar.day === todayLetter;
