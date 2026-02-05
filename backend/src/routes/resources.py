@@ -982,7 +982,7 @@ from ..services.upload_service import (
 @router.post("/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: UploadFile = File(...),
-    group_id: Optional[int] = Form(None),
+    group_id: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     parent_folder_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db),
@@ -992,85 +992,73 @@ async def upload_file(
 
     """
     Upload file to Cloudinary and create resource
+"""
+    print("=" * 60)
+    print("📤 UPLOAD ENDPOINT CALLED")
+    print(f"File name: {file.filename}")
+    print(f"Content type: {file.content_type}")
+    print(f"Group ID (raw): {group_id} (type: {type(group_id)})")
+    print(f"Description: {description}")
+    print(f"Parent folder: {parent_folder_id}")
+    print("=" * 60)
+
+    # ========================================================================
+    # STEP 1: Parse group_id correctly
+    # Frontend sends "null" as string, we need to convert to None
+    # ========================================================================
+    parsed_group_id = None
+    if group_id and group_id.lower() != "null":
+        try:
+            parsed_group_id = int(group_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid group_id format: {group_id}"
+            )
     
-    **File Upload Flow:**
-    1. User selects file from frontend
-    2. File uploaded to Cloudinary (cloud storage)
-    3. Get public URL from Cloudinary
-    4. Save URL in database as resource
-    
-    **Supports:**
-    - Images (jpg, png, gif, webp)
-    - Videos (mp4, mov, avi)
-    - Documents (pdf, doc, docx)
-    - Any file type
-    
-    **Parameters:**
-    - **file**: File to upload (required)
-    - **group_id**: null = personal, int = group resource
-    - **description**: Optional description
-    - **parent_folder_id**: Optional folder organization
-    
-    **Max File Size:** 50MB (Cloudinary free tier: 100MB)
-    
-    **Example (with curl):**
-    ```bash
-    curl -X POST "http://localhost:8000/api/resources/upload" \
-      -H "Authorization: Bearer YOUR_TOKEN" \
-      -F "file=@/path/to/notes.pdf" \
-      -F "group_id=null" \
-      -F "description=My calculus notes"
-    ```
-    
-    **Example (with JavaScript):**
-    ```javascript
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    formData.append('group_id', groupId || 'null');
-    formData.append('description', 'My notes');
-    
-    await fetch('/api/resources/upload', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData  // Don't set Content-Type!
-    });
-    ```
-    """
+    print(f"✅ Parsed group_id: {parsed_group_id}")
+ 
     
     # Step 1: Validate file size (optional, adjust as needed)
     validate_file_size(file, max_size_mb=50)
     
     # Step 2: Check upload permission
     if not await resources_service.can_user_upload_resource(
-        db, current_user.user_id, group_id
+        db, current_user.user_id, parsed_group_id
     ):
         raise HTTPException(
             status_code=403,
             detail="You don't have permission to upload to this location"
         )
     
-    # Step 3: Verify group exists if provided
-    if group_id:
+    # ========================================================================
+    # STEP 4: Verify group exists if provided
+    # ========================================================================
+    if parsed_group_id:
         from ..services.group_service import get_group_by_id
-        group = await get_group_by_id(db, group_id)
+        group = await get_group_by_id(db, parsed_group_id)
         if not group:
             raise HTTPException(status_code=404, detail="Group not found")
     
-    # Step 4: Upload to Cloudinary
+    
+    # Step 5: Upload to Cloudinary
     try:
+        print("☁️ Uploading to Cloudinary...")
         upload_result = await upload_file_to_cloudinary(
             file=file,
-            folder="study-resources"  # Organize in Cloudinary
+            folder="study-resources"
         )
+        print(f"✅ Cloudinary upload successful: {upload_result['url']}")
     except HTTPException as e:
         raise e
     except Exception as e:
+        print(f"❌ Cloudinary upload failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Upload failed: {str(e)}"
         )
     
-    # Step 5: Detect resource type from content type
+    # Step 6: Detect resource type from content type
     from ..database.models import ResourceType
     
     content_type = file.content_type or "application/octet-stream"
@@ -1079,37 +1067,51 @@ async def upload_file(
         resource_type = ResourceType.IMAGE
     elif content_type.startswith('video/'):
         resource_type = ResourceType.VIDEO
-    elif content_type == 'application/pdf':
-        resource_type = ResourceType.FILE
-    elif 'link' in file.filename.lower() or 'url' in file.filename.lower():
-        resource_type = ResourceType.LINK
     else:
         resource_type = ResourceType.FILE
     
-    # Step 6: Clean filename for title
-    clean_title = sanitize_filename(file.filename)
+    print(f"📁 Detected resource type: {resource_type.value}")
     
-    # Step 7: Create resource in database
+    # ========================================================================
+    # STEP 7: Clean filename for title
+    # ========================================================================
+    clean_title = sanitize_filename(file.filename)
+    print(f"📝 Clean title: {clean_title}")
+    
+    # ========================================================================
+    # STEP 8: Create resource in database
+    # ========================================================================
     resource = await resources_service.create_resource(
         session=db,
         user_id=current_user.user_id,
         title=clean_title,
-        url=upload_result['url'],  # Cloudinary public URL
+        url=upload_result['url'],
         resource_type=resource_type,
-        group_id=group_id,
+        group_id=parsed_group_id,  # ⚠️ Use parsed version
         description=description,
         parent_folder_id=parent_folder_id,
         file_size=upload_result['size']
     )
     
-    # Step 8: Commit to database
+    print(f"✅ Resource created with ID: {resource.id}")
+    
+    # ========================================================================
+    # STEP 9: Commit to database
+    # ========================================================================
     await db.commit()
-    await db.refresh(resource) 
-    # Step 9: Return resource
+    await db.refresh(resource)
+    
+    print(f"✅ Upload complete! Resource ID: {resource.id}")
+    print("=" * 60)
+    
+    # ========================================================================
+    # STEP 10: Return resource
+    # ========================================================================
     return ResourceResponse(
         **resource.__dict__,
         is_personal=(resource.group_id is None)
     )
+
 
 
 # ============================================================================
