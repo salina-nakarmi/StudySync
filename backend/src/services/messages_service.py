@@ -40,22 +40,55 @@ class ConnectionManager:
              await connection.send_json(response.model_dump())
        
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import WebSocket
+
+from ..database.models import Messages
+from ..schemas.messages import StoreMessageRequest
 
 
-async def handle_history(data,session: AsyncSession, websocket:WebSocket, group_id : str):
-    frontend_data: LoadMessageRequest = data.get("payload")
+async def handle_broadcast(
+    data: dict,
+    session: AsyncSession,
+    websocket: WebSocket,
+    group_id: int,
+    connection_manager
+):
+    # ✅ 1. Validate incoming payload
+    frontend_data = StoreMessageRequest(**data)
+
+    # ✅ 2. Safety check (no group spoofing)
+    if frontend_data.group_id != group_id:
+        await websocket.send_json({"error": "Invalid group"})
+        return
+
+    # ✅ 3. Create Messages object (NOT saved yet)
+    message = Messages(
+        user_id=frontend_data.user_id,
+        group_id=frontend_data.group_id,
+        content=frontend_data.content,
+        message_type=frontend_data.type
+    )
+
+    # ✅ 4. Let ConnectionManager handle storage + broadcast
+    await connection_manager.broadcast(message, websocket, session)
+
+
+async def handle_history(data,session: AsyncSession, websocket:WebSocket, group_id : int):
+    frontend_data = LoadMessageRequest(**data)
     last_message_id = frontend_data.last_message_id
     query = select(Messages).where(Messages.group_id == group_id)
     if last_message_id:
             query = query.where(Messages.id< last_message_id)
     query = query.order_by(Messages.created_at.asc).limit(50)
-    history = await session.execute(query)
+    result = await session.execute(query)
+    messages = result.scalars().all()
     response_data= [MessageResponse(
         sender_id = m.user_id,
         group_id = m.group_id,
         content = m.content,
         type = m.message_type
-    )for m in history]
+    )for m in messages]
 
     await websocket.send_json({
         "action": "load_history",
