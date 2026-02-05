@@ -61,6 +61,19 @@ export default function ProgressTrackingPage() {
     );
   };
 
+  const togglePlayPause = (id) => {
+    setResources((prev) =>
+      prev.map((res) =>
+        res.id === id
+          ? {
+              ...res,
+              status: res.status === "in_progress" ? "paused" : "in_progress",
+            }
+          : res
+      )
+    );
+  };
+
   const filteredResources =
     filter === null ? resources : resources.filter((r) => r.status === filter);
 
@@ -71,21 +84,6 @@ export default function ProgressTrackingPage() {
     { id: "paused", label: "Paused" },
   ];
 
-  const togglePlayPause = (id) => {
-  setResources((prev) =>
-    prev.map((res) =>
-      res.id === id
-        ? {
-            ...res,
-            status:
-              res.status === "in_progress" ? "paused" : "in_progress",
-          }
-        : res
-    )
-  );
-};
-
-
   const ResourceProgressCard = ({ resource }) => {
     const statusStyles = {
       completed: "bg-green-500",
@@ -95,7 +93,7 @@ export default function ProgressTrackingPage() {
     };
 
     return (
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between">
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-full">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span
@@ -106,16 +104,16 @@ export default function ProgressTrackingPage() {
             </span>
           </div>
 
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-bold text-gray-900 leading-tight">
             {resource.title}
           </h3>
 
           <div className="mt-4">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <div className="flex justify-between text-xs text-gray-500 mb-1 font-medium">
               <span>Progress</span>
               <span>{resource.progress_percentage}%</span>
             </div>
-            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-700"
                 style={{ width: `${resource.progress_percentage}%` }}
@@ -124,83 +122,87 @@ export default function ProgressTrackingPage() {
           </div>
 
           {resource.notes && (
-            <p className="mt-3 text-sm text-gray-600">{resource.notes}</p>
+            <p className="mt-3 text-sm text-gray-600 italic">"{resource.notes}"</p>
           )}
 
-          <div className="mt-4 text-xs text-gray-400 space-y-1">
-            <div>Started: {resource.startedOn || "—"}</div>
-            <div>Updated: {resource.lastUpdated || "—"}</div>
+          <div className="mt-4 pt-4 border-t border-gray-50 text-[11px] text-gray-400 flex justify-between">
+            <span>Started: {resource.startedOn || "—"}</span>
+            <span>Updated: {resource.lastUpdated || "—"}</span>
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-between">
+        <div className="mt-5 flex items-center justify-between gap-3">
           {resource.status !== "completed" ? (
             <button
               onClick={() => handleUpdate(resource.id, 100)}
-              className="flex items-center gap-1 px-4 py-1.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-black text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition shadow-sm"
             >
               <CheckCircleIcon className="w-4 h-4" />
               Done
             </button>
           ) : (
-            <span className="text-sm font-medium text-green-600">
-              ✔ Completed
+            <span className="flex-1 text-sm font-bold text-green-600 py-2">
+              ✓ Completed
             </span>
           )}
 
-        <button
-  onClick={() => togglePlayPause(resource.id)}
-  className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-  title={resource.status === "in_progress" ? "Pause" : "Resume"}
->
-  {resource.status === "in_progress" ? (
-    <PauseIcon className="w-4 h-4 text-gray-600" />
-  ) : (
-    <PlayIcon className="w-4 h-4 text-gray-600" />
-  )}
-</button>
-
+          <button
+            onClick={() => togglePlayPause(resource.id)}
+            className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            title={resource.status === "in_progress" ? "Pause" : "Resume"}
+          >
+            {resource.status === "in_progress" ? (
+              <PauseIcon className="w-5 h-5 text-gray-600" />
+            ) : (
+              <PlayIcon className="w-5 h-5 text-gray-600" />
+            )}
+          </button>
         </div>
       </div>
     );
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-white">
       <Navbar />
-      <div className="min-h-screen bg-white">
-      <div className="px-4 sm:px-6 lg:px-32 mt-28 space-y-8">
-        <div className="flex flex-col lg:flex-row justify-between gap-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+      
+      {/* Main Container */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-28 pb-20 space-y-10">
+        
+        {/* Row 1: Title & Top Two Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          <div className="lg:col-span-4">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
               Detailed Progress Overview
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 mt-2 text-lg">
               Track your learning performance
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <OverallProgress />
             <TotalHours />
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-2 -mt-6">
+        {/* Row 2: Three Stat Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 -mt-8">
           <TodayProgressCard />
           <TasksDone />
           <AverageScore />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        {/* Row 3: Filter Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+              className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${
                 filter === tab.id
-                  ? "bg-black text-white"
-                  : "bg-white border border-gray-200 text-gray-600"
+                  ? "bg-black text-white shadow-md scale-105"
+                  : "bg-white border border-gray-200 text-gray-500 hover:border-gray-400"
               }`}
             >
               {tab.label}
@@ -208,13 +210,14 @@ export default function ProgressTrackingPage() {
           ))}
         </div>
 
+        {/* Row 4: Resources Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {filteredResources.map((resource) => (
             <ResourceProgressCard key={resource.id} resource={resource} />
           ))}
-          </div>
         </div>
-      </div>
-    </>
+
+      </main>
+    </div>
   );
 }
