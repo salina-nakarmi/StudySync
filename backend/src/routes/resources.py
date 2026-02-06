@@ -56,7 +56,7 @@ async def create_resource(
         user_id=current_user.user_id,
         title=payload.title,
         url=payload.url,
-        resource_type=ResourceType.LINK,
+        resource_type=payload.resource_type,
         group_id=payload.group_id,  # ← This stays exactly as provided in payload
         description=payload.description,
         parent_folder_id=payload.parent_folder_id,

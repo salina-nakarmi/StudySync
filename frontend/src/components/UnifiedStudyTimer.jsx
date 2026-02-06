@@ -1,4 +1,4 @@
-// UnifiedStudyTimer.jsx - With localStorage Persistence
+// UnifiedStudyTimer.jsx - With Real API Integration
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Square, Clock, Zap, Coffee, Trophy } from 'lucide-react';
 import { useStudySessions } from '../utils/api';
@@ -7,8 +7,9 @@ import { Minus, Maximize2 } from 'lucide-react';
 
 
 export default function UnifiedStudyTimer({ onSessionComplete, groupId = null }) {
+  // use mutations from api.js
   const { createSession } = useStudySessions();
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient(); // ✅ NEW: For manual refresh
 
   // Constants for different modes
   const MODES = {
@@ -44,32 +45,6 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
   const [sessionStarted, setSessionStarted] = useState(savedState?.sessionStarted || false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
-  const [lastSaveTime, setLastSaveTime] = useState(savedState?.lastSaveTime || Date.now());
-
-  // ✅ Save timer state to localStorage whenever it changes
-  useEffect(() => {
-    const timerState = {
-      mode,
-      timeLeft,
-      totalStudied,
-      sessionStarted,
-      lastSaveTime: Date.now(),
-    };
-    
-    localStorage.setItem('study_timer_state', JSON.stringify(timerState));
-  }, [mode, timeLeft, totalStudied, sessionStarted]);
-
-  // ✅ Adjust time if page was closed while timer was running
-  useEffect(() => {
-    if (savedState && savedState.lastSaveTime) {
-      const timePassed = Math.floor((Date.now() - savedState.lastSaveTime) / 1000);
-      if (timePassed > 0 && timePassed < 3600) { // Only adjust if < 1 hour
-        console.log(`⏰ Page was closed for ${timePassed} seconds`);
-        // Note: We don't auto-deduct time because timer was paused
-        // If you want to continue running in background, implement background timer
-      }
-    }
-  }, []);
 
   // Timer logic
   useEffect(() => {
@@ -109,57 +84,53 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
   };
 
   const resetTimer = () => {
-    // Reset all state
     setTimeLeft(MODES[mode].time);
     setIsRunning(false);
     setTotalStudied(0);
     setSessionStarted(false);
     setSessionNotes('');
-    
-    // ✅ Clear localStorage when resetting
-    localStorage.removeItem('study_timer_state');
-    console.log('🗑️ Timer state cleared');
   };
 
-  const handleEndSession = async () => {
-    if (totalStudied < 60) {
-      alert("Session too short (minimum 1 minute)");
-      return;
-    }
-
-    try {
-      await createSession.mutateAsync({
-        duration_seconds: totalStudied,
-        session_notes: sessionNotes || `${MODES[mode].label} session`,
-        group_id: groupId,
-      });
-
-      console.log("✅ Session logged successfully");
-      
-      // Manually invalidate queries to refresh UI
-      queryClient.invalidateQueries(['dashboard']);
-      queryClient.invalidateQueries(['streaks']);
-      queryClient.invalidateQueries(['study-sessions']);
-
-      alert(`Session saved! ${Math.floor(totalStudied / 60)} minutes logged 🎉`);
-      
-      setShowEndModal(false);
-      resetTimer();
-    } catch (error) {
-      console.error("❌ Failed to log session:", error);
-      alert(`Failed to save session: ${error.message}`);
-    }
-  };
-
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const CurrentIcon = MODES[mode].icon;
-  const progress = ((MODES[mode].time - timeLeft) / MODES[mode].time) * 100;
+    // ✅ CHANGED: Use mutation instead of manual API call
+    const handleEndSession = async () => {
+      if (totalStudied < 60) {
+        alert("Session too short (minimum 1 minute)");
+        return;
+      }
+  
+      try {
+        await createSession.mutateAsync({
+          duration_seconds: totalStudied,
+          session_notes: sessionNotes || `${MODES[mode].label} session`,
+          group_id: groupId,
+        });
+  
+        console.log("✅ Session logged successfully");
+        
+        // ✅ NEW: Manually invalidate queries to refresh UI
+        queryClient.invalidateQueries(['dashboard']);
+        queryClient.invalidateQueries(['streaks']);
+        queryClient.invalidateQueries(['study-sessions']);
+  
+        alert(`Session saved! ${Math.floor(totalStudied / 60)} minutes logged 🎉`);
+        
+        setShowEndModal(false);
+        resetTimer();
+      } catch (error) {
+        console.error("❌ Failed to log session:", error);
+        alert(`Failed to save session: ${error.message}`);
+      }
+    };
+  
+    const formatTime = (seconds) => {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+  
+    const CurrentIcon = MODES[mode].icon;
+    const progress = ((MODES[mode].time - timeLeft) / MODES[mode].time) * 100;
 
   return (
     <>
@@ -378,3 +349,20 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
     </>
   );
 }
+
+// ============================================================================
+// USAGE IN DASHBOARD.JSX
+// ============================================================================
+
+/*
+import UnifiedStudyTimer from '../components/UnifiedStudyTimer';
+
+// In your Dashboard component:
+<UnifiedStudyTimer onSessionComplete={refreshDashboard} />
+
+// Or with a specific group:
+<UnifiedStudyTimer 
+  onSessionComplete={refreshDashboard} 
+  groupId={selectedGroupId} 
+/>
+*/

@@ -15,9 +15,23 @@ export const createGroupHandlers = ({
   setIsJoinMode,
   activeGroup,
   formData,
-  refetch,
 }) => {
-
+  const loadGroups = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await getToken();
+      const data = await groupService.getMyGroups(token);
+      setGroups(data);
+    } catch (err) {
+      setError(err.message);
+      if (err.message.includes("Not authenticated") || err.message.includes("401")) {
+        navigate("/sign-in");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadGroupDetails = async (groupId) => {
     try {
@@ -133,7 +147,7 @@ export const createGroupHandlers = ({
     try {
       const token = await getToken();
       await groupService.deleteGroup(token, groupId);
-      await refetch();
+      await loadGroups();
       setActiveGroup(null);
     } catch (err) {
       alert(`Failed to delete group: ${err.message}`);
@@ -156,7 +170,7 @@ export const createGroupHandlers = ({
         max_members: formData.max_members ? parseInt(formData.max_members) : null,
       };
       const newGroup = await groupService.createGroup(token, groupData);
-      await refetch();
+      await loadGroups();
       setActiveGroup(newGroup);
       resetForm();
       setModalOpen(false);
@@ -178,7 +192,7 @@ export const createGroupHandlers = ({
       // 1️⃣ PRIVATE GROUP JOIN (invite code only)
       if (invite_code?.trim()) {
         await groupService.joinGroupByInviteCode(token, invite_code.trim());
-        await refetch();
+        await loadGroups();
         setModalOpen(false);
         resetForm();
         alert("Successfully joined the private group!");
@@ -201,7 +215,7 @@ export const createGroupHandlers = ({
       if (!confirmJoin) return;
 
       await groupService.joinGroup(token, groupToJoin.id);
-      await refetch();
+      await loadGroups();
       setModalOpen(false);
       resetForm();
       alert("Successfully joined the public group!");
@@ -217,7 +231,7 @@ export const createGroupHandlers = ({
     try {
       const token = await getToken();
       await groupService.leaveGroup(token, groupId);
-      await refetch();
+      await loadGroups();
       if (activeGroup?.id === groupId) setActiveGroup(null);
       alert("Successfully left the group");
     } catch (err) {
@@ -243,6 +257,7 @@ export const createGroupHandlers = ({
   };
 
   return {
+    loadGroups,
     loadGroupDetails,
     loadGroupResources,
     handleAddResource,

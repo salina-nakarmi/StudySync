@@ -32,27 +32,11 @@ export default function CustomCalendar() {
   // Generate streak dates based on current streak
   const streakDates = [];
   const today = new Date();
-  for (let i = 0; i < streakCount; i++) {
+  for (let i = 0; i < streak; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     streakDates.push(stripTime(d));
   }
-
-    // Generate streak dates based on current streak
-    // const streakDates = [];
-
-    // if (streak?.streak_start_date && streak?.last_active_date) {
-    //   const start = new Date(streak.streak_start_date);
-    //   const end = new Date(streak.last_active_date);
-  
-    //   for (
-    //     let d = new Date(start);
-    //     d <= end;
-    //     d.setDate(d.getDate() + 1)
-    //   ) {
-    //     streakDates.push(stripTime(new Date(d)));
-    //   }
-    // }
 
 
   const todayStr = stripTime(today).toISOString();
@@ -125,13 +109,8 @@ export default function CustomCalendar() {
 
     let bgClass =
       "bg-gray-100 text-gray-700 hover:bg-gray-200 transition text-[8px]";
-
-    if (isStreak) {
-      bgClass = "bg-orange-500 text-white text-[8px]";
-    } else if (isToday) {
-      bgClass = "bg-[#2C76BA] text-white text-[8px]";
-    }
-
+    if (isStreak) bgClass = "bg-orange-500 text-white text-[8px]";
+    if (isToday) bgClass = "bg-[#2C76BA] text-white text-[8px]";
 
     return (
       <div
