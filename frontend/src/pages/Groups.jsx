@@ -18,7 +18,7 @@ const PRIMARY_BLUE = "#2C76BA";
 
 export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
-  useUser();
+  const { user } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -59,9 +59,11 @@ export default function Groups() {
     formData,
   });
 
-  const currentUserIsLeader = activeGroup?.members?.some(
-    (member) => member.role === "leader"
+  const currentMember = activeGroup?.members?.find(
+    (member) => member.user_id === user?.id
   );
+  const currentUserIsLeader = currentMember?.role === "leader";
+  const currentUserIsMember = Boolean(currentMember);
 
   // Effects
   useEffect(() => {
@@ -251,14 +253,24 @@ export default function Groups() {
           onClick={() => handlers.handleDeleteGroup(activeGroup.id)} 
           className="px-4 py-2 text-sm font-bold text-red-600 border border-red-100 rounded-lg hover:bg-red-50"
         >
-          Delete
+          Delete Group
         </button>
-      ) : (
+      ) : currentUserIsMember ? (
         <button 
           onClick={() => handlers.handleLeaveGroup(activeGroup.id)} 
           className="px-4 py-2 text-sm font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
         >
-          Leave
+          Leave Group
+        </button>
+      ) : (
+        <button 
+          onClick={() => {
+            setModalOpen(true);
+            setIsJoinMode(true);
+          }}
+          className="px-4 py-2 text-sm font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700"
+        >
+          Join Group
         </button>
       )}
     </div>

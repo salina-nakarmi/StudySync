@@ -1,86 +1,46 @@
-// Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useUser, RedirectToSignIn } from "@clerk/clerk-react";
 import { useNavigate, useLocation } from "react-router-dom";
-
 import { useDashboard, useStreaks, useStudySessions } from "../utils/api"; 
-
-import {
-  Cog6ToothIcon,
-  BellIcon,
-  UserIcon,
-  Bars3Icon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
-
 import fireIcon from "../assets/fire.png";
 import Navbar from "../components/Navbar";
 import NotificationPanel from "./NotificationPanel";
 import CalendarComponent from "../components/CalendarComponent";
 import UnifiedStudyTimer from "../components/UnifiedStudyTimer";
-import ProgressCard from "../components/Progresscard";
 import SharedLinkItem from "../components/SharedLinkItem";
 import Mytask from "../components/Mytask";
-// import ContributionGraph from "../components/ContributionGraph";
-// import { DiVim } from "react-icons/di";
 
 export default function Dashboard() {
-  //react query hooks
   const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = useDashboard();
   const { streak, isLoading: streakLoading, error: streakError } = useStreaks();
   const { todaySummary, isLoading: sessionsLoading } = useStudySessions();
 
-  // ----------------- STATE -----------------
-  // const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [showNotifications, setShowNotifications] = useState(false);
-
-
   const { user, isLoaded, isSignedIn } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const refreshDashboard = () => refetchDashboard();
 
-  const screenTimeData = [
-    { day: "S", hours: 2 },
-    { day: "M", hours: 4 },
-    { day: "T", hours: 5.5 },
-    { day: "W", hours: 3 },
-    { day: "T", hours: 4.5 },
-    { day: "F", hours: 6 },
-    { day: "S", hours: 1.5 },
-  ];
-
-  const refreshDashboard = () => {
-    refetchDashboard();
-  };
-
-  // ----------------- EFFECTS -----------------
-  // Set active tab based on URL
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
-     else if (location.pathname === "/groups")
-    setActiveTab("Groups"); 
+    else if (location.pathname === "/groups") setActiveTab("Groups"); 
   }, [location.pathname]);
 
-
-  // ----------------- HANDLERS -----------------
-
-  const handleNavClick = (item) => {
+   const handleNavClick = (item) => {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     if (item === "Dashboard") navigate("/dashboard");
     if (item === "Groups") navigate("/groups");
   };
 
-  //Use React Query loading states
   const loading = !isLoaded || dashboardLoading || streakLoading || sessionsLoading;
   const error = dashboardError || streakError;
 
   if (!isSignedIn) return <RedirectToSignIn />;
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -91,7 +51,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
 
   // Error state
   if (error) {
@@ -120,115 +79,93 @@ export default function Dashboard() {
     );
   }
 
-
-  // ----------------- MAIN RENDER -----------------
   return (
-     <>
-      <Navbar />
-    
     <div className="min-h-screen bg-white">
-      <div className="px-4 sm:px-6 lg:px-40 mt-28 flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
-          </h1>
+      <Navbar />
+      
+      {/* Main Container - max-w-7xl prevents stretching on ultra-wide screens */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12">
+        
+        {/* Header Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch mb-8">
+          <div className="lg:col-span-4 flex flex-col gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
+              </h1>
+              {todaySummary && (
+                <p className="text-gray-500 mt-1 font-medium">
+                  Today: <span className="text-blue-600 font-bold">{todaySummary.today.total_minutes} mins</span> studied
+                  {todaySummary.trend === "up" ? " 📈" : " 📉"}
+                </p>
+              )}
+            </div>
 
-            {/* Use React Query data */}
-            {todaySummary && (
-              <p className="text-gray-600 mt-2">
-                Today: {todaySummary.today.total_minutes} minutes studied
-                {todaySummary.trend === "up" && " 📈"}
-                {todaySummary.trend === "down" && " 📉"}
-              </p>
-            )}
+            {/* Streak Badge */}
+            <div className="flex items-center bg-zinc-900 px-4 py-2 rounded-full shadow-lg w-fit">
+              <img src={fireIcon} className="w-4 h-4 mr-2" alt="fire" />
+              <span className="text-[12px] text-zinc-400 font-bold uppercase tracking-wider">Streaks</span>
+              <span className="text-sm font-bold text-white border-l border-zinc-700 ml-3 pl-3">
+                {streak?.current_streak || 0}
+              </span>
+            </div>
           </div>
 
-          {/* Use streak from React Query */}
-         <div className="absolute -left-197 top-16 mt-3 w-[111px] h-[29px] bg-[#303030] rounded-[27px] flex items-center justify-center relative">
-  <img src={fireIcon} className="absolute left-2 w-3.5 h-3.5" alt="fire" />
-  <span className="absolute left-[29px] text-[12px] text-[#F6F6F6]">Streaks</span>
-  <span className="absolute left-[79px] text-[12px] font-bold text-[#F6F6F6]">
-    {streak?.current_streak || 0}
-  </span>
-</div>
+          <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
+            {/* Calendar Component */}
+            <div className="h-full">
+              <CalendarComponent />
+            </div>
 
-        {/* Timer & Focus Goal */}
-     <div className="flex flex-col lg:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto items-center lg:items-start justify-center lg:justify-start -mr-7.5">
-     <UnifiedStudyTimer onSessionComplete={refreshDashboard} />
- <div className="w-11/13 sm:w-[300px] bg-white rounded-2xl border border-gray-200 p-4 flex flex-col items-center justify-center h-40 mx-auto">
-  <h2 className="text-gray-800 font-bold text-lg">Today's Focus Goal</h2>
-  <h3 className="text-[#2C76BA] text-sm text-center">Finish 3 lab simulation task</h3>
-
-  <div className="flex flex-col items-center mt-2 w-full">
-  
-    <div className="w-3/4 sm:w-full h-3 bg-gray-200 rounded-2xl">
-   
-      <div className="h-3 bg-[#2C76BA] rounded-2xl w-1/4 sm:w-1/2"></div>
-    </div>
-    <p className="text-gray-600 text-xs mt-1 text-center">50% completed</p>
-  </div>
-</div>
-
-</div>
-
-        </div>  
-      
-        {/* Calendar, ProgressCard, etc. */}
-        <div className="mt-2 mx-auto sm:ml-20 lg:ml-40 w-fit flex flex-col lg:flex-row gap-2">
-          <CalendarComponent/>
-
-
-        <div className="w-[300px] h-[487px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col gap-2 mx-auto">
-          <h2 className="text-gray-800 font-bold text-lg mb-1">Shared Links</h2>
-          <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "1180px" }}>
-            {/** Example SharedLinkItems */}
-            <SharedLinkItem
-              title="React Hooks Complete Guide"
-              desc="Comprehensive tutorial on React Hooks"
-              author="John Doe"
-              time="2 hours ago"
-              onRead={() => handleNewActivity(new Date().getDay())}
-            />
-            <SharedLinkItem
-              title="Project Report PDF"
-              desc="Semester project report in PDF format"
-              author="Sarah Smith"
-              time="1 day ago"
-              type="pdf"
-              onRead={() => handleNewActivity(new Date().getDay())}
-            />
-            <SharedLinkItem
-              title="Tailwind Typography Basics"
-              desc="Learn how to style text with Tailwind"
-              author="Sarah Smith"
-              time="12 mins ago"
-              onRead={() => handleNewActivity(new Date().getDay())}
-            />
+            {/* Focus Goal Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col justify-center min-h-[240px] h-full">
+              <h2 className="text-gray-800 font-bold text-lg mb-1">Today's Focus Goal</h2>
+              <h3 className="text-[#2C76BA] text-sm font-semibold mb-6">Finish 3 lab simulation tasks</h3>
+              <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                <div className="h-full bg-[#2C76BA] rounded-full w-1/2 transition-all duration-500"></div>
+              </div>
+              <p className="text-gray-400 text-[10px] mt-2 font-bold uppercase tracking-widest text-center">50% completed</p>
+            </div>
           </div>
         </div>
 
-  <div className="w-11/12 sm:w-auto p-6 mx-auto">
-  <Mytask />
-</div>
+        {/* Dashboard Grid System */}
+        <div className="grid grid-cols-1 gap-3 mb-10">
+          
+          {/* Main Content Area (8/12 Columns) */}
+          <div className="space-y-3">
+            {/* Timer + Shared Links + MyTask */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch -mt-5">
+              <div className="h-full">
+                <div className="max-w-xl mx-auto w-full h-full">
+                  <div className="h-full min-h-[320px]">
+                    <UnifiedStudyTimer onSessionComplete={refreshDashboard} embedded={true} />
+                  </div>
+                </div>
+              </div>
 
-      
-      </div>
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm h-full min-h-[320px] flex flex-col">
+                <h2 className="text-gray-800 font-bold text-lg mb-4">Shared Links</h2>
+                <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                  <SharedLinkItem title="React Hooks Guide" author="John Doe" time="2h ago" desc="Complete reference" />
+                  <SharedLinkItem title="Project Report PDF" author="Sarah Smith" time="1d ago" type="pdf" desc="Final report" />
+                </div>
+              </div>
 
-{/* Activity Contribution Graph
-<div className="-mt-4 sm:-mt-66 mx-auto sm:ml-20 lg:ml-40 w-11/14 sm:w-auto flex flex-col lg:flex-row gap-2">
-  <div className="w-full sm:w-[608px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col">
-    <h2 className="text-lg font-semibold mb-2">Activity Contributions</h2>
-    <ContributionGraph/>
-  </div>
-</div> */}
+              <div className="h-full min-h-[320px] flex">
+                <div className="w-full h-full">
+                  <Mytask />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-{showNotifications && (
-  <NotificationPanel onClose={() => setShowNotifications(false)} />
-)}
+      </main>
 
-
+      {showNotifications && (
+        <NotificationPanel onClose={() => setShowNotifications(false)} />
+      )}
     </div>
-    
-    </>
   );
 }

@@ -53,7 +53,7 @@ export default function CustomCalendar() {
   }
 
   return (
-    <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex flex-col mx-auto sm:item-center">
+  <div className="w-full h-full min-h-[240px] p-4 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <h1 className="flex items-center gap-1 font-bold text-gray-800 text-sm">
