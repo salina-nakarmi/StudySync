@@ -140,29 +140,34 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
           
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-gray-800 text-lg">Time Tracker</h3>
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
-              }`}
-            ></div>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                }`}
+              ></div>
+              <h3 className="font-bold text-gray-800 text-sm">Study Hub</h3>
+            </div>
+            <span className="text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+              0m logged
+            </span>
           </div>
 
           {/* Mode Selector */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-5">
             {Object.keys(MODES).map((m) => {
               const ModeIcon = MODES[m].icon;
               return (
                 <button
                   key={m}
                   onClick={() => switchMode(m)}
-                  className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`py-1.5 px-2 rounded-md text-[10px] font-semibold transition-all flex items-center justify-center gap-1 ${
                     mode === m
                       ? `${MODES[m].color} text-white shadow-lg scale-105`
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  <ModeIcon className="w-3.5 h-3.5" />
+                  <ModeIcon className="w-3 h-3" />
                   {MODES[m].label}
                 </button>
               );
