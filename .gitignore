@@ -1,6 +1,9 @@
-# Ignore the virtual environment
-myenv/
-
-# Ignore python bytecode
-**/__pycache__/
+# Python cache
+__pycache__/
 *.pyc
+
+# Virtual environments
+myenv/
+venv/
+.env/
+.venv/
