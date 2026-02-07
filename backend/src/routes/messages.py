@@ -1,49 +1,83 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
 
-from ..services.user_service import get_user_by_id
-from ..services.group_service import get_group_by_id
-from ..services.messages_service import ConnectionManager, handle_history, handle_broadcast, handle_editing, handle_deleting, handle_replying
-
+from ..services.messages_service import (
+    ConnectionManager,
+    handle_history,
+    handle_broadcast,
+    handle_editing,
+    handle_deleting,
+    handle_replying
+)
 from ..database.database import get_db
-from ..database.models import Users, Messages, Groups
-from ..dependencies import get_current_user
 
+router = APIRouter()
 
+connection_manager = ConnectionManager()
 
-router = APIRouter(prefix="/{user_id}/{group_id}")
-
-connection_manager= ConnectionManager()
-
-
+# Route mapping
 ROUTES = {
-    "load_history":handle_history,
-    "send_message":handle_broadcast,
+    "load_history": handle_history,
+    "send_message": handle_broadcast,
     "edit": handle_editing,
-    "reply":handle_replying,
-    "delete":handle_deleting
+    "reply": handle_replying,
+    "delete": handle_deleting
 }
-@router.websocket("/ws")
-async def websocket_endpoint(websocket:WebSocket, group_id: str, user_id: str, db=Depends(get_db)):
-    await websocket.accept()
+
+
+@router.websocket("/{user_id}/{group_id}/ws")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    user_id: str,
+    group_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    WebSocket endpoint for group chat
     
+    Expected message format:
+    {
+        "action": "send_message" | "load_history" | "edit" | "reply" | "delete",
+        "payload": { ... action-specific data ... }
+    }
+    """
+    await connection_manager.connect(websocket, group_id)
+    print(f"✅ User {user_id} connected to group {group_id}")
 
     try:
         while True:
-            await connection_manager.connect(websocket,group_id)
-            data = await websocket.receive_json() # the json structure will be  JSON{ "action": str, }
-            action= data.get("action")
-            payload = data.get("payload")
+            # Receive JSON message from client
+            data = await websocket.receive_json()
+            
+            action = data.get("action")
+            payload = data.get("payload", {})
 
-        
-            if action in ROUTES:                
-                await  ROUTES[action](payload, db, websocket, group_id) 
+            if not action:
+                await websocket.send_json({"error": "No action specified"})
+                continue
+
+            # Route to appropriate handler
+            if action in ROUTES:
+                handler = ROUTES[action]
+                
+                # Special handling for broadcast to pass connection_manager
+                if action == "send_message":
+                    await handler(payload, db, websocket, group_id, connection_manager)
+                else:
+                    await handler(payload, db, websocket, group_id)
             else:
-                await websocket.send_json({"error": "Invalid action"})
+                await websocket.send_json({
+                    "error": f"Invalid action: {action}",
+                    "available_actions": list(ROUTES.keys())
+                })
 
     except WebSocketDisconnect:
-            connection_manager.disconnect(websocket, group_id) 
-            print(f"User{user_id} disconnected from group {group_id}") 
-  
+        connection_manager.disconnect(websocket, group_id)
+        print(f"❌ User {user_id} disconnected from group {group_id}")
+    except Exception as e:
+        print(f"⚠️ WebSocket error for user {user_id} in group {group_id}: {e}")
+        connection_manager.disconnect(websocket, group_id)
+        try:
+            await websocket.close()
+        except:
+            pass
