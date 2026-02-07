@@ -1,6 +1,6 @@
 // Route definitions
 import React from "react";
-import { Routes, Route , Navigate} from "react-router-dom";
+import { Routes, Route , Navigate, useLocation } from "react-router-dom";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import { ClerkProviderWithRoutes } from "./auth/ClerkProviderWithRoutes.jsx";
 import AuthenticationPage from "./auth/AuthenticationPage.jsx";
@@ -21,6 +21,9 @@ import ChatbotWidget from './components/Chatbot/ChatbotWidget';
 
 
 function App() {
+  const location = useLocation();
+  const showGlobalTimer = location.pathname !== "/dashboard";
+
   return (
     <ClerkProviderWithRoutes>
       <Routes>
@@ -109,7 +112,11 @@ function App() {
         <Route path="*" element={<RedirectToSignIn />} />
         
       </Routes>
-      <UnifiedStudyTimer/>
+      {showGlobalTimer && (
+        <SignedIn>
+          <UnifiedStudyTimer />
+        </SignedIn>
+      )}
       {/* Chatbot Widget - Shows on ALL pages */}
       <ChatbotWidget />
     </ClerkProviderWithRoutes>
