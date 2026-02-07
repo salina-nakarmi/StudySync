@@ -52,8 +52,8 @@ const toggleComplete = (id) => {
   };
 
   return (
-    <div className="w-[300px] h-[488px] p-3 bg-white rounded-2xl border border-gray-200 mx-auto -mt-6 -ml-6">
-      <h2 className="text-gray-800 font-bold text-lg">My Task</h2>
+  <div className="w-full h-[508px] p-4 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+  <h2 className="text-gray-800 font-bold text-lg">My Tasks</h2>
 
       {/* Input Field */}
       <div className="flex gap-2 mt-3">

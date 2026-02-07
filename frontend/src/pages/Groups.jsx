@@ -18,7 +18,7 @@ const PRIMARY_BLUE = "#2C76BA";
 
 export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
-  useUser();
+  const { user } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -33,6 +33,10 @@ export default function Groups() {
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInputByGroup, setChatInputByGroup] = useState({});
+  const [chatMessagesByGroup, setChatMessagesByGroup] = useState({});
+  const [resourceProgressById, setResourceProgressById] = useState({});
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -59,9 +63,11 @@ export default function Groups() {
     formData,
   });
 
-  const currentUserIsLeader = activeGroup?.members?.some(
-    (member) => member.role === "leader"
+  const currentMember = activeGroup?.members?.find(
+    (member) => member.user_id === user?.id
   );
+  const currentUserIsLeader = currentMember?.role === "leader";
+  const currentUserIsMember = Boolean(currentMember);
 
   // Effects
   useEffect(() => {
@@ -96,6 +102,38 @@ export default function Groups() {
         {item}
       </button>
     );
+  };
+
+  const handleSendChat = () => {
+    if (!activeGroup) return;
+    const groupId = activeGroup.id;
+    const currentInput = chatInputByGroup[groupId] || "";
+    const trimmed = currentInput.trim();
+    if (!trimmed) return;
+
+    setChatMessagesByGroup((prev) => {
+      const existing = prev[groupId] || [];
+      return {
+        ...prev,
+        [groupId]: [
+          ...existing,
+          {
+            id: `${Date.now()}`,
+            sender: "You",
+            text: trimmed,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ],
+      };
+    });
+    setChatInputByGroup((prev) => ({ ...prev, [groupId]: "" }));
+  };
+
+  const handleResourceProgressChange = (resourceId, value) => {
+    setResourceProgressById((prev) => ({
+      ...prev,
+      [resourceId]: value,
+    }));
   };
 
   if (loading) {
@@ -251,14 +289,24 @@ export default function Groups() {
           onClick={() => handlers.handleDeleteGroup(activeGroup.id)} 
           className="px-4 py-2 text-sm font-bold text-red-600 border border-red-100 rounded-lg hover:bg-red-50"
         >
-          Delete
+          Delete Group
         </button>
-      ) : (
+      ) : currentUserIsMember ? (
         <button 
           onClick={() => handlers.handleLeaveGroup(activeGroup.id)} 
           className="px-4 py-2 text-sm font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
         >
-          Leave
+          Leave Group
+        </button>
+      ) : (
+        <button 
+          onClick={() => {
+            setModalOpen(true);
+            setIsJoinMode(true);
+          }}
+          className="px-4 py-2 text-sm font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700"
+        >
+          Join Group
         </button>
       )}
     </div>
@@ -315,6 +363,22 @@ export default function Groups() {
                                 <div>
                                   <h4 className="text-sm font-bold text-gray-900">{res.title || "Untitled"}</h4>
                                   <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
+                                  <div className="mt-3">
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                      <span>Progress</span>
+                                      <span>{resourceProgressById[res.id] || 0}%</span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={resourceProgressById[res.id] || 0}
+                                      onChange={(e) => handleResourceProgressChange(res.id, Number(e.target.value))}
+                                      className="w-62 accent-[#2C76BA]"
+                                      aria-label={`Progress for ${res.title || "resource"}`}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
@@ -362,6 +426,99 @@ export default function Groups() {
             </div>
           )}
         </div>
+
+        {activeGroup && (
+          <div className="fixed bottom-24 right-6 z-50">
+            {!chatOpen ? (
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={() => setChatOpen(true)}
+                  className="w-12 h-12 rounded-full bg-gray-900 text-white text-sm font-bold shadow-lg hover:bg-gray-800 transition flex items-center justify-center"
+                  aria-label="Open group chat"
+                  title="Group Chat"
+                >
+                  💬
+                </button>
+                <span className="text-[10px] font-bold text-gray-600 bg-white border border-gray-200 rounded-full px-2 py-0.5 shadow-sm">
+                  Group Chat
+                </span>
+              </div>
+            ) : (
+              <div className="w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{activeGroup.group_name}</p>
+                    <p className="text-[10px] text-gray-500">Group Chat</p>
+                  </div>
+                  <button
+                    onClick={() => setChatOpen(false)}
+                    className="text-xs font-bold text-gray-400 hover:text-gray-600"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="h-56 px-4 py-3 overflow-y-auto bg-gray-50">
+                  {(chatMessagesByGroup[activeGroup.id] || []).length === 0 ? (
+                    <p className="text-xs text-gray-400">No messages yet. Start the conversation.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(chatMessagesByGroup[activeGroup.id] || []).map((msg) => {
+                        const isSelf = msg.sender === "You";
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex flex-col gap-1 ${isSelf ? "items-end" : "items-start"}`}
+                          >
+                            <div className={`flex items-center gap-2 ${isSelf ? "flex-row-reverse" : ""}`}>
+                              <span className="text-[10px] font-bold text-gray-500">{msg.sender}</span>
+                              <span className="text-[10px] text-gray-400">{msg.time}</span>
+                            </div>
+                            <div
+                              className={`rounded-lg px-3 py-2 text-xs max-w-[85%] ${
+                                isSelf
+                                  ? "bg-[#2C76BA] text-white"
+                                  : "bg-gray-200 text-gray-800"
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-3 py-3 border-t border-gray-100 bg-white">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={chatInputByGroup[activeGroup.id] || ""}
+                      onChange={(e) =>
+                        setChatInputByGroup((prev) => ({
+                          ...prev,
+                          [activeGroup.id]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSendChat();
+                      }}
+                      placeholder="Type a message..."
+                      className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2C76BA]"
+                    />
+                    <button
+                      onClick={handleSendChat}
+                      className="px-3 py-2 text-xs font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* MODALS */}
         <AddResourceModal

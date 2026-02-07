@@ -1,12 +1,11 @@
 // UnifiedStudyTimer.jsx - With Real API Integration
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Play, Pause, Square, Clock, Zap, Coffee, Trophy } from 'lucide-react';
 import { useStudySessions } from '../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { Minus, Maximize2 } from 'lucide-react';
 
 
-export default function UnifiedStudyTimer({ onSessionComplete, groupId = null }) {
+export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, embedded = false }) {
   // use mutations from api.js
   const { createSession } = useStudySessions();
   const queryClient = useQueryClient(); // ✅ NEW: For manual refresh
@@ -39,12 +38,28 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
   const [mode, setMode] = useState(savedState?.mode || 'POMO');
   const [timeLeft, setTimeLeft] = useState(savedState?.timeLeft || MODES.POMO.time);
   const [isRunning, setIsRunning] = useState(false); // Always start paused after refresh
-  const [isMinimized, setIsMinimized] = useState(false);
-
   const [totalStudied, setTotalStudied] = useState(savedState?.totalStudied || 0);
   const [sessionStarted, setSessionStarted] = useState(savedState?.sessionStarted || false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
+
+  const resetTimer = useCallback(() => {
+    setTimeLeft(MODES[mode].time);
+    setIsRunning(false);
+    setTotalStudied(0);
+    setSessionStarted(false);
+    setSessionNotes('');
+  }, [MODES, mode]);
+
+  const handleTimerComplete = useCallback(() => {
+    // Auto-show end modal when timer completes
+    if (totalStudied >= 60) { // Only if studied at least 1 minute
+      setShowEndModal(true);
+    } else {
+      alert("Session complete! 🎉");
+      resetTimer();
+    }
+  }, [totalStudied, resetTimer]);
 
   // Timer logic
   useEffect(() => {
@@ -62,17 +77,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
       handleTimerComplete();
     }
     return () => clearInterval(timer);
-  }, [isRunning, timeLeft, mode]);
-
-  const handleTimerComplete = () => {
-    // Auto-show end modal when timer completes
-    if (totalStudied >= 60) { // Only if studied at least 1 minute
-      setShowEndModal(true);
-    } else {
-      alert("Session complete! 🎉");
-      resetTimer();
-    }
-  };
+  }, [isRunning, timeLeft, mode, handleTimerComplete]);
 
   const switchMode = (newMode) => {
     if (isRunning && !window.confirm("Switching modes will reset the current timer. Continue?")) {
@@ -81,14 +86,6 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
     setMode(newMode);
     setTimeLeft(MODES[newMode].time);
     setIsRunning(false);
-  };
-
-  const resetTimer = () => {
-    setTimeLeft(MODES[mode].time);
-    setIsRunning(false);
-    setTotalStudied(0);
-    setSessionStarted(false);
-    setSessionNotes('');
   };
 
     // ✅ CHANGED: Use mutation instead of manual API call
@@ -116,6 +113,9 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
         
         setShowEndModal(false);
         resetTimer();
+        if (typeof onSessionComplete === 'function') {
+          onSessionComplete();
+        }
       } catch (error) {
         console.error("❌ Failed to log session:", error);
         alert(`Failed to save session: ${error.message}`);
@@ -134,220 +134,190 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null })
 
   return (
     <>
-      {/* Floating Timer Container */}
-      <div className="fixed bottom-6 right-6 z-40">
-        {/* ================= FULL TIMER ================= */}
-        {!isMinimized && (
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-80">
-            
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
-                  }`}
-                ></div>
-                <h3 className="font-bold text-gray-800">Study Hub</h3>
-              </div>
-  
-              {/* Minimize Button */}
-              <button
-                onClick={() => setIsMinimized(true)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-            </div>
-  
-            {/* Mode Selector */}
-            <div className="grid grid-cols-2 gap-2 mb-6">
-              {Object.keys(MODES).map((m) => {
-                const ModeIcon = MODES[m].icon;
-                return (
-                  <button
-                    key={m}
-                    onClick={() => switchMode(m)}
-                    className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                      mode === m
-                        ? `${MODES[m].color} text-white shadow-lg scale-105`
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    <ModeIcon className="w-3.5 h-3.5" />
-                    {MODES[m].label}
-                  </button>
-                );
-              })}
-            </div>
-  
-            {/* Timer Display */}
-            <div className="relative mb-6">
-              <div className="flex flex-col items-center justify-center py-6">
-                <div className={`mb-3 p-3 rounded-full ${MODES[mode].color} bg-opacity-10`}>
-                  <CurrentIcon className={`w-6 h-6 ${MODES[mode].color.replace('bg-', 'text-')}`} />
-                </div>
-  
-                <div
-                  className={`text-5xl font-mono font-bold mb-2 ${
-                    isRunning ? 'text-gray-800' : 'text-gray-400'
-                  }`}
-                >
-                  {formatTime(timeLeft)}
-                </div>
-  
-                <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">
-                  {MODES[mode].label}
-                </p>
-              </div>
-  
-              <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
-                <div
-                  className={`h-2 rounded-full transition-all duration-1000 ${MODES[mode].color}`}
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
-  
-            {/* Controls */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setIsRunning(!isRunning);
-                  if (!sessionStarted) setSessionStarted(true);
-                }}
-                className={`flex-[2] py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
-                  isRunning
-                    ? 'bg-orange-500 hover:bg-orange-600'
-                    : 'bg-gray-800 hover:bg-gray-900'
+      {/* Embedded Timer (Dashboard Mode) */}
+      {embedded && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 w-full">
+          
+          {/* Header */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
                 }`}
-              >
-                {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {isRunning ? 'PAUSE' : 'START'}
-              </button>
-  
-              {sessionStarted && (
-                <button
-                  onClick={() => setShowEndModal(true)}
-                  className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold flex items-center justify-center"
-                >
-                  <Square className="w-4 h-4" />
-                </button>
-              )}
+              ></div>
+              <h3 className="font-bold text-gray-800 text-sm">Study Hub</h3>
             </div>
-  
-            {/* Quick Stats */}
-            {totalStudied > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Session time:</span>
-                  <span className="font-bold">{formatTime(totalStudied)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-  
-        {/* ================= MINI TIMER ================= */}
-        {isMinimized && (
-          <button
-            onClick={() => setIsMinimized(false)}
-            className="flex items-center gap-3 bg-gray-900 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-all"
-          >
-            <CurrentIcon className="w-5 h-5" />
-  
-            <span className="font-mono text-sm">
-              {formatTime(timeLeft)}
+            <span className="text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+              0m logged
             </span>
-  
-            {isRunning && (
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            )}
-          </button>
-        )}
-      </div>
-  
+          </div>
 
-      {/* End Session Modal */}
-      {showEndModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            {/* Modal Header */}
-            <div className="flex items-center justify-center mb-4">
-              <div className="p-4 bg-green-100 rounded-full">
-                <Trophy className="w-8 h-8 text-green-600" />
-              </div>
-            </div>
-            
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-              Great Session!
-            </h2>
-            <p className="text-center text-gray-600 mb-6">
-              You studied for <span className="font-bold text-green-600">{Math.floor(totalStudied / 60)} minutes</span>
-            </p>
+          {/* Mode Selector */}
+          <div className="grid grid-cols-2 gap-2 mb-5">
+            {Object.keys(MODES).map((m) => {
+              const ModeIcon = MODES[m].icon;
+              return (
+                <button
+                  key={m}
+                  onClick={() => switchMode(m)}
+                  className={`py-1.5 px-2 rounded-md text-[10px] font-semibold transition-all flex items-center justify-center gap-1 ${
+                    mode === m
+                      ? `${MODES[m].color} text-white shadow-lg scale-105`
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <ModeIcon className="w-3 h-3" />
+                  {MODES[m].label}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Session Stats */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Mode:</span>
-                <span className="font-semibold text-gray-800">{MODES[mode].label}</span>
+          {/* Timer Display */}
+          <div className="relative mb-6">
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className={`mb-3 p-4 rounded-full ${MODES[mode].color} bg-opacity-10`}>
+                <CurrentIcon className={`w-8 h-8 ${MODES[mode].color.replace('bg-', 'text-')}`} />
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Duration:</span>
-                <span className="font-semibold text-gray-800">{formatTime(totalStudied)}</span>
+
+              <div className={`text-6xl font-mono font-bold mb-2 ${isRunning ? 'text-gray-800' : 'text-gray-400'}`}>
+                {formatTime(timeLeft)}
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Minutes:</span>
-                <span className="font-semibold text-gray-800">{Math.floor(totalStudied / 60)} min</span>
-              </div>
+
+              <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">
+                {MODES[mode].label}
+              </p>
             </div>
 
-            {/* Session Notes */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Session Notes (Optional)
-              </label>
-              <textarea
-                value={sessionNotes}
-                onChange={(e) => setSessionNotes(e.target.value)}
-                placeholder="What did you work on? How did it go?"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                rows="3"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowEndModal(false);
-                  setIsRunning(false);
-                }}
-                disabled={createSession.isLoading}
-                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEndSession}
-                disabled={createSession.isLoading}
-                className="flex-[2] py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {createSession.isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Session'
-                )}
-              </button>
+            <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
+              <div
+                className={`h-2 rounded-full transition-all duration-1000 ${MODES[mode].color}`}
+                style={{ width: `${progress}%` }}
+              ></div>
             </div>
           </div>
+
+          {/* Controls */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setIsRunning(!isRunning);
+                if (!sessionStarted) setSessionStarted(true);
+              }}
+              className={`flex-[2] py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                isRunning
+                  ? 'bg-orange-500 hover:bg-orange-600'
+                  : 'bg-gray-800 hover:bg-gray-900'
+              }`}
+            >
+              {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {isRunning ? 'PAUSE' : 'START'}
+            </button>
+
+            {sessionStarted && (
+              <button
+                onClick={() => setShowEndModal(true)}
+                className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold flex items-center justify-center"
+              >
+                <Square className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Stats */}
+          {totalStudied > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>Session time:</span>
+                <span className="font-bold">{formatTime(totalStudied)}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </>
-  );
+
+      
+      {/* End Session Modal */}
+        {showEndModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              {/* Modal Header */}
+              <div className="flex items-center justify-center mb-4">
+                <div className="p-4 bg-green-100 rounded-full">
+                  <Trophy className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+            
+              <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+                Great Session!
+              </h2>
+              <p className="text-center text-gray-600 mb-6">
+                You studied for <span className="font-bold text-green-600">{Math.floor(totalStudied / 60)} minutes</span>
+              </p>
+
+              {/* Session Stats */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Mode:</span>
+                  <span className="font-semibold text-gray-800">{MODES[mode].label}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Duration:</span>
+                  <span className="font-semibold text-gray-800">{formatTime(totalStudied)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Minutes:</span>
+                  <span className="font-semibold text-gray-800">{Math.floor(totalStudied / 60)} min</span>
+                </div>
+              </div>
+
+              {/* Session Notes */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Session Notes (Optional)
+                </label>
+                <textarea
+                  value={sessionNotes}
+                  onChange={(e) => setSessionNotes(e.target.value)}
+                  placeholder="What did you work on? How did it go?"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  rows="3"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowEndModal(false);
+                    setIsRunning(false);
+                  }}
+                  disabled={createSession.isLoading}
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEndSession}
+                  disabled={createSession.isLoading}
+                  className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {createSession.isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Session'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
 }
 
 // ============================================================================
