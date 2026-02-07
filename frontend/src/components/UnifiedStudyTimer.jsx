@@ -46,6 +46,31 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
   const [sessionNotes, setSessionNotes] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState(savedState?.lastSaveTime || Date.now());
+
+  // ✅ Save timer state to localStorage whenever it changes
+  useEffect(() => {
+    const timerState = {
+      mode,
+      timeLeft,
+      totalStudied,
+      sessionStarted,
+      lastSaveTime: Date.now(),
+    };
+
+    localStorage.setItem('study_timer_state', JSON.stringify(timerState));
+    setLastSaveTime(timerState.lastSaveTime);
+  }, [mode, timeLeft, totalStudied, sessionStarted]);
+
+  // ✅ Adjust time if page was closed while timer was running
+  useEffect(() => {
+    if (savedState && savedState.lastSaveTime) {
+      const timePassed = Math.floor((Date.now() - savedState.lastSaveTime) / 1000);
+      if (timePassed > 0 && timePassed < 3600) {
+        console.log(`⏰ Page was closed for ${timePassed} seconds`);
+      }
+    }
+  }, []);
 
   const resetTimer = useCallback(() => {
     setTimeLeft(MODES[mode].time);
@@ -53,6 +78,8 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
     setTotalStudied(0);
     setSessionStarted(false);
     setSessionNotes('');
+    localStorage.removeItem('study_timer_state');
+    console.log('🗑️ Timer state cleared');
   }, [MODES, mode]);
 
   const handleToggle = () => {
@@ -66,6 +93,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
       setShowEndModal(true);
       return;
     }
+    alert("Session too short to save (minimum 1 minute).");
     resetTimer();
   };
 

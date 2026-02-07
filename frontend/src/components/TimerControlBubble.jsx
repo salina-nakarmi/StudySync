@@ -54,7 +54,7 @@ export default function TimerControlBubble({
   return (
     <div
       ref={bubbleRef}
-      className="fixed z-50 bg-white rounded-full shadow-xl border-2 border-blue-500 p-4 cursor-grab active:cursor-grabbing"
+      className="fixed z-50 bg-white rounded-full shadow-md border-2 border-sky-400 p-4 cursor-grab active:cursor-grabbing"
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
