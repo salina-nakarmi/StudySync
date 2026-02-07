@@ -51,18 +51,27 @@ async def upload_file_to_cloudinary(
             file.file,
             folder=folder,
             resource_type=resource_type,
+            content_disposition="inline",
             # Optional: Add more options
             # unique_filename=True,  # Generate unique filename
             # overwrite=False,  # Don't overwrite existing files
         )
         
+        secure_url = result["secure_url"]
+
+        preview_url = secure_url
+        if result.get("format") == "pdf" and result.get("resource_type") == "raw":
+            preview_url = secure_url.replace("/raw/upload/", "/image/upload/")
+
         return {
-            "url": result['secure_url'],  # HTTPS URL
-            "public_id": result['public_id'],
-            "format": result.get('format'),
-            "resource_type": result.get('resource_type'),
-            "size": result.get('bytes', 0)
+            "url": secure_url,            # download
+            "preview_url": preview_url,   # preview in browser
+            "public_id": result["public_id"],
+            "format": result.get("format"),
+            "resource_type": result.get("resource_type"),
+            "size": result.get("bytes", 0)
         }
+
         
     except Exception as e:
         raise HTTPException(
