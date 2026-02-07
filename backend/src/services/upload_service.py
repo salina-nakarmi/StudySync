@@ -47,22 +47,46 @@ async def upload_file_to_cloudinary(
         resource_type = detect_resource_type(file.content_type)
         
         # Upload to Cloudinary
-        result = cloudinary.uploader.upload(
-            file.file,
-            folder=folder,
-            resource_type=resource_type,
-            # Optional: Add more options
-            # unique_filename=True,  # Generate unique filename
-            # overwrite=False,  # Don't overwrite existing files
-        )
+
+        if file.content_type == "application/pdf":
+            result = cloudinary.uploader.upload(
+                file.file,
+                folder=folder,
+                resource_type="image",  # Upload PDF as image type (avoids 401)
+                format="pdf",           # Keep PDF format
+                use_filename=True,     # <-- keep original filename
+                unique_filename=False, # <-- keep the extension
+                filename_override=file.filename,  # <-- forces .pdf to be preserved
+                content_disposition="inline",
+                access_mode="public",
+                type="upload",
+            )
+        else:
+            result = cloudinary.uploader.upload(
+                file.file,
+                folder=folder,
+                resource_type=resource_type,
+                use_filename=True,     # <-- keep original filename
+                unique_filename=False, # <-- keep the extension
+                filename_override=file.filename,  # <-- forces .pdf to be preserved
+                content_disposition="inline",
+                access_mode="public",
+                type="upload", 
+                # Optional: Add more options
+                # unique_filename=True,  # Generate unique filename
+                # overwrite=False,  # Don't overwrite existing files
+            )
         
+        secure_url = result["secure_url"]
+
         return {
-            "url": result['secure_url'],  # HTTPS URL
-            "public_id": result['public_id'],
-            "format": result.get('format'),
-            "resource_type": result.get('resource_type'),
-            "size": result.get('bytes', 0)
+            "url": secure_url,   
+            "public_id": result["public_id"],
+            "format": result.get("format"),
+            "resource_type": result.get("resource_type"),
+            "size": result.get("bytes", 0)
         }
+
         
     except Exception as e:
         raise HTTPException(
@@ -88,6 +112,8 @@ def detect_resource_type(content_type: str) -> str:
     """
     
     if content_type.startswith('image/'):
+        return "image"
+    elif content_type.startswith('pdf/'):
         return "image"
     elif content_type.startswith('video/'):
         return "video"
