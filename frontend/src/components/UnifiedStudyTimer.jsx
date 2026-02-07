@@ -1,8 +1,10 @@
 // UnifiedStudyTimer.jsx - With Real API Integration
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Square, Clock, Zap, Coffee, Trophy } from 'lucide-react';
+import { Play, Pause, Square, Clock, Zap, Coffee, Trophy, ChevronDown } from 'lucide-react';
 import { useStudySessions } from '../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
+import TimerControlBubble from './TimerControlBubble';
+import TimerControlPanel from './TimerControlPanel';
 
 
 export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, embedded = false }) {
@@ -42,6 +44,8 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
   const [sessionStarted, setSessionStarted] = useState(savedState?.sessionStarted || false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
 
   const resetTimer = useCallback(() => {
     setTimeLeft(MODES[mode].time);
@@ -50,6 +54,20 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
     setSessionStarted(false);
     setSessionNotes('');
   }, [MODES, mode]);
+
+  const handleToggle = () => {
+    setIsRunning((prev) => !prev);
+    if (!sessionStarted) setSessionStarted(true);
+  };
+
+  const handleStopRequest = () => {
+    setIsRunning(false);
+    if (totalStudied >= 60) {
+      setShowEndModal(true);
+      return;
+    }
+    resetTimer();
+  };
 
   const handleTimerComplete = useCallback(() => {
     // Auto-show end modal when timer completes
@@ -134,6 +152,134 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
   return (
     <>
+      {!embedded && (
+        <>
+          {!isMinimized && (
+            <div className="fixed bottom-6 right-6 z-50 w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                    }`}
+                  ></div>
+                  <h3 className="font-bold text-gray-800 text-sm">Study Hub</h3>
+                </div>
+                <button
+                  onClick={() => setIsMinimized(true)}
+                  className="text-gray-400 hover:text-gray-700 transition-colors text-xs font-semibold flex items-center gap-1"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                  Minimize
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-4">
+                <div className={`mb-2 p-3 rounded-full ${MODES[mode].color} bg-opacity-10`}>
+                  <CurrentIcon className={`w-7 h-7 ${MODES[mode].color.replace('bg-', 'text-')}`} />
+                </div>
+                <div className={`text-4xl font-mono font-bold mb-1 ${isRunning ? 'text-gray-800' : 'text-gray-400'}`}>
+                  {formatTime(timeLeft)}
+                </div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+                  {MODES[mode].label}
+                </p>
+              </div>
+
+              <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-1000 ${MODES[mode].color}`}
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                {Object.keys(MODES).map((m) => {
+                  const ModeIcon = MODES[m].icon;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => switchMode(m)}
+                      disabled={isRunning}
+                      className={`py-1.5 px-2 rounded-md text-[10px] font-semibold transition-all flex items-center justify-center gap-1 ${
+                        mode === m
+                          ? `${MODES[m].color} text-white shadow-lg`
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50'
+                      }`}
+                    >
+                      <ModeIcon className="w-3 h-3" />
+                      {MODES[m].label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={handleToggle}
+                  className={`flex-[2] py-2.5 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                    isRunning
+                      ? 'bg-orange-500 hover:bg-orange-600'
+                      : 'bg-gray-800 hover:bg-gray-900'
+                  }`}
+                >
+                  {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isRunning ? 'PAUSE' : 'START'}
+                </button>
+
+                {sessionStarted && (
+                  <button
+                    onClick={handleStopRequest}
+                    className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold flex items-center justify-center"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
+                <span>Session time:</span>
+                <span className="font-bold">{formatTime(totalStudied)}</span>
+              </div>
+
+              <button
+                onClick={() => setIsControlPanelOpen(true)}
+                className="w-full mt-3 py-2 text-xs text-blue-600 hover:text-blue-700 font-semibold transition-colors"
+              >
+                Open details panel
+              </button>
+            </div>
+          )}
+
+          {isMinimized && (
+            <TimerControlBubble
+              isRunning={isRunning}
+              timeLeft={timeLeft}
+              onToggle={handleToggle}
+              onClose={handleStopRequest}
+              mode={MODES[mode].label}
+              formatTime={formatTime}
+              onOpenControlPanel={() => setIsMinimized(false)}
+            />
+          )}
+
+          <TimerControlPanel
+            isOpen={isControlPanelOpen}
+            onClose={() => setIsControlPanelOpen(false)}
+            isRunning={isRunning}
+            onToggle={handleToggle}
+            onStop={handleStopRequest}
+            mode={mode}
+            MODES={MODES}
+            onModeChange={switchMode}
+            formatTime={formatTime}
+            timeLeft={timeLeft}
+            totalStudied={totalStudied}
+            progress={progress}
+          />
+        </>
+      )}
+
       {/* Embedded Timer (Dashboard Mode) */}
       {embedded && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 w-full">
@@ -201,10 +347,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
           {/* Controls */}
           <div className="flex gap-3">
             <button
-              onClick={() => {
-                setIsRunning(!isRunning);
-                if (!sessionStarted) setSessionStarted(true);
-              }}
+              onClick={handleToggle}
               className={`flex-[2] py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
                 isRunning
                   ? 'bg-orange-500 hover:bg-orange-600'
@@ -217,7 +360,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
             {sessionStarted && (
               <button
-                onClick={() => setShowEndModal(true)}
+                onClick={handleStopRequest}
                 className="flex-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-xl font-bold flex items-center justify-center"
               >
                 <Square className="w-4 h-4" />

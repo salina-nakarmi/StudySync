@@ -12,6 +12,8 @@ import Mytask from "../components/Mytask";
 
 export default function Dashboard() {
   const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = useDashboard();
+    const refreshDashboard = () => refetchDashboard();
+
   const { streak, isLoading: streakLoading, error: streakError } = useStreaks();
   const { todaySummary, isLoading: sessionsLoading } = useStudySessions();
 
@@ -20,8 +22,6 @@ export default function Dashboard() {
   const { user, isLoaded, isSignedIn } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const refreshDashboard = () => refetchDashboard();
 
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
