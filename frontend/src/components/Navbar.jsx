@@ -18,6 +18,7 @@ const Navbar = () => {
   useEffect(() => {
     if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
+    else if (location.pathname === "/resources") setActiveTab("Resources");
     else if (location.pathname === "/groups") setActiveTab("Groups");
   }, [location.pathname]);
 
@@ -25,6 +26,7 @@ const Navbar = () => {
     setActiveTab(item);
     if (item === "Progress Tracking") navigate("/progress-tracking");
     else if (item === "Dashboard") navigate("/dashboard");
+    else if (item === "Resources") navigate("/resources");
     else if (item === "Groups") navigate("/groups");
   };
 

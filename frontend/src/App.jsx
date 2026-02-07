@@ -9,6 +9,7 @@ import SSOCallback from "./auth/SSOCallback.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home.jsx";
 import ProgressTracking from "./pages/ProgressTracking.jsx";
+import Resources from "./pages/Resources.jsx";
 import Profile from "./pages/Profile.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import Groups from "./pages/Groups.jsx";
@@ -84,6 +85,20 @@ function App() {
     </>
   } 
 />
+
+        <Route
+          path="/resources"
+          element={
+            <>
+              <SignedIn>
+                <Resources />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
 
 <Route
   path="/profile"
