@@ -36,6 +36,7 @@ export default function Groups() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInputByGroup, setChatInputByGroup] = useState({});
   const [chatMessagesByGroup, setChatMessagesByGroup] = useState({});
+  const [resourceProgressById, setResourceProgressById] = useState({});
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -126,6 +127,13 @@ export default function Groups() {
       };
     });
     setChatInputByGroup((prev) => ({ ...prev, [groupId]: "" }));
+  };
+
+  const handleResourceProgressChange = (resourceId, value) => {
+    setResourceProgressById((prev) => ({
+      ...prev,
+      [resourceId]: value,
+    }));
   };
 
   if (loading) {
@@ -355,6 +363,22 @@ export default function Groups() {
                                 <div>
                                   <h4 className="text-sm font-bold text-gray-900">{res.title || "Untitled"}</h4>
                                   <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
+                                  <div className="mt-3">
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                      <span>Progress</span>
+                                      <span>{resourceProgressById[res.id] || 0}%</span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={resourceProgressById[res.id] || 0}
+                                      onChange={(e) => handleResourceProgressChange(res.id, Number(e.target.value))}
+                                      className="w-62 accent-[#2C76BA]"
+                                      aria-label={`Progress for ${res.title || "resource"}`}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
