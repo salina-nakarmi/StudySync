@@ -91,3 +91,8 @@ async def get_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
     
     return user
+
+async def get_username_by_id(id:str, session:AsyncSession):
+    query = select(Users).where(Users.user_id==id)
+    result = await session.execute(query)
+    return result.scalar_one_or_none()

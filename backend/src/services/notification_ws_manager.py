@@ -22,5 +22,4 @@ class NotificationManager:
                     "data": data
                 })
 
-
 notification_manager = NotificationManager()

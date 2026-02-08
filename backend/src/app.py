@@ -1,6 +1,6 @@
 from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard, streaks, users, resources, groups, study_sessions
+from .routes import Dashboard, streaks, users, resources, groups, study_sessions, notifications, notifications_ws, messages
 from .routes import chatbot
 # from .services import socket_services
 
@@ -16,7 +16,8 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", 
                    "http://127:0:0:1:5173",
                    "http://localhost:3000",
-                   "http://localhost:5174"], # In production, specify exact origins
+                   "http://localhost:5174"
+                   ], # In production, specify exact origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -31,6 +32,10 @@ app.include_router(resources.router, prefix="/api")
 app.include_router(groups.router, prefix="/api") 
 app.include_router(study_sessions.router, prefix="/api") 
 app.include_router(chatbot.router, prefix="/api")
+app.include_router(notifications.router, prefix = "/api")
+app.include_router(notifications_ws.router, prefix = "/api")
+app.include_router(messages.router, prefix = "/api")
+
 
 
 @app.get("/")

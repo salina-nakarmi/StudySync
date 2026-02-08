@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from ..database.models import Messages
+from ..database.models import Messages, MessageType
 from enum import Enum
 
 class MessageResponse(BaseModel):
@@ -15,10 +15,10 @@ class StoreMessageRequest(BaseModel):
     user_id:str
     group_id:int
     content:str
-    type:str    
+    type: MessageType    
 
 class LoadMessageRequest(BaseModel):
-    last_message_id: int
+    last_message_id: Optional[int] = None
     user_id: str
     group_id: int 
 
