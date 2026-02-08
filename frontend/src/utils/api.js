@@ -141,3 +141,40 @@ export const useContributions = () => {
     error,
   };
 };
+
+
+// ===========================================================================
+// Resource progress bar
+// ============================================================================
+export const useResourceProgress = () => {
+  const { getToken } = useAuth();
+
+  const updateProgress = async ({ resourceId, progress }) => {
+    const token = await getToken();
+
+    const status =
+      progress === 0
+        ? "not_started"
+        : progress === 100
+        ? "completed"
+        : "in_progress";
+
+    const res = await api.post(
+      `/resources/${resourceId}/progress`,
+      {
+        status,
+        progress_percentage: progress,
+        notes: null,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    return res.data;
+  };
+
+  return { updateProgress };
+};
