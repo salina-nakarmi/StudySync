@@ -311,7 +311,7 @@ const Index = () => {
     <div className="min-h-screen bg-white">
       <Navbar />
       <div className="pt-24 relative">
-        {/* {sidebarOpen && (
+        {sidebarOpen && (
           <>
             <button
               type="button"
@@ -365,7 +365,7 @@ const Index = () => {
           </div>
             </aside>
           </>
-        )} */}
+        )}
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
           <section>
