@@ -241,6 +241,27 @@ export const resourceService = {
   },
 
   // ========================================================================
+  // SHARE - Share Personal Resource to Group
+  // ========================================================================
+  shareResourceToGroup: async (token, resourceId, groupId) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/share`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ group_id: groupId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to share resource" }));
+      throw new Error(error.detail || "Failed to share resource");
+    }
+
+    return response.json();
+  },
+
+  // ========================================================================
   // STATISTICS
   // ========================================================================
   getMyStats: async (token) => {
