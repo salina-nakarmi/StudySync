@@ -37,16 +37,67 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
   const savedState = loadTimerState();
 
-  const [mode, setMode] = useState(savedState?.mode || 'POMO');
-  const [timeLeft, setTimeLeft] = useState(savedState?.timeLeft || MODES.POMO.time);
-  const [isRunning, setIsRunning] = useState(false); // Always start paused after refresh
-  const [totalStudied, setTotalStudied] = useState(savedState?.totalStudied || 0);
-  const [sessionStarted, setSessionStarted] = useState(savedState?.sessionStarted || false);
+  const getInitialTimerState = (state) => {
+    if (!state) {
+      return {
+        mode: 'POMO',
+        timeLeft: MODES.POMO.time,
+        totalStudied: 0,
+        sessionStarted: false,
+        isRunning: false,
+        didComplete: false,
+        lastSaveTime: Date.now(),
+      };
+    }
+
+    const mode = state.mode || 'POMO';
+    const baseTime = MODES[mode]?.time || MODES.POMO.time;
+    let timeLeft = typeof state.timeLeft === 'number' ? state.timeLeft : baseTime;
+    let totalStudied = typeof state.totalStudied === 'number' ? state.totalStudied : 0;
+    let totalElapsed = typeof state.totalElapsed === 'number'
+      ? state.totalElapsed
+      : Math.max(0, baseTime - timeLeft);
+    const sessionStarted = !!state.sessionStarted;
+    const isRunning = !!state.isRunning;
+    const lastSaveTime = state.lastSaveTime || Date.now();
+
+    if (isRunning) {
+      const timePassed = Math.floor((Date.now() - lastSaveTime) / 1000);
+      if (timePassed > 0) {
+        timeLeft = Math.max(timeLeft - timePassed, 0);
+        totalElapsed += timePassed;
+        if (mode === 'DEEP' || mode === 'POMO') {
+          totalStudied += timePassed;
+        }
+      }
+    }
+
+    return {
+      mode,
+      timeLeft,
+      totalStudied,
+      totalElapsed,
+      sessionStarted,
+      isRunning,
+      didComplete: isRunning && timeLeft === 0,
+      lastSaveTime,
+    };
+  };
+
+  const initialState = getInitialTimerState(savedState);
+
+  const [mode, setMode] = useState(initialState.mode);
+  const [timeLeft, setTimeLeft] = useState(initialState.timeLeft);
+  const [isRunning, setIsRunning] = useState(initialState.isRunning);
+  const [totalStudied, setTotalStudied] = useState(initialState.totalStudied);
+  const [totalElapsed, setTotalElapsed] = useState(initialState.totalElapsed);
+  const [sessionStarted, setSessionStarted] = useState(initialState.sessionStarted);
   const [showEndModal, setShowEndModal] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(savedState?.lastSaveTime || Date.now());
+  const [lastSaveTime, setLastSaveTime] = useState(initialState.lastSaveTime);
+  const [pendingAutoComplete, setPendingAutoComplete] = useState(initialState.didComplete);
 
   // ✅ Save timer state to localStorage whenever it changes
   useEffect(() => {
@@ -54,13 +105,15 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
       mode,
       timeLeft,
       totalStudied,
+      totalElapsed,
       sessionStarted,
+      isRunning,
       lastSaveTime: Date.now(),
     };
 
     localStorage.setItem('study_timer_state', JSON.stringify(timerState));
     setLastSaveTime(timerState.lastSaveTime);
-  }, [mode, timeLeft, totalStudied, sessionStarted]);
+  }, [mode, timeLeft, totalStudied, totalElapsed, sessionStarted, isRunning]);
 
   // ✅ Adjust time if page was closed while timer was running
   useEffect(() => {
@@ -72,10 +125,12 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
     }
   }, []);
 
+
   const resetTimer = useCallback(() => {
     setTimeLeft(MODES[mode].time);
     setIsRunning(false);
     setTotalStudied(0);
+    setTotalElapsed(0);
     setSessionStarted(false);
     setSessionNotes('');
     localStorage.removeItem('study_timer_state');
@@ -89,23 +144,28 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
   const handleStopRequest = () => {
     setIsRunning(false);
-    if (totalStudied >= 60) {
-      setShowEndModal(true);
-      return;
-    }
-    alert("Session too short to save (minimum 1 minute).");
-    resetTimer();
+    setShowEndModal(true);
   };
 
   const handleTimerComplete = useCallback(() => {
+    const isStudyMode = mode === 'DEEP' || mode === 'POMO';
+    const durationSeconds = isStudyMode ? totalStudied : totalElapsed;
     // Auto-show end modal when timer completes
-    if (totalStudied >= 60) { // Only if studied at least 1 minute
+    if (durationSeconds >= 60) { // Only if at least 1 minute
       setShowEndModal(true);
     } else {
       alert("Session complete! 🎉");
       resetTimer();
     }
-  }, [totalStudied, resetTimer]);
+  }, [mode, totalStudied, totalElapsed, resetTimer]);
+
+  useEffect(() => {
+    if (pendingAutoComplete) {
+      setIsRunning(false);
+      handleTimerComplete();
+      setPendingAutoComplete(false);
+    }
+  }, [pendingAutoComplete, handleTimerComplete]);
 
   // Timer logic
   useEffect(() => {
@@ -113,6 +173,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
     if (isRunning && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft(prev => prev - 1);
+        setTotalElapsed(prev => prev + 1);
         // Only log study time if the mode is DEEP or POMO
         if (mode === 'DEEP' || mode === 'POMO') {
           setTotalStudied(prev => prev + 1);
@@ -136,14 +197,16 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
     // ✅ CHANGED: Use mutation instead of manual API call
     const handleEndSession = async () => {
-      if (totalStudied < 60) {
+      const isStudyMode = mode === 'DEEP' || mode === 'POMO';
+      const durationSeconds = isStudyMode ? totalStudied : totalElapsed;
+      if (durationSeconds < 60) {
         alert("Session too short (minimum 1 minute)");
         return;
       }
   
       try {
         await createSession.mutateAsync({
-          duration_seconds: totalStudied,
+          duration_seconds: durationSeconds,
           session_notes: sessionNotes || `${MODES[mode].label} session`,
           group_id: groupId,
         });
@@ -155,7 +218,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
         queryClient.invalidateQueries(['streaks']);
         queryClient.invalidateQueries(['study-sessions']);
   
-        alert(`Session saved! ${Math.floor(totalStudied / 60)} minutes logged 🎉`);
+        alert(`Session saved! ${Math.floor(durationSeconds / 60)} minutes logged 🎉`);
         
         setShowEndModal(false);
         resetTimer();
@@ -176,6 +239,8 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
     };
   
     const CurrentIcon = MODES[mode].icon;
+    const isStudyMode = mode === 'DEEP' || mode === 'POMO';
+    const displaySeconds = isStudyMode ? totalStudied : totalElapsed;
     const progress = ((MODES[mode].time - timeLeft) / MODES[mode].time) * 100;
 
   return (
@@ -204,7 +269,6 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
               <div className="flex flex-col items-center justify-center py-4">
                 <div className={`mb-2 p-3 rounded-full ${MODES[mode].color} bg-opacity-10`}>
-                  <CurrentIcon className={`w-7 h-7 ${MODES[mode].color.replace('bg-', 'text-')}`} />
                 </div>
                 <div className={`text-4xl font-mono font-bold mb-1 ${isRunning ? 'text-gray-800' : 'text-gray-400'}`}>
                   {formatTime(timeLeft)}
@@ -267,7 +331,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
 
               <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
                 <span>Session time:</span>
-                <span className="font-bold">{formatTime(totalStudied)}</span>
+                <span className="font-bold">{formatTime(displaySeconds)}</span>
               </div>
 
               <button
@@ -302,7 +366,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
             onModeChange={switchMode}
             formatTime={formatTime}
             timeLeft={timeLeft}
-            totalStudied={totalStudied}
+            totalStudied={displaySeconds}
             progress={progress}
           />
         </>
@@ -323,7 +387,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
               <h3 className="font-bold text-gray-800 text-sm">Study Hub</h3>
             </div>
             <span className="text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-              0m logged
+              {Math.floor(displaySeconds / 60)}m logged
             </span>
           </div>
 
@@ -397,11 +461,11 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
           </div>
 
           {/* Quick Stats */}
-          {totalStudied > 0 && (
+          {displaySeconds > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex justify-between text-xs text-gray-600">
                 <span>Session time:</span>
-                <span className="font-bold">{formatTime(totalStudied)}</span>
+                <span className="font-bold">{formatTime(displaySeconds)}</span>
               </div>
             </div>
           )}
@@ -424,7 +488,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
                 Great Session!
               </h2>
               <p className="text-center text-gray-600 mb-6">
-                You studied for <span className="font-bold text-green-600">{Math.floor(totalStudied / 60)} minutes</span>
+                You studied for <span className="font-bold text-green-600">{Math.floor(displaySeconds / 60)} minutes</span>
               </p>
 
               {/* Session Stats */}
@@ -435,11 +499,11 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Duration:</span>
-                  <span className="font-semibold text-gray-800">{formatTime(totalStudied)}</span>
+                  <span className="font-semibold text-gray-800">{formatTime(displaySeconds)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Minutes:</span>
-                  <span className="font-semibold text-gray-800">{Math.floor(totalStudied / 60)} min</span>
+                  <span className="font-semibold text-gray-800">{Math.floor(displaySeconds / 60)} min</span>
                 </div>
               </div>
 
@@ -472,7 +536,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
                 <button
                   onClick={handleEndSession}
                   disabled={createSession.isLoading}
-                  className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 min-h-[48px] py-3 px-5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   {createSession.isLoading ? (
                     <>

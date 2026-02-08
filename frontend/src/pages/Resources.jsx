@@ -8,12 +8,16 @@ import {
   Bookmark,
   BookOpen,
   Menu,
+  X,
   Video,
   Link as LinkIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/clerk-react";
 import Navbar from "../components/Navbar";
 import AddResourceModal from "../components/AddResourceModal";
+import { resourceService } from "../services/resource_services";
+import { groupService } from "../services/group_services";
 
 const initialResources = [
   {
@@ -106,36 +110,201 @@ const filterOptions = [
 ];
 
 const Index = () => {
+  const { getToken } = useAuth();
   const [resources, setResources] = useState(initialResources);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [resourceScope, setResourceScope] = useState("personal");
+  const [groupIdInput, setGroupIdInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedResource, setSelectedResource] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [progressStatus, setProgressStatus] = useState("not_started");
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressNotes, setProgressNotes] = useState("");
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressSaving, setProgressSaving] = useState(false);
+  const [shareGroupId, setShareGroupId] = useState("");
+  const [groups, setGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsError, setGroupsError] = useState("");
 
-  const filteredResources = resources.filter((r) => {
-    const matchesSearch =
-      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = activeFilter === "all" || r.resource_type === activeFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const fetchResources = async (params = {}) => {
+    try {
+      setLoading(true);
+      setError("");
+      const token = await getToken();
+      const query = {
+        resource_type: activeFilter === "all" ? undefined : activeFilter,
+        search: searchQuery || undefined,
+        skip: 0,
+        limit: 20,
+        ...params,
+      };
 
-  const handleAddResource = (data) => {
-    const isFile = data.type === "file";
-    const title = isFile
-      ? data.file?.name?.replace(/\.[^/.]+$/, "") || "New File"
-      : data.title;
-    const newResource = {
-      id: Date.now().toString(),
-      title,
-      description: data.description || "",
-      resource_type: isFile ? "file" : "link",
-      tags: ["New"],
-      url: isFile ? null : data.url,
+      let data = [];
+      if (resourceScope === "personal") {
+        data = await resourceService.getPersonalResources(token, query);
+      } else if (groupIdInput) {
+        data = await resourceService.getGroupResources(token, Number(groupIdInput), query);
+      }
+
+      setResources(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Failed to load resources");
+      setResources([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (resourceScope === "group" && !groupIdInput) {
+        setResources([]);
+        return;
+      }
+      fetchResources();
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [resourceScope, groupIdInput, activeFilter, searchQuery]);
+
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!detailOpen || !selectedResource) return;
+      try {
+        setProgressLoading(true);
+        const token = await getToken();
+        const progress = await resourceService.getMyProgress(token, selectedResource.id);
+        setProgressStatus(progress?.status || "not_started");
+        setProgressPercent(progress?.progress_percentage || 0);
+        setProgressNotes(progress?.notes || "");
+      } catch (err) {
+        setProgressStatus("not_started");
+        setProgressPercent(0);
+        setProgressNotes("");
+      } finally {
+        setProgressLoading(false);
+      }
     };
-    setResources((prev) => [newResource, ...prev]);
+
+    loadProgress();
+  }, [detailOpen, selectedResource, getToken]);
+
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        setGroupsLoading(true);
+        setGroupsError("");
+        const token = await getToken();
+        const data = await groupService.getMyGroups(token);
+        setGroups(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setGroupsError(err.message || "Failed to load groups");
+        setGroups([]);
+      } finally {
+        setGroupsLoading(false);
+      }
+    };
+
+    if (detailOpen) {
+      loadGroups();
+    }
+  }, [detailOpen, getToken]);
+
+  const handleAddResource = async (data) => {
+    const isFile = data.type === "file";
+    const token = await getToken();
+    const groupId = resourceScope === "group" ? Number(groupIdInput) : null;
+
+    if (isFile) {
+      await resourceService.uploadFile(
+        token,
+        data.file,
+        groupId,
+        data.description || null,
+        data.parentFolderId || null
+      );
+    } else {
+      await resourceService.createResource(token, {
+        title: data.title,
+        url: data.url,
+        description: data.description || "",
+        resource_type: "link",
+        group_id: groupId,
+        parent_folder_id: data.parentFolderId || null,
+      });
+    }
+
     setAddModalOpen(false);
+    await fetchResources();
+  };
+
+  const openDetails = (resource) => {
+    setSelectedResource(resource);
+    setDetailOpen(true);
+    setShareGroupId("");
+  };
+
+  const closeDetails = () => {
+    setDetailOpen(false);
+    setSelectedResource(null);
+  };
+
+  const handleSaveProgress = async () => {
+    if (!selectedResource) return;
+    try {
+      setProgressSaving(true);
+      const token = await getToken();
+      await resourceService.updateProgress(token, selectedResource.id, {
+        status: progressStatus,
+        progress_percentage: progressPercent,
+        notes: progressNotes || null,
+      });
+    } finally {
+      setProgressSaving(false);
+    }
+  };
+
+  const handleMarkComplete = async () => {
+    if (!selectedResource) return;
+    try {
+      setProgressSaving(true);
+      const token = await getToken();
+      await resourceService.markCompleted(token, selectedResource.id, progressNotes || null);
+      setProgressStatus("completed");
+      setProgressPercent(100);
+    } finally {
+      setProgressSaving(false);
+    }
+  };
+
+  const handleDeleteResource = async () => {
+    if (!selectedResource) return;
+    try {
+      const token = await getToken();
+      await resourceService.deleteResource(token, selectedResource.id);
+      closeDetails();
+      await fetchResources();
+    } catch (err) {
+      setError(err.message || "Failed to delete resource");
+    }
+  };
+
+  const handleShareToGroup = async () => {
+    if (!selectedResource || !shareGroupId) return;
+    try {
+      const token = await getToken();
+      await resourceService.shareResourceToGroup(token, selectedResource.id, Number(shareGroupId));
+      await fetchResources();
+      closeDetails();
+    } catch (err) {
+      setError(err.message || "Failed to share resource");
+    }
   };
 
   return (
@@ -232,6 +401,41 @@ const Index = () => {
                 </button>
               </div>
 
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                <div className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-full p-1">
+                  {[
+                    { label: "Personal", value: "personal" },
+                    { label: "Group", value: "group" },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      onClick={() => setResourceScope(item.value)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                        resourceScope === item.value
+                          ? "bg-gray-900 text-white"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                      type="button"
+                    >
+                      {item.label} Resources
+                    </button>
+                  ))}
+                </div>
+
+                {resourceScope === "group" && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-500">Group ID</label>
+                    <input
+                      value={groupIdInput}
+                      onChange={(event) => setGroupIdInput(event.target.value)}
+                      placeholder="XXXX"
+                      className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      inputMode="numeric"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Filters */}
               <div className="flex items-center gap-2 mb-6">
                 <SlidersHorizontal size={16} className="text-gray-400 mr-1" />
@@ -250,7 +454,7 @@ const Index = () => {
                   </button>
                 ))}
                 <span className="ml-auto text-xs text-gray-500">
-                  {filteredResources.length} resource{filteredResources.length !== 1 ? "s" : ""}
+                  {resources.length} resource{resources.length !== 1 ? "s" : ""}
                 </span>
               </div>
 
@@ -260,7 +464,13 @@ const Index = () => {
               </h2>
 
               {/* Resource Grid */}
-              {filteredResources.length === 0 ? (
+              {loading ? (
+                <div className="py-16 text-center text-gray-500">Loading resources...</div>
+              ) : error ? (
+                <div className="py-10 px-6 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
+                  {error}
+                </div>
+              ) : resources.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <Search size={48} className="text-gray-300 mb-4" />
                   <p className="text-gray-500 font-medium">No resources found.</p>
@@ -270,11 +480,12 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredResources.map((resource, index) => (
+                  {resources.map((resource, index) => (
                     <ResourceCard
                       key={resource.id}
                       resource={resource}
                       index={index}
+                      onSelect={openDetails}
                     />
                   ))}
                 </div>
@@ -283,12 +494,35 @@ const Index = () => {
         </main>
       </div>
 
+      <ResourceDetailModal
+        isOpen={detailOpen}
+        resource={selectedResource}
+        onClose={closeDetails}
+        progressLoading={progressLoading}
+        progressStatus={progressStatus}
+        progressPercent={progressPercent}
+        progressNotes={progressNotes}
+        progressSaving={progressSaving}
+        onProgressStatusChange={setProgressStatus}
+        onProgressPercentChange={setProgressPercent}
+        onProgressNotesChange={setProgressNotes}
+        onSaveProgress={handleSaveProgress}
+        onMarkComplete={handleMarkComplete}
+        onDelete={handleDeleteResource}
+        onShare={handleShareToGroup}
+        shareGroupId={shareGroupId}
+        onShareGroupIdChange={setShareGroupId}
+        groups={groups}
+        groupsLoading={groupsLoading}
+        groupsError={groupsError}
+      />
+
       {/* Add Resource Modal */}
       <AddResourceModal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onSubmit={handleAddResource}
-        groupId={null}
+        groupId={resourceScope === "group" && groupIdInput ? Number(groupIdInput) : null}
       />
     </div>
   );
@@ -296,7 +530,7 @@ const Index = () => {
 
 export default Index;
 
-const ResourceCard = ({ resource }) => {
+const ResourceCard = ({ resource, onSelect }) => {
   const cardIcons = {
     file: FileText,
     video: Video,
@@ -305,7 +539,11 @@ const ResourceCard = ({ resource }) => {
   const Icon = cardIcons[resource.resource_type] || FileText;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-lg transition flex flex-col h-full">
+    <button
+      type="button"
+      onClick={() => onSelect(resource)}
+      className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-lg transition flex flex-col h-full text-left"
+    >
       <div className="flex justify-between items-start mb-4">
         <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
           <Icon className="w-6 h-6 text-gray-600" />
@@ -322,15 +560,211 @@ const ResourceCard = ({ resource }) => {
       </p>
       <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
         <span>{resource.tags?.[0] || "Resource"}</span>
-        {resource.url ? (
-          <a
-            href={resource.url}
-            className="text-[#2C76BA] font-medium"
+        <span className="text-[#2C76BA] font-medium">View Resource →</span>
+      </div>
+    </button>
+  );
+};
+
+const formatBytes = (bytes) => {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
+
+const formatRelativeTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+};
+
+const getProgressLabel = (status) => {
+  if (status === "completed") return "Completed";
+  if (status === "in_progress") return "In Progress";
+  if (status === "paused") return "Paused";
+  return "Not Started";
+};
+
+const ResourceDetailModal = ({
+  isOpen,
+  resource,
+  onClose,
+  progressLoading,
+  progressStatus,
+  progressPercent,
+  progressNotes,
+  progressSaving,
+  onProgressStatusChange,
+  onProgressPercentChange,
+  onProgressNotesChange,
+  onSaveProgress,
+  onMarkComplete,
+  onDelete,
+  onShare,
+  shareGroupId,
+  onShareGroupIdChange,
+  groups,
+  groupsLoading,
+  groupsError,
+}) => {
+  if (!isOpen || !resource) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-gray-200 p-6 z-[80]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">
+              {resource.title || "Untitled"}
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Uploaded: {formatRelativeTime(resource.created_at) || "—"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100"
+            aria-label="Close"
           >
-            View Resource →
-          </a>
-        ) : (
-          <span className="text-gray-400">No link</span>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2 text-sm text-gray-600">
+          <p>
+            <span className="font-semibold text-gray-700">Description:</span>{" "}
+            {resource.description || "No description provided."}
+          </p>
+          <p>
+            <span className="font-semibold text-gray-700">Type:</span>{" "}
+            {resource.resource_type?.toUpperCase() || "FILE"}
+            {resource.file_size ? ` • Size: ${formatBytes(resource.file_size)}` : ""}
+          </p>
+        </div>
+
+        <div className="mt-6">
+          <p className="text-sm font-semibold text-gray-800">Your Progress</p>
+          {progressLoading ? (
+            <p className="text-xs text-gray-500 mt-2">Loading progress...</p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>{progressPercent}% Complete</span>
+                <span>Status: {getProgressLabel(progressStatus)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#2C76BA]"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={progressPercent}
+                onChange={(event) => onProgressPercentChange(Number(event.target.value))}
+                className="w-full accent-[#2C76BA]"
+              />
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-gray-500">Status</label>
+                <select
+                  value={progressStatus}
+                  onChange={(event) => onProgressStatusChange(event.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1"
+                >
+                  <option value="not_started">Not Started</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Notes</label>
+                <textarea
+                  value={progressNotes}
+                  onChange={(event) => onProgressNotesChange(event.target.value)}
+                  rows={2}
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs"
+                  placeholder="Add a note..."
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {resource.url && (
+            <a
+              href={resource.url}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold"
+            >
+              Open File
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onMarkComplete}
+            disabled={progressSaving}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Mark Complete
+          </button>
+          <button
+            type="button"
+            onClick={onSaveProgress}
+            disabled={progressSaving}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Save Progress
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <select
+              value={shareGroupId}
+              onChange={(event) => onShareGroupIdChange(event.target.value)}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-xs"
+            >
+              <option value="">
+                {groupsLoading ? "Loading groups..." : "Select group"}
+              </option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.group_name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={onShare}
+              disabled={!shareGroupId || groupsLoading}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              Share to Group
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="px-4 py-2 rounded-lg text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
+        {groupsError && (
+          <p className="mt-2 text-xs text-red-500">{groupsError}</p>
         )}
       </div>
     </div>

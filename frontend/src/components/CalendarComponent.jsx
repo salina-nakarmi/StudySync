@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useStreaks } from "../utils/api";
 
 
@@ -94,8 +94,8 @@ export default function CustomCalendar() {
 
 
 <div className="grid grid-cols-7 text-center text-gray-500 font-semibold text-[8px] mt-2 mb-1 ml-[-8px]">
-  {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
-    <div key={d}>{d}</div>
+  {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
+    <div key={`${d}-${idx}`}>{d}</div>
   ))}
 </div>
 
