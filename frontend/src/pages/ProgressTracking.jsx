@@ -3,7 +3,7 @@ import Navbar from "../components/Navbar";
 import OverallProgress from "../components/OveralProgress";
 import TotalHours from "../components/TotalHours";
 import TodayProgressCard from "../components/TodayProgressCard";
-import { TasksDone, LongestStreak } from "../components/ProgressStats";
+import { CurrentStreak, LongestStreak } from "../components/StreaksStats";
 
 import {
   CheckCircleIcon,
@@ -224,7 +224,7 @@ export default function ProgressTrackingPage() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
           <TodayProgressCard />
-          <TasksDone />
+          <CurrentStreak />
           <LongestStreak />
         </div>
 
