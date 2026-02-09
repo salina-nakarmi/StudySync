@@ -56,12 +56,12 @@ const ProfileSection = ({ user, onLogout }) => {
         </div>
 
         <div className="mt-6 border-t border-gray-200 pt-4 space-y-2 text-gray-600">
-        {/* {dashboardData?.user && (
-    <p>
-      <span className="font-semibold">Member since:</span>{" "}
-      {new Date(dashboardData.user.member_since).toLocaleDateString()}
-    </p>
-  )} */}
+        {dashboardData?.user?.member_since && (
+  <p>
+    <span className="font-semibold">Member since:</span>{" "}
+    {new Date(dashboardData.user.member_since).toLocaleDateString()}
+  </p>
+)}
         
           <p>
     {weeklySummary && (
