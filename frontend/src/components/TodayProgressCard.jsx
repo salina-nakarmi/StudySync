@@ -12,18 +12,30 @@ const TodayProgressCard = ({ title = "Study Progress" }) => {
     );
   }
 
-  const maxHours = 12;
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+
   
   const dailyBreakdown = weeklySummary.week?.daily_breakdown || [];
-  
-  const screenTime = days.map((day, index) => {
-    const dayData = dailyBreakdown[index] || { total_minutes: 0 };
-    return {
-      day,
-      hours: (dayData.total_minutes / 60).toFixed(1),
-    };
-  });
+
+const breakdownMap = {};
+dailyBreakdown.forEach(day => {
+  const weekday = new Date(day.date).getDay(); // 0–6 (Sun–Sat)
+  breakdownMap[weekday] = day.total_minutes;
+});
+
+const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const screenTime = days.map((day, index) => ({
+  day,
+  hours: ((breakdownMap[index] || 0) / 60).toFixed(1),
+}));
+
+const maxHours = Math.max(
+  1,
+  ...screenTime.map(d => parseFloat(d.hours))
+);
+
+
 
   const todayIndex = new Date().getDay();
   const todayLetter = days[todayIndex];
