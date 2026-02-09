@@ -80,12 +80,10 @@ export default function NotificationPanel({ onClose }) {
   if (!isLoaded) return <p>Loading notifications...</p>;
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
-      <div className="absolute inset-0 bg-black/5" onClick={onClose} />
-
-      <div className="relative w-full sm:w-[380px] h-full bg-white shadow-2xl border-l flex flex-col">
+    <div className="fixed inset-0 z-[100] pointer-events-none">
+      <div className="absolute right-52 top-16 w-[360px] max-w-[92vw] h-[560px] max-h-[84vh] bg-white shadow-2xl border border-gray-200 rounded-2xl flex flex-col overflow-hidden pointer-events-auto">
         {/* Header */}
-        <div className="flex justify-between px-6 py-5 border-b">
+        <div className="flex justify-between px-6 py-5 border-b border-gray-200">
           <h2 className="text-xl font-medium">Notifications</h2>
           <button onClick={onClose}>
             <XMarkIcon className="w-6 h-6" />
@@ -138,7 +136,7 @@ export default function NotificationPanel({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t">
+        <div className="p-5 border-t border-gray-200">
           <button
             onClick={markAllRead}
             className="w-full py-3 rounded-xl text-white transition-all hover:brightness-110 active:scale-[0.98]"
