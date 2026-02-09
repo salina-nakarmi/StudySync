@@ -28,7 +28,7 @@ export default function NotificationPanel({ onClose }) {
     const userId = user.id;
 
     // Fetch initial notifications
-    fetch(`http://localhost:8000/notifications/${userId}`)
+    fetch(`http://localhost:8000/api/notifications/${userId}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch notifications");
         return res.json();
@@ -38,7 +38,7 @@ export default function NotificationPanel({ onClose }) {
 
     // Setup WebSocket
     const ws = new WebSocket(
-      `ws://localhost:8000/notifications/ws/${userId}`
+      `ws://localhost:8000/api/notifications/ws/${userId}`
     );
 
     ws.onmessage = (event) => {
@@ -65,7 +65,7 @@ export default function NotificationPanel({ onClose }) {
         notifications
           .filter((n) => !n.is_read)
           .map((n) =>
-            fetch(`http://localhost:8000/notifications/read/${n.id}`, {
+            fetch(`http://localhost:8000/api/notifications/read/${n.id}`, {
               method: "PUT",
             })
           )

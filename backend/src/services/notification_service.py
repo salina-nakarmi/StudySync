@@ -12,6 +12,7 @@ async def create_notification(data, db: AsyncSession):
         type=data.type,
     )
     db.add(notification)
+    print(f"Notification added to database")
     await db.commit()
     await db.refresh(notification)
 
