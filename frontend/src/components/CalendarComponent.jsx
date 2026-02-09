@@ -32,7 +32,7 @@ export default function CustomCalendar() {
   // Generate streak dates based on current streak
   const streakDates = [];
   const today = new Date();
-  for (let i = 0; i < streak; i++) {
+  for (let i = 0; i < streakCount; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     streakDates.push(stripTime(d));
@@ -110,7 +110,7 @@ export default function CustomCalendar() {
     let bgClass =
       "bg-gray-100 text-gray-700 hover:bg-gray-200 transition text-[8px]";
     if (isStreak) bgClass = "bg-orange-500 text-white text-[8px]";
-    if (isToday) bgClass = "bg-[#2C76BA] text-white text-[8px]";
+    if (isToday) bgClass = "bg-orange-500 text-white text-[8px]";
 
     return (
       <div
