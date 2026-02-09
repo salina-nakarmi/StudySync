@@ -1,4 +1,4 @@
-import { useResourceProgress } from "../utils/api";
+import { useResourceProgress, useStreaks } from "../utils/api";
 
 export function TasksDone() {
   const { progressStats } = useResourceProgress();
@@ -20,28 +20,66 @@ export function TasksDone() {
   );
 }
 
-export function AverageScore() {
-  const { progressStats } = useResourceProgress();
+// export function AverageScore() {
+//   const { progressStats } = useResourceProgress();
   
-  const completionRate = progressStats?.completion_rate || 0;
+//   const completionRate = progressStats?.completion_rate || 0;
+
+//   return (
+//     <div className="w-full h-56 sm:h-60 flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white">
+//       <h2 className="text-[#2C76BA] text-xs sm:text-xs font-bold uppercase tracking-wider">
+//         Completion Rate
+//       </h2>
+//       <p className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 mt-1">
+//         {completionRate.toFixed(1)}%
+//       </p>
+//       <div className="w-20 sm:w-24 h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+//         <div
+//           className="bg-[#2C76BA] h-full transition-all duration-500"
+//           style={{ width: `${completionRate}%` }}
+//         />
+//       </div>
+//       <p className="text-xs sm:text-[10px] text-gray-400 mt-2 text-center">
+//         {progressStats?.not_started || 0} not started · {progressStats?.in_progress || 0} in progress
+//       </p>
+//     </div>
+//   );
+// }
+
+/* ---------------- Longest Streak ---------------- */
+
+
+export function LongestStreak() {
+  const { streak, isLoading, error } = useStreaks();
+
+  const longestStreak = streak?.longest_streak ?? 0;
 
   return (
     <div className="w-full h-56 sm:h-60 flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white">
-      <h2 className="text-[#2C76BA] text-xs sm:text-xs font-bold uppercase tracking-wider">
-        Completion Rate
+      <h2 className="text-[#2C76BA] text-xs font-bold uppercase tracking-wider">
+        Longest Streak
       </h2>
+
       <p className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 mt-1">
-        {completionRate.toFixed(1)}%
+        {isLoading ? "—" : `${longestStreak} days`}
       </p>
+
       <div className="w-20 sm:w-24 h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
         <div
           className="bg-[#2C76BA] h-full transition-all duration-500"
-          style={{ width: `${completionRate}%` }}
+          style={{ width: `${Math.min(longestStreak * 10, 100)}%` }}
         />
       </div>
-      <p className="text-xs sm:text-[10px] text-gray-400 mt-2 text-center">
-        {progressStats?.not_started || 0} not started · {progressStats?.in_progress || 0} in progress
+
+      <p className="text-xs text-gray-400 mt-2 text-center">
+        Best continuous study streak
       </p>
+
+      {error && (
+        <p className="text-xs text-red-500 mt-1">
+          Failed to load streak
+        </p>
+      )}
     </div>
   );
 }
