@@ -86,7 +86,7 @@ export const resourceService = {
   // ========================================================================
   getPersonalResources: async (token, params = {}) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE}/resources/personal?${query}`, {
+    const response = await fetch(`${API_BASE}/resources/personal`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
