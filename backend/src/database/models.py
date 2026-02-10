@@ -299,6 +299,7 @@ class Notifications(Base):
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
     title = Mapped[str]
     notification_message:Mapped[str]
+    notification_type:Mapped[str]
     is_read:Mapped[bool]=mapped_column(Boolean, default=False) 
     created_at:Mapped[datetime]=mapped_column(default=func.now())  
 

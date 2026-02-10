@@ -8,8 +8,8 @@ async def create_notification(data, db: AsyncSession):
     notification = Notifications(
         user_id=data.user_id,
         title=data.title,
-        message=data.message,
-        type=data.type,
+        notification_message=data.message,
+        notification_type=data.type,
     )
     db.add(notification)
     print(f"Notification added to database")
