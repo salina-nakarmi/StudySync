@@ -259,46 +259,20 @@ const Index = () => {
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             />
-            <aside className="px-0 sm:px-0 fixed left-0 top-0 bottom-0 w-56 z-50">
-              <div className="bg-gray-50/80 p-4 space-y-5 w-full h-full pt-24">
-                <div>
-                  <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-3">
-                    Quick Access
-                  </p>
-                  <div className="space-y-2 mt-3">
-                    {[
-                      { label: "My Notes", icon: FileText },
-                      { label: "Assignments Due", icon: CalendarCheck },
-                      { label: "Downloaded Files", icon: Download },
-                      { label: "Bookmarked", icon: Bookmark },
-                      { label: "Study Guides", icon: BookOpen },
-                    ].map((item) => (
-                      <button
-                        key={item.label}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-[9px] font-semibold text-gray-700 bg-white border border-gray-200 shadow-sm hover:shadow-md text-left"
-                        type="button"
-                      >
-                        <span className="w-6 h-6 bg-gray-50 rounded-lg flex items-center justify-center">
-                          <item.icon className="w-3 h-3 text-gray-600" />
-                        </span>
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+            <aside className="px-0 sm:px-0 fixed left-0 top-16 bottom-0 w-56 z-50">
+              <div className="bg-gray-50/80 p-4 space-y-5 w-full h-full">
                 <div>
                   <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-3">
                     Your Stats
                   </p>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-gray-500">Resources Completed</p>
-                      <p className="text-2xl font-bold text-gray-900">12</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Hours Studied</p>
+                  <div className="space-y-3">
+                    <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                      <p className="text-[10px] font-semibold text-gray-500">Total Hours</p>
                       <p className="text-2xl font-bold text-gray-900">48</p>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                      <p className="text-[10px] font-semibold text-gray-500">Resources Completed</p>
+                      <p className="text-2xl font-bold text-gray-900">12</p>
                     </div>
                   </div>
                 </div>

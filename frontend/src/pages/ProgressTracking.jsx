@@ -1,81 +1,197 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import Navbar from "../components/Navbar";
 import OverallProgress from "../components/OveralProgress";
 import TotalHours from "../components/TotalHours";
 import TodayProgressCard from "../components/TodayProgressCard";
-import { TasksDone, AverageScore } from "../components/ProgressStats";
+import { CurrentStreak, LongestStreak } from "../components/StreaksStats";
 
 import {
   CheckCircleIcon,
   PlayIcon,
   PauseIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
+import { useStreaks, useResources, useResourceProgress } from "../utils/api";
+
+/* ----------------------- Resource Card ----------------------- */
+
+const ResourceProgressCard = React.memo(function ResourceProgressCard({
+  resource,
+  onUpdate,
+  onToggle,
+  onComplete,
+}) {
+  const [sliderValue, setSliderValue] = useState(
+    resource.progress.progress_percentage
+  );
+
+  const statusStyles = {
+    completed: "bg-green-500",
+    in_progress: "bg-orange-500",
+    paused: "bg-yellow-500",
+    not_started: "bg-gray-400",
+  };
+
+  const formatDate = (date) =>
+    date
+      ? new Date(date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })
+      : "—";
+
+  const handleRelease = () => {
+    if (sliderValue !== resource.progress.progress_percentage) {
+      onUpdate(resource.id, sliderValue);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${statusStyles[resource.progress.status]}`}
+          />
+          <span className="text-xs font-semibold uppercase text-gray-600">
+            {resource.progress.status.replace("_", " ")}
+          </span>
+        </div>
+
+        <h3 className="text-lg font-bold text-gray-900">
+          {resource.title}
+        </h3>
+
+        <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">
+          {resource.resource_type}
+        </span>
+
+        <div className="mt-4">
+          <div className="flex justify-between text-xs text-gray-500 mb-1 font-medium">
+            <span>Progress</span>
+            <span>{sliderValue}%</span>
+          </div>
+
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-500"
+              style={{ width: `${sliderValue}%` }}
+            />
+          </div>
+
+          {resource.progress.status !== "completed" && (
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={sliderValue}
+              onChange={(e) => setSliderValue(+e.target.value)}
+              onMouseUp={handleRelease}
+              onTouchEnd={handleRelease}
+              className="w-full mt-2 accent-orange-500"
+            />
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t text-[11px] text-gray-400 flex justify-between">
+          <span>Started: {formatDate(resource.progress.started_at)}</span>
+          <span>Updated: {formatDate(resource.progress.last_updated)}</span>
+        </div>
+      </div>
+
+      <div className="mt-5 flex gap-3">
+        {resource.progress.status !== "completed" ? (
+          <button
+            onClick={() => onComplete(resource.id)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-black text-white text-sm font-semibold rounded-xl hover:bg-gray-800"
+          >
+            <CheckCircleIcon className="w-4 h-4" />
+            Done
+          </button>
+        ) : (
+          <span className="flex-1 text-sm font-bold text-green-600">
+            ✓ Completed
+          </span>
+        )}
+
+        {resource.progress.status !== "completed" && (
+          <button
+            onClick={() => onToggle(resource)}
+            className="p-2 border rounded-xl hover:bg-gray-50"
+          >
+            {resource.progress.status === "in_progress" ? (
+              <PauseIcon className="w-5 h-5 text-gray-600" />
+            ) : (
+              <PlayIcon className="w-5 h-5 text-gray-600" />
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
+/* ----------------------- Page ----------------------- */
+
 export default function ProgressTrackingPage() {
-  const [resources, setResources] = useState([]);
   const [filter, setFilter] = useState(null);
 
-  useEffect(() => {
-    setResources([
-      {
-        id: 1,
-        title: "Chapter 5 Notes",
-        status: "in_progress",
-        progress_percentage: 80,
-        notes: "Review diagrams",
-        startedOn: "2026-01-01",
-        lastUpdated: "2026-01-09",
-      },
-      {
-        id: 2,
-        title: "Lecture 12 Video",
-        status: "in_progress",
-        progress_percentage: 50,
-        notes: "",
-        startedOn: "2026-01-05",
-        lastUpdated: "2026-01-08",
-      },
-      {
-        id: 3,
-        title: "Practice Problems",
-        status: "not_started",
-        progress_percentage: 0,
-        notes: "Focus on recursion",
-        startedOn: null,
-        lastUpdated: null,
-      },
-    ]);
-  }, []);
+  const { allResources, isLoading: resourcesLoading } = useResources();
+  const {
+    getAllProgress,
+    updateProgress,
+    markCompleted,
+  } = useResourceProgress();
+
+  // ✅ Fetch ONCE
+  const { data: progressData, isLoading: progressLoading } =
+    getAllProgress(null);
+
+  // ✅ Combine once
+  const resourcesWithProgress = useMemo(() => {
+    if (!allResources || !progressData) return [];
+
+    const map = new Map(progressData.map((p) => [p.resource_id, p]));
+
+    return allResources
+      .map((r) => ({ ...r, progress: map.get(r.id) }))
+      .filter((r) => r.progress);
+  }, [allResources, progressData]);
+
+  // ✅ Filter instantly
+  const filteredResources = useMemo(() => {
+    if (!filter) return resourcesWithProgress;
+    return resourcesWithProgress.filter(
+      (r) => r.progress.status === filter
+    );
+  }, [resourcesWithProgress, filter]);
 
   const handleUpdate = (id, percent) => {
-    setResources((prev) =>
-      prev.map((res) =>
-        res.id === id
-          ? {
-              ...res,
-              progress_percentage: percent,
-              status: percent === 100 ? "completed" : "in_progress",
-            }
-          : res
-      )
-    );
+    updateProgress.mutate({
+      resourceId: id,
+      status:
+        percent === 0
+          ? "not_started"
+          : percent === 100
+          ? "completed"
+          : "in_progress",
+      progress_percentage: percent,
+    });
   };
 
-  const togglePlayPause = (id) => {
-    setResources((prev) =>
-      prev.map((res) =>
-        res.id === id
-          ? {
-              ...res,
-              status: res.status === "in_progress" ? "paused" : "in_progress",
-            }
-          : res
-      )
-    );
-  };
+  const togglePlayPause = (resource) => {
+    const next =
+      resource.progress.status === "in_progress"
+        ? "paused"
+        : "in_progress";
 
-  const filteredResources =
-    filter === null ? resources : resources.filter((r) => r.status === filter);
+    updateProgress.mutate({
+      resourceId: resource.id,
+      status: next,
+      progress_percentage: resource.progress.progress_percentage,
+    });
+  };
 
   const tabs = [
     { id: null, label: "All" },
@@ -84,95 +200,15 @@ export default function ProgressTrackingPage() {
     { id: "paused", label: "Paused" },
   ];
 
-  const ResourceProgressCard = ({ resource }) => {
-    const statusStyles = {
-      completed: "bg-green-500",
-      in_progress: "bg-orange-500",
-      paused: "bg-yellow-500",
-      not_started: "bg-gray-400",
-    };
-
-    return (
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-full">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${statusStyles[resource.status]}`}
-            />
-            <span className="text-xs font-semibold uppercase text-gray-600">
-              {resource.status.replace("_", " ")}
-            </span>
-          </div>
-
-          <h3 className="text-lg font-bold text-gray-900 leading-tight">
-            {resource.title}
-          </h3>
-
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-gray-500 mb-1 font-medium">
-              <span>Progress</span>
-              <span>{resource.progress_percentage}%</span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-700"
-                style={{ width: `${resource.progress_percentage}%` }}
-              />
-            </div>
-          </div>
-
-          {resource.notes && (
-            <p className="mt-3 text-sm text-gray-600 italic">"{resource.notes}"</p>
-          )}
-
-          <div className="mt-4 pt-4 border-t border-gray-50 text-[11px] text-gray-400 flex justify-between">
-            <span>Started: {resource.startedOn || "—"}</span>
-            <span>Updated: {resource.lastUpdated || "—"}</span>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-3">
-          {resource.status !== "completed" ? (
-            <button
-              onClick={() => handleUpdate(resource.id, 100)}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-black text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition shadow-sm"
-            >
-              <CheckCircleIcon className="w-4 h-4" />
-              Done
-            </button>
-          ) : (
-            <span className="flex-1 text-sm font-bold text-green-600 py-2">
-              ✓ Completed
-            </span>
-          )}
-
-          <button
-            onClick={() => togglePlayPause(resource.id)}
-            className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
-            title={resource.status === "in_progress" ? "Pause" : "Resume"}
-          >
-            {resource.status === "in_progress" ? (
-              <PauseIcon className="w-5 h-5 text-gray-600" />
-            ) : (
-              <PlayIcon className="w-5 h-5 text-gray-600" />
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-28 pb-20 space-y-10">
-        
-        {/* Row 1: Title & Top Two Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+      <main className="max-w-7xl mx-auto px-4 mt-28 pb-20 space-y-10">
+        {/* Header */}
+        <div className="grid lg:grid-cols-12 gap-4">
           <div className="lg:col-span-4">
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            <h1 className="text-3xl font-extrabold">
               Detailed Progress Overview
             </h1>
             <p className="text-gray-500 mt-2 text-lg">
@@ -180,43 +216,59 @@ export default function ProgressTrackingPage() {
             </p>
           </div>
 
-          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="lg:col-span-8 grid sm:grid-cols-2 gap-2">
             <OverallProgress />
             <TotalHours />
           </div>
         </div>
 
-        {/* Row 2: Three Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 -mt-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2 -mt-8">
           <TodayProgressCard />
-          <TasksDone />
-          <AverageScore />
+          <CurrentStreak />
+          <LongestStreak />
         </div>
 
-        {/* Row 3: Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {tabs.map((tab) => (
+        {/* Tabs */}
+        <div className="flex gap-2 overflow-x-auto">
+          {tabs.map((t) => (
             <button
-              key={tab.id}
-              onClick={() => setFilter(tab.id)}
-              className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${
-                filter === tab.id
-                  ? "bg-black text-white shadow-md scale-105"
-                  : "bg-white border border-gray-200 text-gray-500 hover:border-gray-400"
+              key={t.id}
+              onClick={() => setFilter(t.id)}
+              className={`px-5 py-2 rounded-full font-bold text-sm ${
+                filter === t.id
+                  ? "bg-black text-white"
+                  : "border text-gray-500"
               }`}
             >
-              {tab.label}
+              {t.label}
             </button>
           ))}
         </div>
 
-        {/* Row 4: Resources Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          {filteredResources.map((resource) => (
-            <ResourceProgressCard key={resource.id} resource={resource} />
-          ))}
-        </div>
-
+        {/* Content */}
+        {resourcesLoading || progressLoading ? (
+          <div className="flex justify-center py-16">
+            <ArrowPathIcon className="w-8 h-8 animate-spin text-gray-400" />
+          </div>
+        ) : filteredResources.length === 0 ? (
+          <p className="text-center text-gray-500 py-16">
+            No tracked resources yet
+          </p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {filteredResources.map((r) => (
+              <ResourceProgressCard
+                key={r.id}
+                resource={r}
+                onUpdate={handleUpdate}
+                onToggle={togglePlayPause}
+                onComplete={(id) =>
+                  markCompleted.mutate({ resourceId: id })
+                }
+              />
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
