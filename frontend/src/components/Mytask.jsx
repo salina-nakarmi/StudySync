@@ -52,7 +52,7 @@ const toggleComplete = (id) => {
   };
 
   return (
-  <div className="w-full h-[508px] p-4 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+  <div className="w-full h-full min-h-[320px] p-4 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
   <h2 className="text-gray-800 font-bold text-lg">My Tasks</h2>
 
       {/* Input Field */}
@@ -75,7 +75,7 @@ const toggleComplete = (id) => {
       {/* Scrollable Tasks Section */}
       <div
         ref={scrollRef}
-        className="mt-4 flex flex-col gap-3 overflow-y-auto h-[380px] pr-2 w-full"
+        className="mt-4 flex flex-col gap-3 overflow-y-auto flex-1 pr-2 w-full"
         style={{ scrollbarWidth: "none" }} // Firefox
       >
       

@@ -9,6 +9,7 @@ import barImg from "../assets/bar.png";
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
+  const [legalOpen, setLegalOpen] = useState(null);
   const navigate = useNavigate();
 
 
@@ -33,6 +34,7 @@ export default function Home() {
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
     }
+    setActiveSection(id);
     setMenuOpen(false); 
   };
 
@@ -397,7 +399,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer id="about" className="bg-white border-t border-gray-200 py-12 sm:py-16">
+      <footer className="bg-white border-t border-gray-200 py-12 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
             {/* Brand */}
@@ -416,31 +418,54 @@ export default function Home() {
               <h3 className="text-gray-900 font-semibold mb-4">Product</h3>
               <ul className="space-y-3">
                 <li>
-                  <a href="#features" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollTo("features")}
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     Features
-                  </a>
+                  </button>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLegalOpen("security")}
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     Security
-                  </a>
+                  </button>
                 </li>
               </ul>
             </div>
 
             {/* Company */}
             <div>
-              <h3 className="text-gray-900 font-semibold mb-4">About Us</h3>
+              <h3 className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => handleScrollTo("about")}
+                  className="text-gray-900 font-semibold"
+                >
+                  About Us
+                </button>
+              </h3>
               <ul className="space-y-3">
                 <li>
-                  <a href="#about" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollTo("about")}
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     About
-                  </a>
+                  </button>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     Contact
-                  </a>
+                  </button>
                 </li>
               </ul>
             </div>
@@ -450,20 +475,91 @@ export default function Home() {
               <h3 className="text-gray-900 font-semibold mb-4">Legal</h3>
               <ul className="space-y-3">
                 <li>
-                  <a href="#" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLegalOpen("privacy")}
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     Privacy
-                  </a>
+                  </button>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-500 hover:text-gray-900 transition text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLegalOpen("terms")}
+                    className="text-gray-500 hover:text-gray-900 transition text-sm"
+                  >
                     Terms
-                  </a>
+                  </button>
                 </li>
               </ul>
             </div>
           </div>
         </div>
       </footer>
+      {legalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-40"
+          onClick={() => setLegalOpen(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                {legalOpen === "privacy"
+                  ? "Privacy Policy"
+                  : legalOpen === "security"
+                  ? "Security"
+                  : "Terms of Service"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setLegalOpen(null)}
+                className="text-gray-500 hover:text-gray-900"
+              >
+                Close
+              </button>
+            </div>
+
+            {legalOpen === "privacy" ? (
+              <div className="mt-4 space-y-3 text-sm text-gray-600">
+                <p>
+                  We collect account details, study activity, and device metadata to
+                  provide analytics, streaks, and personalized insights.
+                </p>
+                <p>
+                  Data is used to operate the service, improve features, and send
+                  essential notifications. We do not sell personal data.
+                </p>
+              </div>
+            ) : legalOpen === "security" ? (
+              <div className="mt-4 space-y-3 text-sm text-gray-600">
+                <p>
+                  User accounts and data are protected using secure authentication and
+                  best-practice security measures to ensure safe and reliable access.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3 text-sm text-gray-600">
+                <p>
+                  By using StudySync, you agree to use the platform responsibly and
+                  keep your account credentials secure.
+                </p>
+                <p>
+                  You retain ownership of your content, but grant us permission to
+                  process it to deliver the service.
+                </p>
+                <p>
+                  We may suspend accounts that violate acceptable use or abuse the
+                  service.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
