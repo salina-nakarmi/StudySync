@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 
 from ..database.database import get_db
-from ..database.models import Users
+from ..database.models import Users, StudySessions
 from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -22,6 +23,29 @@ async def get_dashboard(
     Returns:
         Dashboard data including user info and stats
     """
+
+        # ✅ Fetch recent study sessions (last 5)
+    recent_sessions_query = (
+        select(StudySessions)
+        .where(StudySessions.user_id == current_user.user_id)
+        .order_by(desc(StudySessions.created_at))
+        .limit(5)
+    )
+    
+    result = await db.execute(recent_sessions_query)
+    recent_sessions_db = result.scalars().all()
+    
+    # Format sessions for frontend
+    recent_sessions = [
+        {
+            "duration_seconds": session.duration_seconds,
+            "session_notes": session.session_notes or "Study Session",
+            "created_at": session.created_at.isoformat(),
+            "session_id": session.id  # Optional: if you want to allow clicking to view details
+        }
+        for session in recent_sessions_db
+    ]
+
     return {
         "message": "Welcome to your dashboard!",
         "user": {
@@ -33,6 +57,10 @@ async def get_dashboard(
             "total_study_time": current_user.total_study_time,
             "member_since": current_user.created_at.isoformat()
         },
+
+         #  NEW: Recent study sessions
+        "recent_sessions": recent_sessions,
+
         # TODO: Add groups, recent activity, etc.
         "stats": {
             "study_time_today": 0,  # Will calculate later
