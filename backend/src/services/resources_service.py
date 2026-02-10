@@ -28,7 +28,7 @@ async def can_user_view_resource(
     
     #rule 1: personal resource - only owner can view
     if resource.group_id is None:
-        return resource.owner_id == user_id
+        return resource.uploaded_by == user_id
     
     #rule 2: group resource - check if user is in group
     return await is_user_in_group(session, user_id, resource.group_id)
@@ -509,8 +509,8 @@ async def update_resource_progress(
     now = datetime.utcnow()
 
     #create new if doesn't exist
-    if not progress:
-        progrss = ResourceProgress(
+    if progress is None:
+        progress = ResourceProgress(
             user_id=user_id,
             resource_id=resource_id,
             status=status,
@@ -520,6 +520,8 @@ async def update_resource_progress(
             completed_at=now if status == ResourceStatus.COMPLETED else None
         )
         session.add(progress)
+        await session.flush()
+        return progress
     else:
         #update esisting
         progress.status = status
