@@ -89,7 +89,7 @@ export const resourceService = {
     const response = await fetch(`${API_BASE}/resources/personal`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-
+1323
     if (!response.ok) {
       throw new Error("Failed to fetch personal resources");
     }
