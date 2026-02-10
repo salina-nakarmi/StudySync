@@ -1,7 +1,7 @@
 import React from "react";
 import { useStudySessions } from "../utils/api";
 
-const TodayProgressCard = ({ title = "Study Progress" }) => {
+const WeeklyProgressCard = ({ title = "Study Progress" }) => {
   const { weeklySummary } = useStudySessions();
 
   if (!weeklySummary) {
@@ -90,4 +90,4 @@ const maxHours = Math.max(
   );
 };
 
-export default TodayProgressCard;
+export default WeeklyProgressCard;

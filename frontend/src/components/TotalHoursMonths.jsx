@@ -2,9 +2,9 @@ import { ClockIcon } from "@heroicons/react/24/outline";
 import { useStudySessions } from "../utils/api";
 
 const TotalTimeSpent = () => {
-  const { weeklySummary } = useStudySessions();
+  const { monthlySummary } = useStudySessions();
 
-  if (!weeklySummary) {
+  if (!monthlySummary) {
     return (
       <div className="w-full h-56 sm:h-60 bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 flex items-center justify-center">
         <div className="animate-pulse text-gray-400">Loading...</div>
@@ -12,8 +12,8 @@ const TotalTimeSpent = () => {
     );
   }
 
-  const totalMinutes = weeklySummary.week?.total_minutes || 0;
-  const sessionCount = weeklySummary.week?.session_count || 0;
+  const totalMinutes = monthlySummary?.total_minutes || 0;
+  const sessionCount = monthlySummary?.session_count || 0;
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -33,7 +33,7 @@ const TotalTimeSpent = () => {
       </p>
 
       <p className="text-xs text-gray-500 mt-1">
-        This week · {sessionCount} sessions
+        This month · {sessionCount} sessions
       </p>
     </div>
   );

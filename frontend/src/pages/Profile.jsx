@@ -1,5 +1,6 @@
 import React from "react";
 import { PencilIcon, ArrowLeftOnRectangleIcon } from "@heroicons/react/24/outline";
+import { useStudySessions, useDashboard } from "../utils/api";
 
 const ProfileSection = ({ user, onLogout }) => {
   const username = user?.name || "User";
@@ -7,6 +8,8 @@ const ProfileSection = ({ user, onLogout }) => {
   const avatarLetter = username.charAt(0).toUpperCase();
   const avatarUrl = user?.avatar || null;
   const joinedAt = user?.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : "N/A";
+  const { todaySummary, weeklySummary, isLoading } = useStudySessions();
+  const { data: dashboardData } = useDashboard();
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-start pt-20 px-4">
@@ -53,15 +56,20 @@ const ProfileSection = ({ user, onLogout }) => {
         </div>
 
         <div className="mt-6 border-t border-gray-200 pt-4 space-y-2 text-gray-600">
+        {dashboardData?.user?.member_since && (
+  <p>
+    <span className="font-semibold">Member since:</span>{" "}
+    {new Date(dashboardData.user.member_since).toLocaleDateString()}
+  </p>
+)}
+        
           <p>
-            <span className="font-semibold">Member since:</span> {joinedAt}
-          </p>
-          <p>
-            <span className="font-semibold">Total Study Hours:</span> 120 hrs
-          </p>
-          <p>
-            <span className="font-semibold">Achievements:</span> 5 Badges
-          </p>
+    {weeklySummary && (
+      <span className="font-semibold">
+        Avg per day (this week): {weeklySummary.average_minutes_per_day} mins
+      </span>
+    )}
+  </p>
         </div>
       </div>
     </div>
