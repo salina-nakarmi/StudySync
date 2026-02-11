@@ -7,7 +7,8 @@ import Navbar from "../components/Navbar";
 import NotificationPanel from "./NotificationPanel";
 import CalendarComponent from "../components/CalendarComponent";
 import UnifiedStudyTimer from "../components/UnifiedStudyTimer";
-import SharedLinkItem from "../components/SharedLinkItem";
+import RecentStudyActivity from "../components/RecentStudyActivity";
+import TodayStudyTarget from "../components/TodayStudyTarget";
 import Mytask from "../components/Mytask";
 
 export default function Dashboard() {
@@ -117,17 +118,13 @@ export default function Dashboard() {
               <CalendarComponent />
             </div>
 
-            {/* Focus Goal Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col justify-center min-h-[240px] h-full">
-              <h2 className="text-gray-800 font-bold text-lg mb-1">Today's Focus Goal</h2>
-              <h3 className="text-[#2C76BA] text-sm font-semibold mb-6">Finish 3 lab simulation tasks</h3>
-              <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
-                <div className="h-full bg-[#2C76BA] rounded-full w-1/2 transition-all duration-500"></div>
-              </div>
-              <p className="text-gray-400 text-[10px] mt-2 font-bold uppercase tracking-widest text-center">50% completed</p>
+                        {/*Today's Study Target*/}
+            <div className="h-full">
+              <TodayStudyTarget />
             </div>
           </div>
         </div>
+
 
         {/* Dashboard Grid System */}
         <div className="grid grid-cols-1 gap-3 mb-10">
@@ -144,12 +141,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm h-full min-h-[320px] flex flex-col">
-                <h2 className="text-gray-800 font-bold text-lg mb-4">Shared Links</h2>
-                <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                  <SharedLinkItem title="React Hooks Guide" author="John Doe" time="2h ago" desc="Complete reference" />
-                  <SharedLinkItem title="Project Report PDF" author="Sarah Smith" time="1d ago" type="pdf" desc="Final report" />
-                </div>
+              {/* Recent Study Activity */}
+              <div className="h-full min-h-[320px]">
+                <RecentStudyActivity />
               </div>
 
               <div className="h-full min-h-[320px] flex">

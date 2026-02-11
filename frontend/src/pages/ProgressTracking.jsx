@@ -48,7 +48,7 @@ const ResourceProgressCard = React.memo(function ResourceProgressCard({
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between min-h-[360px]">
       <div>
         <div className="flex items-center gap-2 mb-2">
           <span
@@ -193,13 +193,6 @@ export default function ProgressTrackingPage() {
     });
   };
 
-  const tabs = [
-    { id: null, label: "All" },
-    { id: "in_progress", label: "In Progress" },
-    { id: "completed", label: "Completed" },
-    { id: "paused", label: "Paused" },
-  ];
-
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -216,33 +209,16 @@ export default function ProgressTrackingPage() {
             </p>
           </div>
 
-          <div className="lg:col-span-8 grid sm:grid-cols-2 gap-2">
+          <div className="lg:col-span-8 grid sm:grid-cols-2 gap-4">
             <OverallProgress />
             <TotalHours />
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 -mt-6">
           <TodayProgressCard />
           <CurrentStreak />
           <LongestStreak />
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setFilter(t.id)}
-              className={`px-5 py-2 rounded-full font-bold text-sm ${
-                filter === t.id
-                  ? "bg-black text-white"
-                  : "border text-gray-500"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
         </div>
 
         {/* Content */}
@@ -250,12 +226,8 @@ export default function ProgressTrackingPage() {
           <div className="flex justify-center py-16">
             <ArrowPathIcon className="w-8 h-8 animate-spin text-gray-400" />
           </div>
-        ) : filteredResources.length === 0 ? (
-          <p className="text-center text-gray-500 py-16">
-            No tracked resources yet
-          </p>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+        ) : filteredResources.length === 0 ? null : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredResources.map((r) => (
               <ResourceProgressCard
                 key={r.id}
