@@ -1,6 +1,6 @@
 from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import Dashboard, streaks, users, resources, groups, study_sessions, notifications, notifications_ws, messages
+from .routes import Dashboard, streaks, users, resources, groups, study_sessions, notifications, notifications_ws, messages, activity
 from .routes import chatbot
 # from .services import socket_services
 
@@ -35,6 +35,7 @@ app.include_router(chatbot.router, prefix="/api")
 app.include_router(notifications.router, prefix = "/api")
 app.include_router(notifications_ws.router, prefix = "/api")
 app.include_router(messages.router, prefix = "/api")
+app.include_router(activity.router, prefix = "/api")
 
 
 

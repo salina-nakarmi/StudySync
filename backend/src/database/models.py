@@ -1,10 +1,10 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from .database import Base
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum
+from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint
 
 class GroupRole(enum.Enum):
     LEADER="leader" #Can have multiple leaders in shared group
@@ -329,4 +329,27 @@ class ChatConversations(Base):
     
     # For soft deletion (keep history but hide from UI)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+class DailyActivity(Base):
+    """
+    NEW TABLE: Summarizes activity per day for the heatmap calendar.
+    Ensures 'green squares' are saved and easily queryable.
+    """
+    __tablename__ = 'daily_activity'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    
+    # Use date only (no time) to make grouping easy
+    activity_date: Mapped[date] = mapped_column(index=True) 
+    
+    # Store total seconds for the day to determine "shade of green"
+    total_seconds: Mapped[int] = mapped_column(default=0)
+    
+    # Optional: track session count for that day
+    session_count: Mapped[int] = mapped_column(default=0)
+
+    # Unique constraint so you only have one row per user/day
+    __table_args__ = (UniqueConstraint('user_id', 'activity_date', name='_user_date_uc'),)
+
  

@@ -17,6 +17,7 @@ from ..schemas.study_sessions import (
     MonthlyStudyStats, StudyAnalytics, GroupStudyStats,
     GroupLeaderboard, LeaderboardEntry
 )
+from ..services.activity_service import update_daily_stats
 from ..services import study_session_service
 from ..services.group_service import get_group_by_id, is_user_in_group
 
@@ -74,6 +75,13 @@ async def create_study_session(
         ended_at=ended_at,
         group_id=session_data.group_id,
         session_notes=session_data.session_notes
+    )
+
+    # 2. THE TRIGGER: Update the 'green squares' table
+    await update_daily_stats(
+        db=db, 
+        user_id=current_user.user_id, 
+        duration_seconds=session_data.duration_seconds
     )
     
     await db.commit()
