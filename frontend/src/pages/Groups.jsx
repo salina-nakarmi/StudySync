@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   UsersIcon,
   PlusIcon,
@@ -8,12 +8,14 @@ import {
   XMarkIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import AddResourceModal from "../components/AddResourceModal";
 import Navbar from "../components/Navbar";
 import { createGroupHandlers } from "../handlers/groupHandlers";
 import { useGroupChat } from "../hooks/UseGroupChat";
+import { groupService } from "../services/group_services";
+import { resourceService } from "../services/resource_services";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -21,8 +23,8 @@ export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const navigate = useNavigate();
-  const location = useLocation();
-  const chatContainerRef = useRef(null);
+  const directChatPanelOpenRef = useRef(true);
+  const activeDirectChatIdRef = useRef(null);
 
   // State
   const [groups, setGroups] = useState([]);
@@ -35,9 +37,10 @@ export default function Groups() {
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
+  const [directChatPanelOpen, setDirectChatPanelOpen] = useState(true);
+  const [activeDirectChatId, setActiveDirectChatId] = useState(null);
+  const [unreadByContact, setUnreadByContact] = useState({});
   const [resourceProgressById, setResourceProgressById] = useState({});
   const [formData, setFormData] = useState({
     group_name: "",
@@ -65,23 +68,93 @@ export default function Groups() {
     formData,
   });
 
+  const loadGroups = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await getToken();
+      const data = await groupService.getMyGroups(token);
+      setGroups(data);
+    } catch (err) {
+      setError(err.message);
+      if (err.message.includes("Not authenticated") || err.message.includes("401")) {
+        navigate("/sign-in");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, navigate, setError, setGroups, setLoading]);
+
+  const loadGroupDetails = useCallback(async (groupId) => {
+    try {
+      const token = await getToken();
+      const data = await groupService.getGroup(token, groupId);
+      setActiveGroup(data);
+    } catch (err) {
+      console.error("Error loading group details:", err);
+    }
+  }, [getToken, setActiveGroup]);
+
+  const loadGroupResources = useCallback(async (groupId) => {
+    try {
+      const token = await getToken();
+      const data = await resourceService.getGroupResources(token, groupId);
+      setResources(data);
+    } catch (err) {
+      console.error("Error loading resources:", err);
+      setResources([]);
+    }
+  }, [getToken, setResources]);
+
   // WebSocket chat integration
+  const getMemberDisplayName = (member) => {
+    return member?.username || member?.full_name || member?.name || "Unknown User";
+  };
+
+  const getMemberAvatarUrl = (member) => {
+    return (
+      member?.profileImageUrl ||
+      member?.avatar ||
+      member?.image_url ||
+      member?.photo_url ||
+      member?.profile_image_url ||
+      null
+    );
+  };
+
+  const getMessageTimestamp = (message) => {
+    const rawTimestamp = message?.created_at || message?.timestamp || message?.sent_at || message?.time;
+    const parsedTimestamp = rawTimestamp ? new Date(rawTimestamp) : new Date();
+    return Number.isNaN(parsedTimestamp.getTime()) ? Date.now() : parsedTimestamp.getTime();
+  };
+
   const handleNewMessage = (message) => {
+    const createdAt = getMessageTimestamp(message);
+    const isSelfMessage = message.sender_id === user?.id;
+
     setChatMessages((prev) => [...prev, {
       id: `${Date.now()}-${message.sender_id}`,
       sender_id: message.sender_id,
       sender: message.sender_id === user?.id ? "You" : getMemberUsername(message.sender_id),
       text: message.content,
       type: message.type,
+      createdAt,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }]);
 
-    // Auto-scroll to bottom
-    setTimeout(() => {
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (!isSelfMessage) {
+      const isFocusedContact =
+        directChatPanelOpenRef.current &&
+        activeDirectChatIdRef.current === message.sender_id;
+
+      if (!isFocusedContact) {
+        setUnreadByContact((prev) => ({
+          ...prev,
+          [message.sender_id]: (prev[message.sender_id] || 0) + 1,
+        }));
       }
-    }, 100);
+    }
+
   };
 
   const handleHistoryLoaded = (history) => {
@@ -91,20 +164,15 @@ export default function Groups() {
       sender: msg.sender_id === user?.id ? "You" : getMemberUsername(msg.sender_id),
       text: msg.content,
       type: msg.type,
+      createdAt: getMessageTimestamp(msg),
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }));
 
     setChatMessages(formattedMessages);
 
-    // Auto-scroll to bottom
-    setTimeout(() => {
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
-    }, 100);
   };
 
-  const { isConnected, sendMessage } = useGroupChat(
+  const { isConnected } = useGroupChat(
     activeGroup?.id,
     user?.id,
     getToken,
@@ -114,7 +182,51 @@ export default function Groups() {
 
   const getMemberUsername = (userId) => {
     const member = activeGroup?.members?.find(m => m.user_id === userId);
-    return member?.username || "Unknown User";
+    return getMemberDisplayName(member);
+  };
+
+  const getContactSummary = (memberId) => {
+    const member = activeGroup?.members?.find((item) => item.user_id === memberId);
+    const memberMessages = chatMessages.filter((msg) => msg.sender_id === memberId);
+    const latestMessage = memberMessages[memberMessages.length - 1] || null;
+
+    return {
+      member,
+      unreadCount: unreadByContact[memberId] || 0,
+      latestMessage,
+      avatarUrl: getMemberAvatarUrl(member),
+      displayName: getMemberDisplayName(member),
+      isActiveNow: latestMessage ? Date.now() - latestMessage.createdAt < 5 * 60 * 1000 : false,
+    };
+  };
+
+  const directChatContacts = (activeGroup?.members || [])
+    .filter((member) => member.user_id !== user?.id)
+    .map((member) => getContactSummary(member.user_id))
+    .sort((left, right) => {
+      if (right.unreadCount !== left.unreadCount) {
+        return right.unreadCount - left.unreadCount;
+      }
+
+      const rightTime = right.latestMessage?.createdAt || 0;
+      const leftTime = left.latestMessage?.createdAt || 0;
+      return rightTime - leftTime;
+    });
+
+  const activeGroupId = activeGroup?.id;
+  const firstDirectChatMemberId = activeGroup?.members?.find((member) => member.user_id !== user?.id)?.user_id || null;
+
+  const markContactAsRead = (memberId) => {
+    setUnreadByContact((prev) => ({
+      ...prev,
+      [memberId]: 0,
+    }));
+  };
+
+  const openDirectChat = (memberId) => {
+    setActiveDirectChatId(memberId);
+    setDirectChatPanelOpen(true);
+    markContactAsRead(memberId);
   };
 
   const currentMember = activeGroup?.members?.find(
@@ -126,40 +238,38 @@ export default function Groups() {
   // Effects
   useEffect(() => {
     if (isSignedIn) {
-      handlers.loadGroups();
+      loadGroups();
     } else {
       navigate("/sign-in");
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, loadGroups, navigate]);
 
   useEffect(() => {
-    if (activeGroup) {
-      handlers.loadGroupDetails(activeGroup.id);
+    if (activeGroupId) {
+      loadGroupDetails(activeGroupId);
       if (activeTab === "Resources") {
-        handlers.loadGroupResources(activeGroup.id);
+        loadGroupResources(activeGroupId);
       }
     }
-  }, [activeGroup?.id, activeTab]);
+  }, [activeGroupId, activeTab, loadGroupDetails, loadGroupResources]);
 
   // Clear chat when switching groups
   useEffect(() => {
-    if (activeGroup) {
+    if (activeGroupId) {
       setChatMessages([]);
-      setChatInput("");
+      setUnreadByContact({});
+      setActiveDirectChatId(firstDirectChatMemberId);
+      setDirectChatPanelOpen(true);
     }
-  }, [activeGroup?.id]);
+  }, [activeGroupId, firstDirectChatMemberId, user?.id]);
 
-  const handleSendChat = () => {
-    if (!activeGroup || !chatInput.trim()) return;
+  useEffect(() => {
+    directChatPanelOpenRef.current = directChatPanelOpen;
+  }, [directChatPanelOpen]);
 
-    const success = sendMessage(chatInput.trim(), 'text');
-    
-    if (success) {
-      setChatInput("");
-    } else {
-      console.error("Failed to send message - WebSocket not connected");
-    }
-  };
+  useEffect(() => {
+    activeDirectChatIdRef.current = activeDirectChatId;
+  }, [activeDirectChatId]);
 
   const handleResourceProgressChange = (resourceId, value) => {
     setResourceProgressById((prev) => ({
@@ -238,7 +348,91 @@ export default function Groups() {
             </div>
           ) : (
             /* ACTIVE GROUP DETAIL VIEW */
-            <div className="flex flex-col gap-6">
+            <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] items-start">
+              <div className="lg:sticky lg:top-28 h-fit rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Active chats</p>
+                    <p className="text-[10px] text-gray-500">Group members only</p>
+                  </div>
+                  <button
+                    onClick={() => setDirectChatPanelOpen((prev) => !prev)}
+                    className="text-xs font-bold text-gray-400 hover:text-gray-600"
+                  >
+                    {directChatPanelOpen ? "Collapse" : "Expand"}
+                  </button>
+                </div>
+
+                {directChatPanelOpen ? (
+                  <div className="min-h-0 max-h-[calc(100vh-14rem)] overflow-y-auto bg-white px-3 py-3">
+                    {directChatContacts.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-400">
+                        No other group members yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {directChatContacts.map((contact) => {
+                          const isSelected = activeDirectChatId === contact.member?.user_id;
+
+                          return (
+                            <button
+                              key={contact.member?.user_id}
+                              onClick={() => openDirectChat(contact.member?.user_id)}
+                              className={`w-full rounded-xl border px-3 py-2.5 text-left transition flex items-center gap-3 ${
+                                isSelected
+                                  ? "border-[#2C76BA] bg-blue-50/60"
+                                  : "border-gray-100 bg-gray-50 hover:border-blue-200 hover:bg-blue-50/40"
+                              }`}
+                            >
+                              <div className="relative shrink-0">
+                                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white">
+                                  {contact.avatarUrl ? (
+                                    <img
+                                      src={contact.avatarUrl}
+                                      alt={contact.displayName}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-sm font-bold text-gray-500">
+                                      {contact.displayName.charAt(0).toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                                {contact.isActiveNow && (
+                                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500"></span>
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="truncate text-sm font-bold text-gray-900">{contact.displayName}</p>
+                                  {contact.unreadCount > 0 && (
+                                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[#2C76BA] px-2 py-0.5 text-[10px] font-bold text-white">
+                                      {contact.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
+                                  <span className={`h-1.5 w-1.5 rounded-full ${contact.isActiveNow ? "bg-green-500" : "bg-gray-300"}`}></span>
+                                  <span>{contact.isActiveNow ? "Active now" : "Recently active"}</span>
+                                  {contact.latestMessage && (
+                                    <span className="text-gray-300">•</span>
+                                  )}
+                                  {contact.latestMessage && (
+                                    <span>{new Date(contact.latestMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="min-w-0 flex flex-col gap-6">
               
               {/* Header Card */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 relative">
@@ -372,7 +566,7 @@ export default function Groups() {
               </div>
 
               {/* Tab Content */}
-              <div className="min-h-[400px]">
+              <div className="min-h-100">
                 {activeTab === "Resources" && (
                   <div className="bg-white border border-gray-200 rounded-2xl p-6">
                     <div className="flex justify-between items-center mb-6">
@@ -464,112 +658,10 @@ export default function Groups() {
                   </div>
                 )}
               </div>
+              </div>
             </div>
           )}
         </div>
-
-        {/* CHAT WIDGET - Only show when group is active and user is a member */}
-        {activeGroup && currentUserIsMember && (
-          <div className="fixed bottom-24 right-6 z-50">
-            {!chatOpen ? (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={() => setChatOpen(true)}
-                  className="w-12 h-12 rounded-full bg-gray-900 text-white text-sm font-bold shadow-lg hover:bg-gray-800 transition flex items-center justify-center relative"
-                  aria-label="Open group chat"
-                  title="Group Chat"
-                >
-                  💬
-                  {!isConnected && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
-                  )}
-                </button>
-                <span className="text-[10px] font-bold text-gray-600 bg-white border border-gray-200 rounded-full px-2 py-0.5 shadow-sm">
-                  Group Chat
-                </span>
-              </div>
-            ) : (
-              <div className="w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">{activeGroup.group_name}</p>
-                    <p className="text-[10px] text-gray-500 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                      {isConnected ? 'Connected' : 'Disconnected'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setChatOpen(false)}
-                    className="text-xs font-bold text-gray-400 hover:text-gray-600"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <div 
-                  ref={chatContainerRef}
-                  className="h-56 px-4 py-3 overflow-y-auto bg-gray-50"
-                >
-                  {chatMessages.length === 0 ? (
-                    <p className="text-xs text-gray-400">No messages yet. Start the conversation.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {chatMessages.map((msg) => {
-                        const isSelf = msg.sender === "You";
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex flex-col gap-1 ${isSelf ? "items-end" : "items-start"}`}
-                          >
-                            <div className={`flex items-center gap-2 ${isSelf ? "flex-row-reverse" : ""}`}>
-                              <span className="text-[10px] font-bold text-gray-500">{msg.sender}</span>
-                              <span className="text-[10px] text-gray-400">{msg.time}</span>
-                            </div>
-                            <div
-                              className={`rounded-lg px-3 py-2 text-xs max-w-[85%] break-words ${
-                                isSelf
-                                  ? "bg-[#2C76BA] text-white"
-                                  : "bg-gray-200 text-gray-800"
-                              }`}
-                            >
-                              {msg.text}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="px-3 py-3 border-t border-gray-100 bg-white">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChat();
-                        }
-                      }}
-                      placeholder={isConnected ? "Type a message..." : "Connecting..."}
-                      disabled={!isConnected}
-                      className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2C76BA] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                    <button
-                      onClick={handleSendChat}
-                      disabled={!isConnected || !chatInput.trim()}
-                      className="px-3 py-2 text-xs font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* MODALS */}
         <AddResourceModal
@@ -580,7 +672,7 @@ export default function Groups() {
         />
 
         {modalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[100]">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-100">
             <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl">
               <h2 className="text-xl font-bold text-gray-900 mb-6">{isJoinMode ? "Join a Community" : "Create a Group"}</h2>
               
