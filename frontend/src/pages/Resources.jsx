@@ -379,18 +379,7 @@ const Index = () => {
                 : `Group Resources${groupIdInput ? ` (${groupIdInput})` : ""}`}
             </h2>
 
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 py-3 px-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                {error}
-                <button 
-                  onClick={() => setError("")}
-                  className="ml-2 underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
+           
 
             {/* Resource Grid */}
             {loading ? (

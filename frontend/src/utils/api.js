@@ -314,3 +314,17 @@ export const useResourceProgress = () => {
     progressStats: getProgressStats.data,
   };
 };
+
+// ============================================================================
+// ACTIVITY & CALENDAR
+// ============================================================================
+export const useDailyActivity = () => {
+  const { makeRequest } = useApi();
+
+  return useQuery({
+    queryKey: ['daily-activity'],
+    queryFn: () => makeRequest('activity/history'), // Matches your new FastAPI route
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+};
+
