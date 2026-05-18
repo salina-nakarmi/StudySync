@@ -10,7 +10,7 @@ const Navbar = () => {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups"];
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Study Feed"];
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,6 +20,7 @@ const Navbar = () => {
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
     else if (location.pathname === "/resources") setActiveTab("Resources");
     else if (location.pathname === "/groups") setActiveTab("Groups");
+    else if (location.pathname === "/feed") setActiveTab("Study Feed");
   }, [location.pathname]);
 
   const handleNavClick = (item) => {
@@ -28,6 +29,7 @@ const Navbar = () => {
     else if (item === "Dashboard") navigate("/dashboard");
     else if (item === "Resources") navigate("/resources");
     else if (item === "Groups") navigate("/groups");
+    else if (item === "Study Feed") navigate("/feed");
   };
 
   const NavButton = ({ item }) => {
