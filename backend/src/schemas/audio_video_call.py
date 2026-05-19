@@ -28,4 +28,4 @@ class MuteParticipant(BaseModel):
 
 class RoomRequest(BaseModel):
     room_name: str
-    max_participants: InterruptedError
+    max_participants: int = 20
