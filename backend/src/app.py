@@ -2,6 +2,10 @@ from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions, notifications, notifications_ws, messages, activity
 from .routes import chatbot
+import os
+from dotenv import load_dotenv
+from .schemas.messages import TokenRequest
+
 # from .services import socket_services
 
 app = FastAPI(

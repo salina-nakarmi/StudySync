@@ -4,8 +4,9 @@ from datetime import datetime
 
 class TokenRequest(BaseModel):
     room_name: str
-    participant: str
-
+    user_id: str
+    display_name: str
+    
 class CallHistoryResponse(BaseModel):
     id: int
     group_id: int
