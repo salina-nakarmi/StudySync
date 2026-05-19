@@ -46,4 +46,10 @@ class GetMessageRequest(BaseModel):
     message_id: int
     user_id : str
     group_id: int 
-    is_reply: bool     
+    is_reply: bool 
+
+class GetDirectMessageRequest(BaseModel):
+    message_id: int
+    sender_id : str
+    receirver_id: str
+

@@ -6,7 +6,7 @@ class TokenRequest(BaseModel):
     room_name: str
     user_id: str
     display_name: str
-    
+
 class CallHistoryResponse(BaseModel):
     id: int
     group_id: int
@@ -27,6 +27,6 @@ class MuteParticipant(BaseModel):
     track_sid: str
     mute: bool
 
-class RoomRequest(BaseModel):
+class RoomCreateRequest(BaseModel):
     room_name: str
     max_participants: int = 20
