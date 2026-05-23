@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from backend.src.schemas.audio_video_call import KickParticipant, TokenRequest, RoomCreateRequest
-from livekit.api import AccessToken, VideoGrants, CreateRoomRequest, RoomParticipantIdentity, ListRoommsRequest, DeleteRoomRequest, ListParticipantsRequest
+from backend.src.schemas.audio_video_call import KickParticipant, TokenRequest, RoomCreateRequest, MuteParticipant
+from livekit.api import AccessToken, VideoGrants, CreateRoomRequest, RoomParticipantIdentity, ListRoommsRequest, DeleteRoomRequest, ListParticipantsRequest, MuteRoomTrackRequest
+
 import os 
 import dotenv
 
@@ -50,7 +51,7 @@ async def create_room(req: RoomCreateRequest):
     
 
 
-@router.post("/rooms/{room_name}/kick/{participant}")
+@router.post("/rooms/kick")
 async def kick_participant(req : KickParticipant):
     room_name = req.room_name
     participant = req.participant
@@ -63,7 +64,7 @@ async def kick_participant(req : KickParticipant):
         ))
         return {"message" : f"'{req.participatant}' has been kicked from room '{req.room_name}'"}
     
-@app.get("/rooms")
+@router.get("/rooms")
 async def list_rooms():
     async with LiveKitAPI(url, key, secret_Key) as api:
         rooms = await api.room.list_rooms(ListRoomsRequest())
@@ -86,7 +87,17 @@ async def end_call(room_name: str):
     async with LiveKitAPI(url, key, secret_key) as api:
         await api.room.delete_room(DeleteRoomRequest(room= room_name))
         return{"message": f"Room '{room_name } has been ended successfully"}
-    
+
+
+@router.delete("/roomms/{room_name}")
+async def delete_room(room_name: str):
+    if not room_name:
+        raise HTTPException(status_code = 400, details="room_name is required")
+    async with LiveKitAPI(url, key, secret_key) as api:
+        await api.room.delete_room(DeleteRoomRequest(room= room_name))
+        return{"message": f"Room '{room_name}' has ended successfully"}
+
+
 
 @router.post("/rooms/{room_name}/parrticipants")
 async def list_participants(room_name: str):
@@ -103,5 +114,24 @@ async def list_participants(room_name: str):
                 for p in participants
             ]
         }
-         
-
+    room_name: str
+    participant: str
+    track_sid: str
+    mute: bool         
+@router.post("/rooms/mute")
+async def mute_participant(req: MuteParticipnat):
+    room_name = req.room_name
+    participant = req.participant
+    track_sid = req.track_sid
+    mute=req.mute
+    if not room_name or not participant or not track_sid:
+        raise HTTPException(status_code = 400, details = "room_name, participnat and track_sid are required")
+    async with LiveKitAPI(url, key, secret_key) as api:
+        await api.room.mute_participant_track(MuteRoomTrackRequest(
+            room = req.room_name,
+            identity = req.participant,
+            track_sid = req.track_sid,
+            mute = req.mute
+        )
+        
+        )
