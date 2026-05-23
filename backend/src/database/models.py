@@ -273,6 +273,19 @@ class Messages(Base):
     created_at:Mapped[datetime]=mapped_column(default=func.now())
     updated_at:Mapped[datetime]=mapped_column(default=func.now(), onupdate=func.now())
 
+
+class Replying(Base):
+
+    __tablename__ = "replying"
+    
+    id:Mapped[int] = mapped_column(primary_key=True, autoincrement = True)
+    message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
+    group_id:Mapped[int] = mapped_column(ForeignKey('groups.id'))
+    replied_message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
+    replied_to_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    replied_by_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+
+
 class DirectMessages(Base):
     """direct messages between users outside of groups"""
     __tablename__ = 'direct_messages'
@@ -289,17 +302,15 @@ class DirectMessages(Base):
     created_at:Mapped[datetime]=mapped_column(default=func.now())
     updated_at:Mapped[datetime]=mapped_column(default=func.now(), onupdate=func.now())
 
-class Replying(Base):
+class DirectMessagesReplying(Base):
 
-    __tablename__ = "replying"
+    __tablename__ = "direct_messages_replying"
     
     id:Mapped[int] = mapped_column(primary_key=True, autoincrement = True)
-    message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
-    group_id:Mapped[int] = mapped_column(ForeignKey('groups.id'))
-    replied_message_id:Mapped[int] = mapped_column(ForeignKey('messages.id'))
+    message_id:Mapped[int] = mapped_column(ForeignKey('direct_messages.id'))
+    replied_message_id:Mapped[int] = mapped_column(ForeignKey('direct_messages.id'))
     replied_to_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
     replied_by_id:Mapped[str] = mapped_column(ForeignKey('users.user_id'))
-
 
 
 class Notifications(Base):

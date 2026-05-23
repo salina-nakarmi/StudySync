@@ -386,14 +386,14 @@ async def handle_direct_message(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    receiver_id: int,
-    connection_manager: DirectConnectionManager
+    sender_id: int,
+    direct_connection_manager: DirectConnectionManager
 ):
     """Handle sending a new message to a user"""
     try:
         frontend_data = StoreDirectMessageRequest(**data)
 
-        if frontend_data.receiver_id != receiver_id:
+        if frontend_data.sender_id != sender_id:
             await websocket.send_json({"error": "Invalid user"})
             return
 
@@ -410,7 +410,7 @@ async def handle_direct_message(
         await session.refresh(direct_message)
 
         # Broadcast to all connected clients
-        await DirectConnectionManager.send_to_user(receiver_id, direct_message)
+        await direct_connection_manager.send_to_user(frontend_data.receiver_id, direct_message)
 
         # 🔔 Notify other members
         user_name = await get_username_by_id(session, frontend_data.sender_id)
@@ -440,7 +440,7 @@ async def handle_direct_messages_history(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    receiver_id: int
+    sender_id: int
 ):
     """Load message history for the group"""
     try:
@@ -483,7 +483,7 @@ async def handle_direct_message_editing(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    receiver_id: int
+    sender_id: int
 ):
     """Handle editing an existing message"""
     try:
@@ -527,7 +527,7 @@ async def handle_direct_message_replying(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    receiver_id: int
+    sender_id: int
 ):
     """Handle replying to a message"""
     try:
@@ -598,7 +598,7 @@ async def handle_direct_message_deleting(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    user_id: int
+    sender_id: int
 ):
     """Handle deleting a message"""
     try:
@@ -610,7 +610,7 @@ async def handle_direct_message_deleting(
         )
 
         # Delete reply relationship if it exists
-        if is_reply and frontend_data.user_id == user_id:
+        if is_reply and frontend_data.user_id == sender_id:
             await session.execute(
                 delete(DirectMessagesReplying).where(
                     DirectMessagesReplying.message_id == frontend_data.delete_message_id
@@ -620,7 +620,7 @@ async def handle_direct_message_deleting(
         # Delete the message
         result = await session.execute(
             delete(DirectMessages).where(
-                Messages.id == frontend_data.delete_message_id
+                DirectMessages.id == frontend_data.delete_message_id
             )
         )
 
