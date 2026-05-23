@@ -84,7 +84,7 @@ class DirectConnectionManager:
     
 
 
-    async def send_to_user(self, user_id: str, DM: Direct_Messages):
+    async def send_to_user(self, user_id: str, DM: DirectMessages):
         payload = {
             "action": "new_message",
             "message": {
