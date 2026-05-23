@@ -18,6 +18,12 @@ async def get_user_by_id(session: AsyncSession, user_id: str) -> Optional[Users]
         select(Users).where(Users.user_id == user_id))
     return result.scalars().first()
 
+async def get_username_by_id(session: AsyncSession, user_id:str):
+    result = await session.execute(
+        select(Users.username).where(Users.user_id == user_id)
+    )
+    return result.scalars().first()
+
 async def get_or_create_user(
         session:AsyncSession,
         user_id:str,
