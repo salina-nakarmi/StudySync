@@ -263,12 +263,25 @@ class Messages(Base):
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
     group_id:Mapped[int]=mapped_column(ForeignKey('groups.id'))
-    
     content:Mapped[str]
     message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))
-
-    # Thread support
     
+    is_reply:Mapped[bool] = mapped_column
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    seen_no: Mapped[int] = mapped_column(default = 0)
+    created_at:Mapped[datetime]=mapped_column(default=func.now())
+    updated_at:Mapped[datetime]=mapped_column(default=func.now(), onupdate=func.now())
+
+class DirectMessages(Base):
+    """direct messages between users outside of groups"""
+    __tablename__ = 'direct_messages'
+    
+    id: Mapped[int] = mapped_column(primary_key = True, autoincrement = True)
+    sender_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
+    receiver_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
+    content:Mapped[str]
+    message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))    
     is_reply:Mapped[bool] = mapped_column
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -4,7 +4,6 @@ from .routes import Dashboard, streaks, users, resources, groups, study_sessions
 from .routes import chatbot
 import os
 from dotenv import load_dotenv
-from .schemas.messages import TokenRequest
 
 # from .services import socket_services
 

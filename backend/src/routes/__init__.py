@@ -6,8 +6,6 @@ from . import resources
 from . import groups
 from . import study_sessions
 from . import chatbot
-from . import notifications
-from . import notificatiosn__ws
 
 __all__ = [
     'Dashboard',
@@ -17,6 +15,4 @@ __all__ = [
     'groups',
     'study_sessions',
     'chatbot'
-    'notifications',
-    'notifications_ws'
 ]

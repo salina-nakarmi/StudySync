@@ -3,7 +3,7 @@ from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 
-from ..database.models import Messages, Replying, MessageType
+from ..database.models import Messages, Replying, MessageType, DirectMessages
 from ..schemas.messages import (
     MessageResponse,
     StoreMessageRequest,
@@ -61,8 +61,39 @@ class ConnectionManager:
                 self.disconnect(dead, group_id)
 
 
+class DirectConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str,WebSocket] ={}
+    
+    async def connect(self, websocket:WebSocket, user_id:str):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+
+    async def disconnect(self, websocket: WebSocket, user_id:str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+
+    
+
+
+    async def send_to_user(self, user_id: str, DM: Direct_Messages):
+        payload = {
+            "action": "new_message",
+            "message": {
+                "sender_id" : DM.sender_id,
+                "receiver_id": DM.receiver_id,
+                "content": DM.content,
+                "type": DM.message_type
+            }  
+        }
+        if user_id in self.active_connections:
+            try:
+                await self.active_connections[user_id].send_json(payload)
+            except Exception as e:
+                print(f"Error sending message to user {user_id}: {e}")
+
 # =========================
-# SEND MESSAGE
+# GROUP MESSAGE
 # =========================
 async def handle_broadcast(
     data: dict,
@@ -322,3 +353,4 @@ async def handle_deleting(
     except Exception as e:
         print(f"Error in handle_deleting: {e}")
         await websocket.send_json({"error": "Failed to delete message"})
+
