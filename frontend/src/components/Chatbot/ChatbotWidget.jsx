@@ -110,7 +110,7 @@ const ChatbotWidget = () => {
 
       {/* Chat window (when open) */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-full sm:w-96 max-w-[calc(100vw-3rem)] h-[600px] z-50">
+        <div className="fixed bottom-6 right-6 w-[calc(100vw-3rem)] sm:w-[392px] max-w-[calc(100vw-3rem)] h-[510px] z-50">
           <ChatWindow
             messages={messages}
             onSendMessage={handleSendMessage}

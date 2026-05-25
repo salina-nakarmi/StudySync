@@ -20,8 +20,8 @@ const ChatInput = ({ onSendMessage, disabled }) => {
   };
 
   return (
-    <div className="border-t border-gray-200 p-4">
-      <div className="flex items-center gap-2">
+    <div className="border-t border-gray-200 bg-white px-4 py-3">
+      <div className="flex items-center gap-2 rounded-2xl bg-gray-100 p-2">
         <input
           type="text"
           value={input}
@@ -29,13 +29,13 @@ const ChatInput = ({ onSendMessage, disabled }) => {
           onKeyDown={handleKeyPress}
           placeholder="Type your message..."
           disabled={disabled}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="flex-1 rounded-full border border-transparent bg-transparent px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
         />
         
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || disabled}
-          className="bg-gray-800 text-white px-6 py-2 rounded-full hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          className="rounded-full bg-[#a7b0c0] px-5 py-2 text-white transition-colors hover:bg-[#969fb2] disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           Send
         </button>
