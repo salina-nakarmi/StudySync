@@ -11,7 +11,7 @@ export default function TimerControlBubble({
   formatTime,
   onOpenControlPanel 
 }) {
-  const [position, setPosition] = useState({ x: 20, y: window.innerHeight - 100 });
+  const [position, setPosition] = useState({ x: 20, y: window.innerHeight - 76 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const bubbleRef = useRef(null);
@@ -27,7 +27,7 @@ export default function TimerControlBubble({
     });
   };
 
-  const bubbleWidth = 220;
+  const bubbleWidth = 188;
   const bubbleHeight = 64;
 
   const handleMouseMove = useCallback((e) => {
@@ -57,7 +57,7 @@ export default function TimerControlBubble({
   return (
     <div
       ref={bubbleRef}
-      className="fixed z-50 bg-black rounded-xl shadow-lg border border-black/10 px-3 py-2 cursor-grab active:cursor-grabbing"
+      className="fixed z-50 bg-black rounded-xl shadow-lg border border-black/10 px-2 py-2 cursor-grab active:cursor-grabbing"
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
@@ -74,8 +74,8 @@ export default function TimerControlBubble({
       }}
     >
       {/* Main Bubble Content */}
-      <div className="flex items-center gap-3 min-w-[200px]">
-        <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+      <div className="flex items-center gap-2 min-w-[170px]">
+        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
           <Coffee className="w-5 h-5 text-white" />
         </div>
 
