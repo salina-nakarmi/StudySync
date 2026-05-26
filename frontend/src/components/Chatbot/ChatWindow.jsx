@@ -75,26 +75,27 @@ const ChatWindow = ({ messages, onSendMessage, onClose, onClear, isLoading }) =>
             <h4 className="mb-2 text-lg font-semibold">
               Welcome to Study Assistant!
             </h4>
-            <p className="text-sm max-w-xs mb-6">
+            <p className="text-sm max-w-xs mb-4">
               I can help you with your study sessions, resources, and progress.
               Ask me anything!
             </p>
             
-            <div className="grid w-full max-w-[320px] grid-cols-2 gap-2">
-              <p className="col-span-2 mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <div className="grid w-full max-w-[320px] grid-cols-1 gap-2 -mt-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Try asking:
               </p>
               {[
-                'hello',
-                'How\'s my progress?',
-                'Show my study streak',
+                { label: 'hello', emoji: '👋' },
+                { label: "How's my progress?", emoji: '📈' },
+                { label: 'Show my study streak', emoji: '🔥' },
               ].map((suggestion, index) => (
                 <button
                   key={index}
-                  onClick={() => onSendMessage(suggestion)}
-                  className="min-h-[56px] rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-left text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
+                  onClick={() => onSendMessage(suggestion.label)}
+                  className="min-h-[48px] rounded-2xl border border-gray-200 bg-gray-100 px-3 py-2.5 text-left text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
                 >
-                  {suggestion}
+                  <span className="mr-2">{suggestion.emoji}</span>
+                  {suggestion.label}
                 </button>
               ))}
             </div>
