@@ -1,7 +1,9 @@
+// components/Projects/ProjectCard.jsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 
 const statusStyles = {
-  Active: "bg-emerald-50 text-emerald-600",
+  Active:  "bg-emerald-50 text-emerald-600",
   Delayed: "bg-red-50 text-red-500",
   Paused:  "bg-yellow-50 text-yellow-600",
 };
@@ -12,14 +14,17 @@ const dotStyles = {
   Paused:  "bg-yellow-500",
 };
 
-export default function ProjectCard({ project, onView, onBoard }) {
-  const badge = statusStyles[project.status] || statusStyles.Active;
-  const dot   = dotStyles[project.status]   || dotStyles.Active;
+export default function ProjectCard({ project }) {
+  const navigate = useNavigate();
+  const badge    = statusStyles[project.status] || statusStyles.Active;
+  const dot      = dotStyles[project.status]    || dotStyles.Active;
   const barColor = project.status === "Delayed" ? "bg-gray-900" : "bg-teal-500";
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 w-64 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow duration-200">
-
+    <div
+      onClick={() => navigate(`/projects/${project.id}`)}
+      className="bg-white border border-gray-100 rounded-2xl p-5 w-64 flex flex-col gap-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div
@@ -65,7 +70,7 @@ export default function ProjectCard({ project, onView, onBoard }) {
           </span>
         )}
         {project.avatars && (
-          <div className="flex items-center flex-1">
+          <div className="flex items-center">
             {project.avatars.map((src, i) => (
               <img
                 key={i}
@@ -77,12 +82,6 @@ export default function ProjectCard({ project, onView, onBoard }) {
             ))}
           </div>
         )}
-        <button
-          className="text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors ml-auto"
-          onClick={project.avatars ? onBoard : onView}
-        >
-          {project.avatars ? "Board" : "View"}
-        </button>
       </div>
     </div>
   );
