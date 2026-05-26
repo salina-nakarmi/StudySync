@@ -14,6 +14,7 @@ import Profile from "./pages/Profile.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import Groups from "./pages/Groups.jsx";
 import Feed from "./pages/Feed.jsx";
+import Projects from "./pages/Projects.jsx";
 import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
@@ -105,6 +106,20 @@ function App() {
             <>
               <SignedIn>
                 <Resources />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        <Route
+          path="/projects"
+          element={
+            <>
+              <SignedIn>
+                <Projects />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />
