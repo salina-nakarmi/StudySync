@@ -103,13 +103,13 @@ export default function Dashboard() {
             </div>
 
             {/* Streak Badge */}
-            <div className="flex items-center bg-zinc-900 px-4 py-2 rounded-full shadow-lg w-fit">
-              <img src={fireIcon} className="w-4 h-4 mr-2" alt="fire" />
-              <span className="text-[12px] text-zinc-400 font-bold uppercase tracking-wider">Streaks</span>
-              <span className="text-sm font-bold text-white border-l border-zinc-700 ml-3 pl-3">
-                {streak?.current_streak || 0}
-              </span>
-            </div>
+<div className="flex items-center bg-zinc-900 px-4 py-2.5 rounded-xl shadow-lg w-fit gap-2.5">
+  <img src={fireIcon} className="w-4 h-4" alt="fire" />
+  <span className="text-[11px] text-white font-bold uppercase tracking-widest">Streaks</span>
+  <span className="text-sm font-bold text-white bg-zinc-700 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+    {streak?.current_streak || 0}
+  </span>
+</div>
           </div>
 
           <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
