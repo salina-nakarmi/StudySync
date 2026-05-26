@@ -3,7 +3,7 @@ from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 
-from backend.src.services.user_service import get_username_by_id
+from .user_service import get_username_by_id
 
 from ..database.models import Messages, Replying, MessageType, DirectMessages, DirectMessagesReplying
 
