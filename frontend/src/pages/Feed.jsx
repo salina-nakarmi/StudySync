@@ -1,510 +1,612 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  ArrowDownTrayIcon,
   BookmarkIcon,
-  ChatBubbleLeftIcon,
-  ChevronRightIcon,
-  EllipsisHorizontalIcon,
-  FireIcon,
-  HeartIcon,
-  ShareIcon,
-  UsersIcon,
-  ClockIcon,
+  ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   DocumentTextIcon,
-  FolderIcon,
-  PlayIcon,
-  SparklesIcon,
+  EllipsisHorizontalIcon,
+  HeartIcon,
+  LinkIcon,
+  MagnifyingGlassIcon,
+  PaperAirplaneIcon,
+  PlusIcon,
+  ShareIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import {
   BookmarkIcon as BookmarkIconSolid,
   HeartIcon as HeartIconSolid,
+  ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
 } from "@heroicons/react/24/solid";
 import Navbar from "../components/Navbar";
 
-const filterOptions = [
-  { key: "all", label: "All Activity" },
-  { key: "friends", label: "Friends" },
-  { key: "groups", label: "Groups" },
-  { key: "achievements", label: "Achievements" },
-  { key: "sessions", label: "Study Sessions" },
-];
+const communityFilters = ["All", "Resources", "Questions", "Notes", "Groups", "Recent"];
 
-const statuses = [
-  { name: "Salina", status: "Studying DSA 📚", initials: "SA", accent: "bg-slate-900" },
-  { name: "Melina", status: "In Pomodoro 🍅", initials: "ME", accent: "bg-slate-700" },
-  { name: "Kristina", status: "Pomodoro 🍅", initials: "KR", accent: "bg-zinc-800" },
-  { name: "Jebisha", status: "Exam Prep 😭", initials: "JE", accent: "bg-neutral-900" },
-];
+// Sidebar widgets removed for now (right-side component disabled)
 
-const studyItems = [
+const initialPosts = [
   {
     id: 1,
-    period: "Today",
-    category: "sessions",
-    user: "Salina Nakarmi",
+    type: "resource",
+    title: "Operating Systems Unit 4 Notes",
+    text: "Covers deadlock, scheduling, and memory management.",
+    user: "Melina",
+    department: "Computer Science · Operating Systems",
+    time: "12 min ago",
+    community: "Computer Networks",
     avatar: "SA",
-    time: "12m ago",
-    group: "Mathematics",
-    title: "completed a 2-hour Mathematics session",
-    meta: ["📚 Mathematics", "⏱ 2 hours", "🔥 Focus score: 92%"],
-    likes: 24,
-    comments: 5,
+    fileSize: "4.2 MB",
+    pages: 18,
+    subject: "OS",
+    likes: 42,
+    discussionCount: 11,
+    saves: 24,
+    shares: 7,
+    liked: true,
     saved: false,
-    liked: false,
-    type: "session",
+    comments: [
+      {
+        user: "Rizwan",
+        text: "Can you explain page replacement?",
+        time: "8m",
+        replies: [{ user: "Melina", text: "Look at page 12", time: "6m" }],
+      },
+    ],
   },
   {
     id: 2,
-    period: "Today",
-    category: "achievements",
-    user: "Melina Pomu",
-    avatar: "ME",
-    time: "1h ago",
-    group: "Engineering Club",
-    title: "reached a 7-day study streak 🔥",
-    badge: "7 Day Streak",
-    likes: 31,
-    comments: 8,
-    saved: false,
-    liked: true,
-    type: "streak",
+    type: "question",
+    title: "Can someone explain deadlock prevention simply?",
+    text: "Jebisha asked in the DSA Group community.",
+    user: "Jebisha",
+    department: "Information Technology · Theory",
+    time: "34 min ago",
+    community: "DSA Group",
+    avatar: "AK",
+    likes: 18,
+    discussionCount: 16,
+    saves: 9,
+    shares: 3,
+    liked: false,
+    saved: true,
+    answersPreview: [
+      { user: "Kristina", text: "Avoid at least one of the four conditions for deadlock." },
+      { user: "Salina", text: "Think of it as rules that stop circular waiting." },
+    ],
+    comments: [
+      {
+        user: "Kristina",
+        text: "I usually remember it as: no hold and wait, no circular wait.",
+        time: "22m",
+        replies: [{ user: "Jebisha", text: "That helps a lot, thanks.", time: "20m" }],
+      },
+    ],
   },
   {
     id: 3,
-    period: "Yesterday",
-    category: "sessions",
-    user: "Kristina ",
-    avatar: "KR",
-    time: "Yesterday",
-    group: "Focus Lab",
-    title: "finished 4 Pomodoro sessions 🍅",
-    indicators: ["done", "done", "done", "done"],
-    likes: 19,
-    comments: 2,
+    type: "link",
+    title: "Best DSA practice resource",
+    text: "I have shared a high-quality practice site with topic-wise problem sets and notes.",
+    user: "Dinisha",
+    department: "Software Engineering · Algorithms",
+    time: "1 hour ago",
+    community: "Flutter Learners",
+    avatar: "EA",
+    linkTitle: "DSA Mastery Practice Hub",
+    linkUrl: "practice.example.com",
+    linkSnippet: "Curated problems for arrays, graphs, and dynamic programming.",
+    likes: 28,
+    discussionCount: 6,
+    saves: 21,
+    shares: 14,
+    liked: false,
     saved: false,
-    liked: false,
-    type: "pomodoro",
+    comments: [],
   },
   {
-    id: 4,
-    period: "This Week",
-    category: "friends",
-    user: "Jebisha Bariya",
-    avatar: "JE",
-    time: "This week",
-    group: "Networking Group",
-    title: "uploaded notes for Computer Networks",
-    fileName: "computer_networks_notes.pdf",
-    likes: 12,
-    comments: 3,
-    saved: true,
-    liked: false,
-    type: "notes",
-  },
-  {
+  
     id: 5,
-    period: "This Week",
-    category: "groups",
-    user: "Salina Nakarmi",
-    avatar: "SA",
-    time: "This week",
-    group: "Flutter Study Group",
-    title: "joined Flutter Study Group",
-    members: 48,
-    likes: 8,
-    comments: 1,
+    type: "assignment",
+    title: "Database assignment solution attempt",
+    text: "Dinisha uploaded a draft solution and invited suggestions.",
+    user: "Salina",
+    department: "Databases · Assignment support",
+    time: "3 hours ago",
+    community: "Semester Projects",
+    avatar: "DU",
+    likes: 35,
+    discussionCount: 19,
+    saves: 17,
+    shares: 5,
+    liked: true,
     saved: false,
-    liked: false,
-    type: "group",
-  },
-  {
-    id: 6,
-    period: "Today",
-    category: "friends",
-    user: "Dinisha Uprety",
-    avatar: "ME",
-    time: "2h ago",
-    group: "Self Study",
-    title: "started a quiet coding sprint",
-    likes: 15,
-    comments: 4,
-    saved: false,
-    liked: false,
-    type: "simple",
+    comments: [
+      {
+        user: "Jebisha",
+        text: "Your relational diagram looks solid. Check normalization on page 2.",
+        time: "1h",
+        replies: [{ user: "Salina", text: "Noted. I will revise that section.", time: "58m" }],
+      },
+    ],
   },
 ];
 
-const onlineFriends = [
-  { name: "Salina Nakarmi", initials: "SA", status: "Studying DSA" },
-  { name: "Melina Pomu", initials: "ME", status: "In Pomodoro" },
-  { name: "Kristina ", initials: "KR", status: "Pomodoro" },
-  { name: "Jebisha Bariya", initials: "JE", status: "Exam Prep" },
-];
-
-const groupSessions = [
-  { title: "Tonight's DSA sprint", time: "8:00 PM" },
-  { title: "Flutter build room", time: "Tomorrow · 6:30 PM" },
-  { title: "Networks revision", time: "Fri · 7:00 PM" },
-];
-
-const motionItem = {
+const cardMotion = {
   initial: { opacity: 0, y: 18 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true, amount: 0.2 },
   transition: { duration: 0.45, ease: "easeOut" },
 };
 
-const Feed = () => {
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+const MotionArticle = motion.article;
+
+const getInitials = (name) =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+const Communities = () => {
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [query, setQuery] = useState("");
+  const [posts, setPosts] = useState([]);
+  const [expandedPosts, setExpandedPosts] = useState([1, 2]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setItems(studyItems);
-      setLoading(false);
-    }, 200);
+      setPosts(initialPosts);
+    }, 150);
 
     return () => window.clearTimeout(timer);
   }, []);
 
-  const filteredItems = items.filter((item) => activeFilter === "all" || item.category === activeFilter);
+  const visiblePosts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
 
-  const toggleReaction = (id, field) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              liked: field === "liked" ? !item.liked : item.liked,
-              saved: field === "saved" ? !item.saved : item.saved,
-              likes: field === "liked" ? item.likes + (item.liked ? -1 : 1) : item.likes,
-            }
-          : item
-      )
+    return posts.filter((post) => {
+      const matchesFilter = activeFilter === "All" || post.type === activeFilter.toLowerCase();
+      const searchableText = [post.title, post.text, post.user, post.community, post.department, post.linkTitle, post.linkSnippet]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return matchesFilter && (!normalizedQuery || searchableText.includes(normalizedQuery));
+    });
+  }, [activeFilter, posts, query]);
+
+  const toggleReaction = (postId, field) => {
+    setPosts((current) =>
+      current.map((post) => {
+        if (post.id !== postId) {
+          return post;
+        }
+
+        const liked = field === "liked" ? !post.liked : post.liked;
+        const saved = field === "saved" ? !post.saved : post.saved;
+
+        return {
+          ...post,
+          liked,
+          saved,
+          likes: field === "liked" ? post.likes + (post.liked ? -1 : 1) : post.likes,
+        };
+      })
     );
   };
 
-  const FeedCard = ({ item }) => (
-    <motion.article
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6"
-      {...motionItem}
-      whileHover={{ y: -2 }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="relative">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-900 text-sm font-semibold text-white">
-              {item.avatar}
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+  const toggleDiscussion = (postId) => {
+    setExpandedPosts((current) =>
+      current.includes(postId) ? current.filter((item) => item !== postId) : [...current, postId]
+    );
+  };
+
+  const PostHeader = ({ post }) => (
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="relative shrink-0">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-slate-900 text-sm font-semibold text-white shadow-sm">
+            {post.avatar || getInitials(post.user)}
           </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="truncate font-semibold text-slate-900">{item.user}</p>
-              <span className="text-sm text-slate-400">•</span>
-              <p className="text-sm text-slate-500">{item.time}</p>
-            </div>
-            <div className="mt-1 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-              {item.group}
-            </div>
+          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="truncate font-semibold text-slate-950">{post.user}</p>
+            <span className="text-sm text-slate-400">•</span>
+            <p className="text-sm text-slate-500">{post.department}</p>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{post.time}</span>
+            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+              {post.community}
+            </span>
           </div>
         </div>
-        <button className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
-          <EllipsisHorizontalIcon className="h-5 w-5" />
-        </button>
       </div>
 
-      <div className="mt-4 space-y-3">
-        <p className="text-sm leading-6 text-slate-800 sm:text-[15px]">
-          <span className="font-semibold text-slate-950">{item.user}</span> {item.title}
-        </p>
+      <button className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+        <EllipsisHorizontalIcon className="h-5 w-5" />
+      </button>
+    </div>
+  );
 
-        {item.type === "session" && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-              {item.meta.map((entry) => (
-                <span key={entry} className="rounded-full bg-white px-3 py-1 shadow-sm">
-                  {entry}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {item.type === "streak" && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-              <FireIcon className="h-4 w-4" />
-              {item.badge}
-            </div>
-          </div>
-        )}
-
-        {item.type === "pomodoro" && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex gap-2">
-              {item.indicators.map((state, index) => (
-                <div
-                  key={index}
-                  className={`h-3 flex-1 rounded-full ${state === "done" ? "bg-emerald-400" : "bg-slate-200"}`}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-xs font-medium text-slate-500">Mini completion indicators</p>
-          </div>
-        )}
-
-        {item.type === "notes" && (
-          <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm">
-              <DocumentTextIcon className="h-7 w-7" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-900">{item.fileName}</p>
-              <p className="mt-1 text-xs text-slate-500">File preview thumbnail</p>
-            </div>
-          </div>
-        )}
-
-        {item.type === "group" && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                  <UsersIcon className="h-4 w-4" />
-                  Group preview
-                </div>
-                <p className="mt-3 text-sm font-semibold text-slate-900">Flutter Study Group</p>
-                <p className="mt-1 text-xs text-slate-500">{item.members} members online and sharing updates.</p>
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
-                <FolderIcon className="h-7 w-7" />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          <button
-            onClick={() => toggleReaction(item.id, "liked")}
-            className={`inline-flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
-              item.liked ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600"
-            }`}
-          >
-            {item.liked ? <HeartIconSolid className="h-4 w-4" /> : <HeartIcon className="h-4 w-4" />}
-            React
-            <span className="text-xs font-semibold">{item.likes}</span>
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-slate-600 transition-colors hover:bg-slate-200">
-            <ChatBubbleLeftIcon className="h-4 w-4" />
-            Comment
-            <span className="text-xs font-semibold">{item.comments}</span>
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-slate-600 transition-colors hover:bg-slate-200">
-            <UsersIcon className="h-4 w-4" />
-            Study together
-          </button>
-        </div>
+  const ReactionBar = ({ post, onQuestion, onJoin }) => (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
         <button
-          onClick={() => toggleReaction(item.id, "saved")}
-          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-colors ${
-            item.saved ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          onClick={() => toggleReaction(post.id, "liked")}
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
+            post.liked ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600"
           }`}
         >
-          {item.saved ? <BookmarkIconSolid className="h-4 w-4" /> : <BookmarkIcon className="h-4 w-4" />}
+          {post.liked ? <HeartIconSolid className="h-4 w-4" /> : <HeartIcon className="h-4 w-4" />}
+          {post.type === "question" ? "Upvote" : "Like"}
+          <span className="text-xs font-semibold">{post.likes}</span>
+        </button>
+        <button
+          onClick={onQuestion}
+          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-slate-600 transition-colors hover:bg-slate-200"
+        >
+          <ChatBubbleLeftRightIcon className="h-4 w-4" />
+          {post.type === "resource" ? "Ask Question" : post.type === "group" ? "Discussion" : "Comment"}
+          <span className="text-xs font-semibold">{post.discussionCount}</span>
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-slate-600 transition-colors hover:bg-slate-200">
+          <ShareIcon className="h-4 w-4" />
+          Share
+        </button>
+        {post.type === "group" && (
+          <button
+            onClick={onJoin}
+            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-white transition-colors hover:bg-slate-700"
+          >
+            <UserGroupIcon className="h-4 w-4" />
+            Join
+          </button>
+        )}
+      </div>
+
+      <button
+        onClick={() => toggleReaction(post.id, "saved")}
+        className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-colors ${
+          post.saved ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+        }`}
+      >
+        {post.saved ? <BookmarkIconSolid className="h-4 w-4" /> : <BookmarkIcon className="h-4 w-4" />}
+        Save
+        <span className="text-xs font-semibold">{post.saves}</span>
+      </button>
+    </div>
+  );
+
+  const DiscussionSection = ({ post }) => {
+    const isExpanded = expandedPosts.includes(post.id);
+
+    return (
+      <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+        <button
+          onClick={() => toggleDiscussion(post.id)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Discussion</p>
+            <p className="text-xs text-slate-500">{post.comments.length} threaded conversation{post.comments.length === 1 ? "" : "s"}</p>
+          </div>
+          {isExpanded ? (
+            <ChevronUpIcon className="h-4 w-4 text-slate-500" />
+          ) : (
+            <ChevronDownIcon className="h-4 w-4 text-slate-500" />
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="mt-4 space-y-3">
+            {post.comments.map((comment) => (
+              <div key={`${post.id}-${comment.user}-${comment.time}`} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                    {getInitials(comment.user)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{comment.user}</p>
+                      <span className="text-xs text-slate-400">{comment.time}</span>
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{comment.text}</p>
+                  </div>
+                </div>
+
+                {comment.replies?.length > 0 && (
+                  <div className="mt-3 space-y-2 border-l-2 border-slate-100 pl-4">
+                    {comment.replies.map((reply) => (
+                      <div key={`${reply.user}-${reply.time}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <p className="font-semibold text-slate-800">{reply.user}</p>
+                          <span>{reply.time}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">{reply.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                You
+              </div>
+              <input
+                type="text"
+                placeholder="Add a threaded reply..."
+                className="min-w-0 flex-1 border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              />
+              <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+                <PaperAirplaneIcon className="h-4 w-4" />
+                Reply
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderResourceCard = (post) => (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[160px_minmax(0,1fr)]">
+      <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-slate-900 to-slate-700 p-4 text-white shadow-sm">
+        <div className="flex h-24 items-center justify-center rounded-2xl border border-white/10 bg-white/10">
+          <DocumentTextIcon className="h-12 w-12 text-white/90" />
+        </div>
+        <p className="mt-3 text-xs uppercase tracking-[0.22em] text-white/70">PDF Preview</p>
+        <p className="mt-1 text-sm font-semibold">{post.fileSize}</p>
+      </div>
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-full bg-white px-2.5 py-1 font-medium shadow-sm">File size: {post.fileSize}</span>
+          <span className="rounded-full bg-white px-2.5 py-1 font-medium shadow-sm">Pages: {post.pages}</span>
+          <span className="rounded-full bg-white px-2.5 py-1 font-medium shadow-sm">Subject: {post.subject}</span>
+        </div>
+        <h3 className="mt-3 text-lg font-semibold text-slate-950">{post.title}</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{post.text}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            Download
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+            <ChatBubbleLeftRightIconSolid className="h-4 w-4" />
+            Ask Question
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+            <BookmarkIcon className="h-4 w-4" />
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderQuestionCard = (post) => (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Question</p>
+        <p className="mt-2 text-lg font-semibold text-slate-950">{post.title}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{post.text}</p>
+      </div>
+      <div className="mt-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-900">Top answers preview</p>
+        {post.answersPreview.map((answer) => (
+          <div key={answer.user} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">{answer.user}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{answer.text}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+          <ChatBubbleLeftRightIcon className="h-4 w-4" />
+          Answer
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          <HeartIcon className="h-4 w-4" />
+          Upvote
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          <BookmarkIcon className="h-4 w-4" />
           Save
         </button>
       </div>
-    </motion.article>
+    </div>
   );
 
-  const StatusCircle = ({ item }) => (
-    <button className="group min-w-22 text-center">
-      <div className="mx-auto flex h-18 w-18 items-center justify-center rounded-full p-0.5 transition-transform duration-200 group-hover:scale-105">
-        <div className="status-ring flex h-full w-full items-center justify-center rounded-full bg-white">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white shadow-sm">
-            {item.initials}
+  const renderLinkCard = (post) => (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+            <LinkIcon className="h-7 w-7" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-950">{post.linkTitle}</p>
+            <p className="mt-1 text-xs text-slate-500">{post.linkUrl}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{post.linkSnippet}</p>
           </div>
         </div>
       </div>
-      <p className="mt-2 text-sm font-medium text-slate-900">{item.name}</p>
-      <p className="text-xs text-slate-500">{item.status}</p>
-    </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+          Open
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          Comment
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          Save
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderGroupCard = (post) => (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-950">{post.title}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{post.text}</p>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+              <UsersIcon className="h-4 w-4" />
+              {post.participants} participants
+            </div>
+          </div>
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+            <UserGroupIcon className="h-8 w-8" />
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+          Join
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          Discussion
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAssignmentCard = (post) => (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 shadow-sm">
+            <DocumentTextIcon className="h-7 w-7" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-950">{post.title}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{post.text}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700">
+          Comment
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          Suggest edits
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+          Ask questions
+        </button>
+      </div>
+    </div>
+  );
+
+  const PostCard = ({ post }) => (
+    <MotionArticle
+      className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6"
+      {...cardMotion}
+      whileHover={{ y: -2 }}
+    >
+      <PostHeader post={post} />
+
+      <div className="mt-4 space-y-3">
+        <p className="text-sm leading-6 text-slate-700 sm:text-[15px]">
+          <span className="font-semibold text-slate-950">{post.user}</span> {post.type === "question" ? "asked:" : "shared:"}
+        </p>
+        <p className="text-base font-semibold text-slate-950">{post.title}</p>
+      </div>
+
+      {post.type === "resource" && renderResourceCard(post)}
+      {post.type === "question" && renderQuestionCard(post)}
+      {post.type === "link" && renderLinkCard(post)}
+      {post.type === "group" && renderGroupCard(post)}
+      {post.type === "assignment" && renderAssignmentCard(post)}
+
+      <ReactionBar
+        post={post}
+        onQuestion={() => toggleDiscussion(post.id)}
+        onJoin={() => null}
+      />
+
+      <DiscussionSection post={post} />
+    </MotionArticle>
   );
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-28 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Study Feed</p>
+      <main className="relative mx-auto max-w-7xl px-4 pb-16 pt-28 sm:px-6 lg:px-8">
+        <div className="pointer-events-none absolute left-0 top-12 h-40 w-40 rounded-full bg-sky-100/70 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-24 h-56 w-56 rounded-full bg-slate-200/70 blur-3xl" />
+
+        <div className="relative mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Communities</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              See what your friends are up to 📚
+              Discover resources, share materials, and learn together.
             </h1>
           </div>
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
-          <section className="space-y-6">
-            <div className="flex flex-wrap gap-2">
-              {filterOptions.map((filter) => (
-                <button
-                  key={filter.key}
-                  onClick={() => setActiveFilter(filter.key)}
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
-                    activeFilter === filter.key
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+        <div className="relative mb-8 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="flex min-w-0 items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <MagnifyingGlassIcon className="h-5 w-5 shrink-0 text-slate-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search notes, questions, PDFs, resources..."
+              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+            />
+          </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Stories</h2>
-                  <p className="mt-1 text-sm text-slate-500">Status updates from friends</p>
-                </div>
-                <button className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
-                  <SparklesIcon className="h-4 w-4" />
-                  Add Status
-                </button>
+          <button className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700">
+            <PlusIcon className="h-4 w-4" />
+            Create Post
+          </button>
+        </div>
+
+        <div className="mb-8 flex flex-wrap gap-2">
+          {communityFilters.map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                activeFilter === filter
+                  ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-8">
+          <section className="space-y-5">
+            {visiblePosts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+
+            {visiblePosts.length === 0 && (
+              <div className="rounded-[28px] border border-dashed border-slate-200 bg-white p-10 text-center shadow-sm">
+                <p className="text-sm font-medium text-slate-500">No posts match your current filter.</p>
               </div>
-              <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
-                {statuses.map((item) => (
-                  <motion.button
-                    key={item.name}
-                    whileHover={{ y: -2 }}
-                    className="group min-w-23 text-center"
-                  >
-                    <div className="mx-auto flex h-18 w-18 items-center justify-center rounded-full border-2 border-slate-200 bg-white p-0.5 transition-all group-hover:border-slate-300">
-                      <div className={`status-ring flex h-full w-full items-center justify-center rounded-full ${item.accent} text-sm font-semibold text-white shadow-sm`}>
-                        {item.initials}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm font-medium text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-500">{item.status}</p>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                <span>Today</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-
-              {loading ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                  <div className="inline-block h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900" />
-                  <p className="mt-4 text-sm text-slate-500">Loading feed...</p>
-                </div>
-              ) : (
-                filteredItems
-                  .filter((item) => item.period === "Today")
-                  .map((item) => <FeedCard key={item.id} item={item} />)
-              )}
-
-              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                <span>Yesterday</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-
-              {filteredItems
-                .filter((item) => item.period === "Yesterday")
-                .map((item) => <FeedCard key={item.id} item={item} />)}
-
-              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                <span>This Week</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-
-              {filteredItems
-                .filter((item) => item.period === "This Week")
-                .map((item) => <FeedCard key={item.id} item={item} />)}
-            </div>
+            )}
           </section>
-
-          <aside className="space-y-4 xl:sticky xl:top-24">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Online Friends</h3>
-                <span className="text-xs text-slate-500">Live</span>
-              </div>
-              <div className="space-y-3">
-                {onlineFriends.map((friend) => (
-                  <div key={friend.name} className="flex items-center gap-3 rounded-2xl px-1 py-1">
-                    <div className="relative">
-                      <div className="status-ring flex h-10 w-10 items-center justify-center rounded-full bg-white p-0.5">
-                        <div className="flex h-full w-full items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                          {friend.initials}
-                        </div>
-                      </div>
-                      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{friend.name}</p>
-                      <p className="truncate text-xs text-slate-500">{friend.status}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Upcoming group sessions</h3>
-                <ChevronRightIcon className="h-4 w-4 text-slate-400" />
-              </div>
-              <div className="space-y-3">
-                {groupSessions.map((session) => (
-                  <div key={session.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                    <p className="text-sm font-medium text-slate-900">{session.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">{session.time}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Current study timer</h3>
-                <ClockIcon className="h-4 w-4 text-slate-400" />
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-3xl font-semibold tracking-tight text-slate-950">24:00</p>
-                <p className="mt-1 text-xs text-slate-500">Focused session running</p>
-                <button className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700">
-                  <PlayIcon className="h-4 w-4" />
-                  Resume
-                </button>
-              </div>
-            </div>
-          </aside>
         </div>
       </main>
-
-      <style>{`
-        .status-ring {
-          background: linear-gradient(135deg, rgba(15,23,42,0.12), rgba(15,23,42,0.02));
-          animation: ringPulse 3.6s ease-in-out infinite;
-        }
-
-        @keyframes ringPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.12); }
-          50% { box-shadow: 0 0 0 6px rgba(15, 23, 42, 0.02); }
-        }
-      `}</style>
     </div>
   );
 };
 
-export default Feed;
+export default Communities;
