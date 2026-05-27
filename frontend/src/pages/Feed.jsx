@@ -247,7 +247,7 @@ const Communities = () => {
           }`}
         >
           {post.liked ? <HeartIconSolid className="h-4 w-4" /> : <HeartIcon className="h-4 w-4" />}
-          {post.type === "question" ? "Upvote" : "Like"}
+          React
           <span className="text-xs font-semibold">{post.likes}</span>
         </button>
         <button
@@ -417,7 +417,7 @@ const Communities = () => {
         </button>
         <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           <HeartIcon className="h-4 w-4" />
-          Upvote
+          React
         </button>
         <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           <BookmarkIcon className="h-4 w-4" />
