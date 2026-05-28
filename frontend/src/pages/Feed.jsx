@@ -15,6 +15,7 @@ import {
   PlusIcon,
   ShareIcon,
   UserGroupIcon,
+  UsersIcon,
 } from "@heroicons/react/24/outline";
 import {
   BookmarkIcon as BookmarkIconSolid,
@@ -25,7 +26,20 @@ import Navbar from "../components/Navbar";
 
 const communityFilters = ["All", "Resources", "Questions", "Notes", "Groups", "Recent"];
 
-// Sidebar widgets removed for now (right-side component disabled)
+
+const recentUploads = [
+  { title: "Operating Systems Unit 4 Notes", meta: "PDF • 8 pages" },
+  { title: "Deadlock prevention summary", meta: "Question thread • 14 replies" },
+  { title: "DSA practice link collection", meta: "Web link • 3 saves" },
+];
+
+const topContributors = [
+  { name: "Melina", points: "124 contributions" },
+  { name: "Jebisha", points: "98 contributions" },
+  { name: "Kristina", points: "86 contributions" },
+];
+
+
 
 const initialPosts = [
   {
@@ -247,7 +261,7 @@ const Communities = () => {
           }`}
         >
           {post.liked ? <HeartIconSolid className="h-4 w-4" /> : <HeartIcon className="h-4 w-4" />}
-          React
+          {post.type === "question" ? "Upvote" : "Like"}
           <span className="text-xs font-semibold">{post.likes}</span>
         </button>
         <button
@@ -417,7 +431,7 @@ const Communities = () => {
         </button>
         <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           <HeartIcon className="h-4 w-4" />
-          React
+          Upvote
         </button>
         <button className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           <BookmarkIcon className="h-4 w-4" />
@@ -591,7 +605,7 @@ const Communities = () => {
           ))}
         </div>
 
-        <div className="grid gap-8">
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <section className="space-y-5">
             {visiblePosts.map((post) => (
               <PostCard key={post.id} post={post} />
@@ -603,6 +617,43 @@ const Communities = () => {
               </div>
             )}
           </section>
+
+          <aside className="space-y-4 xl:sticky xl:top-24">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Recent uploads</h3>
+                <DocumentTextIcon className="h-4 w-4 text-slate-400" />
+              </div>
+              <div className="space-y-3">
+                {recentUploads.map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.meta}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">Top contributors</h3>
+                <ChatBubbleLeftRightIcon className="h-4 w-4 text-slate-400" />
+              </div>
+              <div className="space-y-3">
+                {topContributors.map((contributor) => (
+                  <div key={contributor.name} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{contributor.name}</p>
+                      <p className="text-xs text-slate-500">{contributor.points}</p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                      {getInitials(contributor.name)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
         </div>
       </main>
     </div>
