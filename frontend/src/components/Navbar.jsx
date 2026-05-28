@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BellIcon,
+  ChatBubbleLeftRightIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
 import NotificationPanel from "../pages/NotificationPanel"; // make sure this exists
@@ -82,6 +83,16 @@ const Navbar = () => {
               >
                 <BellIcon className="w-6 h-6 text-gray-700" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+
+              {/* Message Icon */}
+              <button
+                type="button"
+                className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative z-50"
+                aria-label="Messages"
+                title="Messages"
+              >
+                <ChatBubbleLeftRightIcon className="w-6 h-6 text-gray-700" />
               </button>
 
               {/* Profile */}
