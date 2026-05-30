@@ -538,27 +538,27 @@ const ResourceDetailModal = ({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-gray-200 p-6 z-[80] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between gap-4">
+      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-none border border-gray-200 p-3.5 sm:p-4 z-[80] max-h-[86vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-2.5">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-sm font-bold text-gray-900">
               {resource.title || "Untitled"}
             </h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-[10px] text-gray-500 mt-1">
               Uploaded: {formatRelativeTime(resource.created_at) || "—"}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            className="p-1 rounded-lg hover:bg-gray-100"
             aria-label="Close"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div className="mt-4 space-y-2 text-sm text-gray-600">
+        <div className="mt-2.5 space-y-1.5 text-sm text-gray-600">
           <p>
             <span className="font-semibold text-gray-700">Description:</span>{" "}
             {resource.description || "No description provided."}
@@ -570,13 +570,13 @@ const ResourceDetailModal = ({
           </p>
         </div>
 
-        <div className="mt-6">
-          <p className="text-sm font-semibold text-gray-800">Your Progress</p>
+        <div className="mt-3.5">
+          <p className="text-[12px] font-semibold text-gray-800 uppercase tracking-wide">Your Progress</p>
           {progressLoading ? (
-            <p className="text-xs text-gray-500 mt-2">Loading progress...</p>
+            <p className="text-sm text-gray-500 mt-1">Loading progress...</p>
           ) : (
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-[11px] text-gray-500">
                 <span>{progressPercent}% Complete</span>
                 <span>Status: {getProgressLabel(progressStatus)}</span>
               </div>
@@ -594,12 +594,12 @@ const ResourceDetailModal = ({
                 onChange={(event) => onProgressPercentChange(Number(event.target.value))}
                 className="w-full accent-[#2C76BA]"
               />
-              <div className="flex items-center gap-3">
-                <label className="text-xs text-gray-500">Status</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-[12px] text-gray-500">Status</label>
                 <select
                   value={progressStatus}
                   onChange={(event) => onProgressStatusChange(event.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1"
+                  className="text-[10px] border border-gray-200 rounded-lg px-1.5 py-0.5"
                 >
                   <option value="not_started">Not Started</option>
                   <option value="in_progress">In Progress</option>
@@ -608,12 +608,12 @@ const ResourceDetailModal = ({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500">Notes</label>
+                <label className="text-[12px] text-gray-500">Notes</label>
                 <textarea
                   value={progressNotes}
                   onChange={(event) => onProgressNotesChange(event.target.value)}
                   rows={2}
-                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs"
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px]"
                   placeholder="Add a note..."
                 />
               </div>
@@ -621,13 +621,13 @@ const ResourceDetailModal = ({
           )}
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-3.5 flex flex-wrap gap-2">
           {resource.url && (
             <a
               href={resource.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800"
+              className="px-2 py-1 rounded-lg bg-gray-900 text-white text-[12px] font-semibold hover:bg-gray-800"
             >
               Open File
             </a>
@@ -636,7 +636,7 @@ const ResourceDetailModal = ({
             type="button"
             onClick={onMarkComplete}
             disabled={progressSaving}
-            className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="px-2 py-1 rounded-lg border border-gray-200 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Mark Complete
           </button>
@@ -644,19 +644,19 @@ const ResourceDetailModal = ({
             type="button"
             onClick={onSaveProgress}
             disabled={progressSaving}
-            className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="px-2 py-1 rounded-lg border border-gray-200 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {progressSaving ? "Saving..." : "Save Progress"}
           </button>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-sm font-semibold text-gray-800 mb-3">Share to Group</p>
+        <div className="mt-3.5 pt-3.5 border-t border-gray-200">
+          <p className="text-[10px] font-semibold text-gray-800 mb-1.5 uppercase tracking-wide">Share to Group</p>
           <div className="flex flex-wrap gap-2">
             <select
               value={shareGroupId}
               onChange={(event) => onShareGroupIdChange(event.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs"
+              className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-gray-200 text-[px]"
             >
               <option value="">
                 {groupsLoading ? "Loading groups..." : "Select group"}
@@ -671,7 +671,7 @@ const ResourceDetailModal = ({
               type="button"
               onClick={onShare}
               disabled={!shareGroupId || groupsLoading}
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800 disabled:opacity-50"
+              className="px-2 py-1 rounded-lg bg-gray-900 text-white text-[10px] font-semibold hover:bg-gray-800 disabled:opacity-50"
             >
               Share
             </button>
@@ -681,11 +681,11 @@ const ResourceDetailModal = ({
           )}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-3.5 pt-3.5 border-t border-gray-200">
           <button
             type="button"
             onClick={onDelete}
-            className="w-full px-4 py-2 rounded-lg text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50"
+            className="w-full px-2 py-1 rounded-lg text-[10px] font-semibold text-red-600 border border-red-200 hover:bg-red-50"
           >
             Delete Resource
           </button>

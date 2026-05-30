@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BellIcon,
+  ChatBubbleLeftRightIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
 import NotificationPanel from "../pages/NotificationPanel"; // make sure this exists
@@ -10,7 +11,7 @@ const Navbar = () => {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Study Feed", "Projects"];
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Communities", "Projects"];
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,7 +21,7 @@ const Navbar = () => {
     else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
     else if (location.pathname === "/resources") setActiveTab("Resources");
     else if (location.pathname === "/groups") setActiveTab("Groups");
-    else if (location.pathname === "/feed") setActiveTab("Study Feed");
+    else if (location.pathname === "/feed") setActiveTab("Communities");
     else if (location.pathname === "/projects") setActiveTab("Projects");
   }, [location.pathname]);
 
@@ -30,7 +31,7 @@ const Navbar = () => {
     else if (item === "Dashboard") navigate("/dashboard");
     else if (item === "Resources") navigate("/resources");
     else if (item === "Groups") navigate("/groups");
-    else if (item === "Study Feed") navigate("/feed");
+    else if (item === "Communities") navigate("/feed");
     else if (item === "Projects") navigate("/projects");
   };
 
@@ -84,6 +85,16 @@ const Navbar = () => {
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
 
+              {/* Message Icon */}
+              <button
+                type="button"
+                className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative z-50"
+                aria-label="Messages"
+                title="Messages"
+              >
+                <ChatBubbleLeftRightIcon className="w-6 h-6 text-gray-700" />
+              </button>
+
               {/* Profile */}
               <button
                 onClick={() => navigate("/profile")}
@@ -97,7 +108,7 @@ const Navbar = () => {
       </nav>
 
       {/* FLOATING MOBILE BOTTOM NAV */}
-      <div className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-[400px]">
+      <div className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-60 w-[90%] max-w-100">
         <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-full px-4 py-3 flex items-center justify-around shadow-2xl">
           {/* Home Icon */}
           <button
