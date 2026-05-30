@@ -1,20 +1,26 @@
-import React from "react";
-import { Target, TrendingUp, CheckCircle, Flame } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Target,
+  TrendingUp,
+  CheckCircle,
+  Flame,
+  Edit3,
+  Check,
+} from "lucide-react";
 import { useStudySessions } from "../utils/api";
 
 export default function TodayStudyTarget() {
   const { todaySummary, isLoading } = useStudySessions();
 
-  // Daily goal in minutes (you can make this user-configurable later)
-  const DAILY_GOAL_MINUTES = 120; // 2 hours
+  // ✅ Default goal = 120 mins (2 hours)
+  const [goal, setGoal] = useState(120);
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempGoal, setTempGoal] = useState(goal);
 
-  // Get today's studied minutes
   const studiedToday = todaySummary?.today?.total_minutes || 0;
 
-  // Calculate progress percentage
-  const progress = Math.min((studiedToday / DAILY_GOAL_MINUTES) * 100, 100);
+  const progress = Math.min((studiedToday / goal) * 100, 100);
 
-  // Determine motivational message and color
   const getMotivationData = () => {
     if (progress >= 100) {
       return {
@@ -26,16 +32,16 @@ export default function TodayStudyTarget() {
       };
     } else if (progress >= 50) {
       return {
-        message: "Almost there! 🚀",
-        subMessage: `${DAILY_GOAL_MINUTES - studiedToday} mins to goal`,
+        message: "Almost there!",
+        subMessage: `${goal - studiedToday} mins left`,
         color: "text-orange-600",
         bgColor: "bg-orange-600",
         icon: TrendingUp,
       };
     } else if (progress > 0) {
       return {
-        message: "Keep going! 💪",
-        subMessage: `${DAILY_GOAL_MINUTES - studiedToday} mins remaining`,
+        message: "Keep going!",
+        subMessage: `${goal - studiedToday} mins remaining`,
         color: "text-blue-600",
         bgColor: "bg-blue-600",
         icon: Target,
@@ -43,7 +49,7 @@ export default function TodayStudyTarget() {
     } else {
       return {
         message: "Start your day strong!",
-        subMessage: `Goal: ${DAILY_GOAL_MINUTES} mins`,
+        subMessage: `Target: ${(goal / 60).toFixed(1)} hours total`,
         color: "text-gray-600",
         bgColor: "bg-gray-600",
         icon: Flame,
@@ -54,78 +60,89 @@ export default function TodayStudyTarget() {
   const motivationData = getMotivationData();
   const MotivationIcon = motivationData.icon;
 
+  const saveGoal = () => {
+    const value = Number(tempGoal);
+    if (!isNaN(value) && value > 0) {
+      setGoal(value);
+    }
+    setIsEditing(false);
+  };
+
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex items-center justify-center min-h-[240px] h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex items-center justify-center min-h-[240px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col justify-between min-h-[240px] h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col min-h-[240px]">
+
+      {/* Header (matches screenshot style) */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-gray-900 font-bold text-lg">
+            Today's Study Goal
+          </h2>
+          <p className="text-xs text-gray-400 font-semibold tracking-wide">
+            FOCUS MODE
+          </p>
+        </div>
+
+        {/* Goal edit */}
         <div className="flex items-center gap-2">
-          <div className={`p-2 rounded-lg ${motivationData.bgColor} bg-opacity-10`}>
-            <MotivationIcon className={`w-5 h-5 ${motivationData.color}`} />
-          </div>
-          <h2 className="text-gray-800 font-bold text-lg">Today's Study Goal</h2>
+          {isEditing ? (
+            <div className="flex items-center gap-1">
+              <input
+                value={tempGoal}
+                onChange={(e) => setTempGoal(e.target.value)}
+                className="w-16 px-2 py-1 text-sm border rounded-md outline-none"
+              />
+              <button onClick={saveGoal}>
+                <Check className="w-4 h-4 text-green-600" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setTempGoal(goal);
+                setIsEditing(true);
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Progress Display */}
-      <div className="flex-1 flex flex-col justify-center">
-        {/* Time Display */}
-        <div className="flex items-baseline justify-center gap-2 mb-6">
-          <span className="text-5xl font-black text-gray-900">
+      {/* Main display (big number like screenshot) */}
+      <div className="flex flex-col items-center justify-center flex-1">
+
+        <div className="flex items-end gap-2">
+          <span className="text-6xl font-black text-gray-900">
             {studiedToday}
           </span>
-          <span className="text-2xl font-bold text-gray-400">
-            / {DAILY_GOAL_MINUTES}
-          </span>
-          <span className="text-lg font-semibold text-gray-500 ml-1">
-            mins
+
+          <span className="text-xl font-semibold text-gray-400 mb-2">
+            / {goal} mins
           </span>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden mb-3">
+        {/* Progress bar */}
+        <div className="w-full bg-gray-100 h-2 rounded-full mt-5 overflow-hidden">
           <div
-            className={`h-full ${motivationData.bgColor} rounded-full transition-all duration-500 ease-out`}
+            className={`h-full ${motivationData.bgColor}`}
             style={{ width: `${progress}%` }}
-          ></div>
+          />
         </div>
 
-        {/* Percentage */}
-        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-4">
-          {Math.round(progress)}% completed
+        {/* Small caption like screenshot */}
+        <p className="text-xs text-gray-500 mt-4 text-center">
+          {motivationData.message} • {motivationData.subMessage}
         </p>
       </div>
-
-      {/* Motivation Message */}
-      <div className="text-center">
-        <p className={`font-bold text-sm ${motivationData.color} mb-1`}>
-          {motivationData.message}
-        </p>
-        <p className="text-xs text-gray-500">
-          {motivationData.subMessage}
-        </p>
-      </div>
-
-      {/* Trend Indicator (if available) */}
-      {todaySummary?.trend && studiedToday > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center justify-center gap-2 text-xs">
-            <span className="text-gray-500">vs yesterday</span>
-            <span className={`font-bold ${
-              todaySummary.trend === "up" ? "text-green-600" : "text-red-600"
-            }`}>
-              {todaySummary.trend === "up" ? "↗ Up" : "↘ Down"}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
