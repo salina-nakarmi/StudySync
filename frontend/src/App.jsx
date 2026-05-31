@@ -14,6 +14,7 @@ import Profile from "./pages/Profile.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import Groups from "./pages/Groups.jsx";
 import Feed from "./pages/Feed.jsx";
+import Messages from "./pages/Messages.jsx";
 import Projects from "./pages/Projects.jsx";
 import ProjectBoard from "./pages/Projectboard.jsx";
 import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
@@ -157,6 +158,20 @@ function App() {
     </>
   }
 />
+
+        <Route
+          path="/messages"
+          element={
+            <>
+              <SignedIn>
+                <Messages />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
 
 
 

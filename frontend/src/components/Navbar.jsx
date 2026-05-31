@@ -88,6 +88,7 @@ const Navbar = () => {
               {/* Message Icon */}
               <button
                 type="button"
+                onClick={() => navigate("/messages")}
                 className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative z-50"
                 aria-label="Messages"
                 title="Messages"
