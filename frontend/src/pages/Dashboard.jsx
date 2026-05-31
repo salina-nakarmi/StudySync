@@ -88,71 +88,68 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12">
         
         {/* Header Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch mb-8">
-          <div className="lg:col-span-4 flex flex-col gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
-              </h1>
-              {todaySummary && (
-                <p className="text-gray-500 mt-1 font-medium">
-                  Today: <span className="text-blue-600 font-bold">{todaySummary.today.total_minutes} mins</span> studied
-                  {todaySummary.trend === "up" ? " 📈" : " 📉"}
-                </p>
-              )}
-            </div>
+        
+        {/* ── Top Row: Welcome | Calendar | Study Goal ── */}
+        <div className="grid grid-cols-12 gap-4 mb-4 items-stretch">
 
-            {/* Streak Badge */}
-<div className="flex items-center bg-zinc-900 px-4 py-2.5 rounded-xl shadow-lg w-fit gap-2.5">
-  <img src={fireIcon} className="w-4 h-4" alt="fire" />
-  <span className="text-[11px] text-white font-bold uppercase tracking-widest">Streaks</span>
-  <span className="text-sm font-bold text-white bg-zinc-700 rounded-md px-2 py-0.5 min-w-[24px] text-center">
-    {streak?.current_streak || 0}
-  </span>
-</div>
+          {/* Welcome — col 1-3 */}
+          <div className="col-span-12 lg:col-span-3 relative flex flex-col justify-center">
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+              Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
+            </h1>
+            {todaySummary && (
+              <p className="text-gray-400 mt-1 text-sm font-medium">
+                Today:{" "}
+                <span className="text-blue-500 font-bold">
+                  {todaySummary.today.total_minutes} mins
+                </span>{" "}
+                studied{todaySummary.trend === "up" ? " 📈" : " 📉"}
+              </p>
+            )}
+
+            {/* Streak Badge — sits below welcome text on left */}
+            <div className="mt-4 flex items-center bg-zinc-900 px-4 py-2.5 rounded-xl shadow-sm w-fit gap-2.5">
+              <img src={fireIcon} className="w-4 h-4" alt="fire" />
+              <span className="text-[11px] text-white font-bold uppercase tracking-widest">
+                Streaks
+              </span>
+              <span className="text-sm font-bold text-white bg-zinc-700 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                {streak?.current_streak || 0}
+              </span>
+            </div>
           </div>
 
-          <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
-            {/* Calendar Component */}
-            <div className="h-full">
-              <CalendarComponent />
-            </div>
+                    {/* Focus Calendar — col 4-8 */}
+                    <div className="col-span-12 lg:col-span-5">
+            <CalendarComponent />
+          </div>
 
-                        {/*Today's Study Target*/}
-            <div className="h-full">
-              <TodayStudyTarget />
-            </div>
+          {/* Today's Study Goal — col 9-12 */}
+          <div className="col-span-12 lg:col-span-4">
+            <TodayStudyTarget />
           </div>
         </div>
 
 
         {/* Dashboard Grid System */}
-        <div className="grid grid-cols-1 gap-3 mb-10">
-          
-          {/* Main Content Area (8/12 Columns) */}
-          <div className="space-y-3">
-            {/* Timer + Shared Links + MyTask */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch -mt-5">
-              <div className="h-full">
-                <div className="max-w-xl mx-auto w-full h-full">
-                  <div className="h-full min-h-[320px]">
-                    <UnifiedStudyTimer onSessionComplete={refreshDashboard} embedded={true} />
-                  </div>
-                </div>
-              </div>
+      {/* ── Bottom Row: Timer | Recent Activity | Tasks ── */}
+        <div className="grid grid-cols-12 gap-4 items-stretch">
 
-              {/* Recent Study Activity */}
-              <div className="h-full min-h-[320px]">
-                <RecentStudyActivity />
-              </div>
-
-              <div className="h-full min-h-[320px] flex">
-                <div className="w-full h-full">
-                  <Mytask />
-                </div>
-              </div>
-            </div>
+          {/* Study Hub / Timer — col 1-4 */}
+          <div className="col-span-12 lg:col-span-4">
+            <UnifiedStudyTimer onSessionComplete={refreshDashboard} embedded={true} />
           </div>
+
+          {/* Recent Activity — col 5-8 */}
+          <div className="col-span-12 lg:col-span-4">
+            <RecentStudyActivity />
+          </div>
+
+          {/* My Tasks — col 9-12 */}
+          <div className="col-span-12 lg:col-span-4">
+            <Mytask />
+          </div>
+
         </div>
 
       </main>

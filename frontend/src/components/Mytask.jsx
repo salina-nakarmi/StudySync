@@ -1,50 +1,56 @@
-import { useState, useRef, useEffect } from "react";
-import { ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Trash2 } from "lucide-react";
 
 export default function MyTask() {
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem("myTasks");
+
     return saved
       ? JSON.parse(saved)
       : [
-          { id: 1, title: "Design UI Dashboard", color: "bg-amber-50", completed: false },
-          { id: 2, title: "Fix API Integration", color: "bg-blue-50", completed: false },
-          { id: 3, title: "Write Documentation", color: "bg-pink-50", completed: false },
+          { id: 1, title: "Design UI Dashboard", completed: false },
+          { id: 2, title: "Fix API Integration", completed: false },
+          { id: 3, title: "Write Documentation", completed: false },
         ];
   });
 
   const [inputValue, setInputValue] = useState("");
-  const scrollRef = useRef(null);
 
-  // ---------------- SAVE TO LOCALSTORAGE ----------------
   useEffect(() => {
     localStorage.setItem("myTasks", JSON.stringify(tasks));
   }, [tasks]);
 
-  // ---------------- ADD TASK ----------------
   const addTask = () => {
-    if (inputValue.trim() === "") return;
+    if (!inputValue.trim()) return;
+
     const newTask = {
       id: Date.now(),
-      title: inputValue,
+      title: inputValue.trim(),
       completed: false,
-      color: ["bg-amber-50", "bg-blue-50", "bg-pink-50"][Math.floor(Math.random() * 3)],
     };
-    setTasks([...tasks, newTask]);
+
+    // newest task on top
+    setTasks((prev) => [newTask, ...prev]);
+
     setInputValue("");
   };
 
-  // ---------------- DELETE TASK ----------------
-  const deleteTask = (id) => {
-    setTasks(tasks.filter((t) => t.id !== id));
+  const toggleComplete = (id) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === id
+          ? { ...task, completed: !task.completed }
+          : task
+      )
+    );
   };
 
-  // ---------------- TOGGLE COMPLETE ----------------
-const toggleComplete = (id) => {
-  setTasks(tasks.filter((task) => task.id !== id));
-};
+  const deleteTask = (id) => {
+    setTasks((prev) =>
+      prev.filter((task) => task.id !== id)
+    );
+  };
 
-  // ---------------- HANDLE ENTER KEY ----------------
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       addTask();
@@ -52,79 +58,142 @@ const toggleComplete = (id) => {
   };
 
   return (
-  <div className="w-full h-full min-h-[320px] p-4 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-  <h2 className="text-gray-800 font-bold text-lg">My Tasks</h2>
-
-      {/* Input Field */}
-      <div className="flex gap-2 mt-3">
-        <input
-          className="flex-1 border border-gray-200 rounded-lg px-2 text-sm outline-none"
-          placeholder="Add new task..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button
-          onClick={addTask}
-          className="px-3 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
-        >
-          Add
-        </button>
+    <div
+      className="
+        h-[585px]
+        bg-white
+        rounded-[28px]
+        border
+        border-gray-200
+        shadow-sm
+        flex
+        flex-col
+        overflow-hidden
+      "
+    >
+      {/* Header */}
+      <div className="px-6 pt-6 shrink-0">
+        <h2 className="text-[20px] font-bold text-[#0f172a]">
+          My Tasks
+        </h2>
       </div>
 
-      {/* Scrollable Tasks Section */}
-      <div
-        ref={scrollRef}
-        className="mt-4 flex flex-col gap-3 overflow-y-auto flex-1 pr-2 w-full"
-        style={{ scrollbarWidth: "none" }} // Firefox
-      >
-      
-        <div className="px-3 h-12 border border-gray-200 rounded-xl flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 text-white flex justify-center items-center text-xs font-bold">
-              {tasks.length}
-            </div>
-            <h2 className="font-semibold text-gray-800">Total Tasks</h2>
-          </div>
-          <ChevronDown size={20} />
-        </div>
+      {/* Input */}
+      <div className="px-6 mt-5 mb-5 shrink-0">
+        <div className="flex gap-3">
+          <input
+            type="text"
+            placeholder="Add new task..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="
+              flex-1
+              h-12
+              bg-gray-100
+              rounded-2xl
+              px-4
+              text-sm
+              outline-none
+            "
+          />
 
-       
-        {tasks.length === 0 && (
-          <p className="text-xs text-gray-500 text-center mt-5">
-            ~ No Tasks Available ~
-          </p>
-        )}
-
-     
-        {tasks.map((task) => (
-          <div
-            key={task.id}
-            className={`${task.color} rounded-2xl h-14 w-full flex justify-between items-center px-4`}
+          <button
+            onClick={addTask}
+            className="
+              h-12
+              px-6
+              rounded-2xl
+              bg-[#0f172a]
+              text-white
+              font-semibold
+              text-sm
+            "
           >
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={task.completed}
-                onChange={() => toggleComplete(task.id)}
-                className="w-4 h-4 accent-green-300"
-              />
-              <p
-                className={`font-medium text-gray-800 text-sm ${
-                  task.completed ? "line-through text-gray-400" : ""
-                }`}
-              >
-                {task.title}
-              </p>
-            </div>
-            <button
-              onClick={() => deleteTask(task.id)}
-              className="text-red-500 font-bold text-xs"
-            >
-              ✕
-            </button>
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable Task Area */}
+      <div
+        className="
+          flex-1
+          min-h-0
+          overflow-y-auto
+          px-6
+          pb-6
+          space-y-3
+        "
+        style={{
+          scrollbarWidth: "thin",
+        }}
+      >
+        {tasks.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-sm text-gray-400">
+              No tasks yet
+            </p>
           </div>
-        ))}
+        ) : (
+          tasks.map((task) => (
+            <div
+              key={task.id}
+              className="
+                h-14
+                bg-gray-50
+                rounded-2xl
+                border
+                border-gray-100
+                px-4
+                flex
+                items-center
+                justify-between
+              "
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() =>
+                    toggleComplete(task.id)
+                  }
+                  className="
+                    w-4
+                    h-4
+                    accent-indigo-600
+                    shrink-0
+                  "
+                />
+
+                <p
+                  className={`
+                    text-sm
+                    truncate
+                    ${
+                      task.completed
+                        ? "line-through text-gray-400"
+                        : "text-gray-700"
+                    }
+                  `}
+                >
+                  {task.title}
+                </p>
+              </div>
+
+              <button
+                onClick={() => deleteTask(task.id)}
+                className="
+                  text-gray-300
+                  hover:text-red-500
+                  transition-colors
+                "
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
