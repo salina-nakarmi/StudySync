@@ -456,7 +456,7 @@ export default function Messages() {
                 <button
                   onClick={handleSendMessage}
                   className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-sm hover:opacity-90 transition"
-                  style={{ backgroundColor: PRIMARY_BLUE }}
+                  style={{ backgroundColor: "#0f172a" }}
                 >
                   <PaperAirplaneIcon className="h-4 w-4" />
                   Send
