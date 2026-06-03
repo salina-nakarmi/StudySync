@@ -60,7 +60,9 @@ export default function MyTask() {
   return (
     <div
       className="
-        h-[585px]
+        w-full
+        h-full
+        min-h-[585px]
         bg-white
         rounded-[28px]
         border

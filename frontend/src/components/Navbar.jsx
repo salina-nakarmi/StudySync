@@ -8,21 +8,28 @@ import {
 import NotificationPanel from "../pages/NotificationPanel"; // make sure this exists
 
 const Navbar = () => {
-  const [activeTab, setActiveTab] = useState("Dashboard");
+  const location = useLocation();
+
+  const getActiveTabFromPath = (pathname) => {
+    if (pathname === "/progress-tracking") return "Progress Tracking";
+    if (pathname === "/dashboard") return "Dashboard";
+    if (pathname === "/resources") return "Resources";
+    if (pathname === "/groups") return "Groups";
+    if (pathname === "/feed") return "Communities";
+    if (pathname === "/projects") return "Projects";
+    return "";
+  };
+
+  const [activeTab, setActiveTab] = useState(() => getActiveTabFromPath(location.pathname));
   const [showNotifications, setShowNotifications] = useState(false);
 
   const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Communities", "Projects"];
   const navigate = useNavigate();
-  const location = useLocation();
+  const isMessagesActive = location.pathname === "/messages";
 
   // Set active tab based on URL
   useEffect(() => {
-    if (location.pathname === "/progress-tracking") setActiveTab("Progress Tracking");
-    else if (location.pathname === "/dashboard") setActiveTab("Dashboard");
-    else if (location.pathname === "/resources") setActiveTab("Resources");
-    else if (location.pathname === "/groups") setActiveTab("Groups");
-    else if (location.pathname === "/feed") setActiveTab("Communities");
-    else if (location.pathname === "/projects") setActiveTab("Projects");
+    setActiveTab(getActiveTabFromPath(location.pathname));
   }, [location.pathname]);
 
   const handleNavClick = (item) => {
@@ -79,7 +86,11 @@ const Navbar = () => {
               {/* Bell Icon */}
               <button
                 onClick={() => setShowNotifications(true)}
-                className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative z-50"
+                className={`p-2 rounded-full transition-colors relative z-50 ${
+                  showNotifications
+                    ? "bg-gray-100 hover:bg-gray-200"
+                    : "hover:bg-gray-100 border border-gray-200"
+                }`}
               >
                 <BellIcon className="w-6 h-6 text-gray-700" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
@@ -89,7 +100,11 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={() => navigate("/messages")}
-                className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 relative z-50"
+                className={`p-2 rounded-full transition-colors relative z-50 ${
+                  isMessagesActive
+                    ? "bg-gray-100 hover:bg-gray-200"
+                    : "hover:bg-gray-100 border border-gray-200"
+                }`}
                 aria-label="Messages"
                 title="Messages"
               >

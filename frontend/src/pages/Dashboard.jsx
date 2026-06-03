@@ -92,8 +92,8 @@ export default function Dashboard() {
         {/* ── Top Row: Welcome | Calendar | Study Goal ── */}
         <div className="grid grid-cols-12 gap-4 mb-4 items-stretch">
 
-          {/* Welcome — col 1-3 */}
-          <div className="col-span-12 lg:col-span-3 relative flex flex-col justify-center">
+          {/* Welcome — col 1-4 */}
+          <div className="col-span-12 lg:col-span-4 relative flex flex-col justify-center">
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">
               Welcome back, {dashboardData.user.first_name || user.firstName}! 👋
             </h1>
@@ -119,13 +119,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-                    {/* Focus Calendar — col 4-8 */}
-                    <div className="col-span-12 lg:col-span-5">
+          {/* Focus Calendar — col 5-8 */}
+          <div className="col-span-12 lg:col-span-4 h-full">
             <CalendarComponent />
           </div>
 
           {/* Today's Study Goal — col 9-12 */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className="col-span-12 lg:col-span-4 h-full">
             <TodayStudyTarget />
           </div>
         </div>
@@ -136,17 +136,17 @@ export default function Dashboard() {
         <div className="grid grid-cols-12 gap-4 items-stretch">
 
           {/* Study Hub / Timer — col 1-4 */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className="col-span-12 lg:col-span-4 h-full">
             <UnifiedStudyTimer onSessionComplete={refreshDashboard} embedded={true} />
           </div>
 
           {/* Recent Activity — col 5-8 */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className="col-span-12 lg:col-span-4 h-full">
             <RecentStudyActivity />
           </div>
 
           {/* My Tasks — col 9-12 */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className="col-span-12 lg:col-span-4 h-full">
             <Mytask />
           </div>
 

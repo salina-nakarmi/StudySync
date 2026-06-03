@@ -70,14 +70,14 @@ export default function TodayStudyTarget() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex items-center justify-center min-h-[240px]">
+      <div className="w-full h-full bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex items-center justify-center min-h-[240px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col min-h-[240px]">
+    <div className="w-full h-full bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col min-h-[240px]">
 
       {/* Header (matches screenshot style) */}
       <div className="flex items-start justify-between mb-6">

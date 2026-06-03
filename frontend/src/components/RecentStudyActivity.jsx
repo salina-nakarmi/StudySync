@@ -41,14 +41,14 @@ export default function RecentStudyActivity() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm h-full min-h-[320px] flex items-center justify-center">
+      <div className="w-full bg-white rounded-2xl border border-gray-100 p-5 shadow-sm h-full min-h-[320px] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300"></div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm h-full min-h-[320px] flex flex-col">
+    <div className="w-full bg-white rounded-2xl border border-gray-100 p-5 shadow-sm h-full min-h-[320px] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-gray-900 font-bold text-base">Recent Activity</h2>

@@ -170,7 +170,7 @@ export default function UnifiedStudyTimer({ onSessionComplete, groupId = null, e
   if (embedded) {
     return (
       <>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 w-full flex flex-col">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 w-full h-full flex flex-col">
 
           {/* Header */}
           <div className="flex justify-between items-center mb-4">

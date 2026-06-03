@@ -35,7 +35,7 @@ export default function CustomCalendar() {
 
   if (isLoading) {
     return (
-      <div className="w-300 max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex items-center justify-center mx-auto">
+      <div className="w-full max-w-[300px] h-[240px] p-3 bg-white rounded-2xl border border-gray-200 flex items-center justify-center mx-auto">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
       </div>
     );
