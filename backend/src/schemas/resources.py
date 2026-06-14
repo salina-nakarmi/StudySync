@@ -106,12 +106,12 @@ class ResourceProgressUpdate(BaseModel):
     progress_percentage: int = Field(..., ge=0, le=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
-class ResourceProgressResponse(BaseModel):
-    """
+"""class ResourceProgressResponse(BaseModel):
+    
     Resource progress response
     
     Shows user's tracking data for a resource
-    """
+    
     id: int
     user_id: str
     resource_id: int
@@ -125,7 +125,7 @@ class ResourceProgressResponse(BaseModel):
     
     class Config:
         from_attributes = True
-
+"""
 class ResourceWithProgress(ResourceResponse):
     """
     Resource with user's progress data
@@ -150,3 +150,24 @@ class ResourceWithProgress(ResourceResponse):
         None, 
         description="User's progress on this resource"
     )
+
+class PageProgressUpdate(BaseModel):
+    """Update resource progress by page number"""
+    current_page: int
+    notes: Optional[str] = None
+
+class ResourceProgressResponse(BaseModel):
+    """Progress response with auto-calculated percentage"""
+    id: int
+    user_id: str
+    resource_id: int
+    current_page: int
+    total_pages: Optional[int]
+    progress_percentage: int  # Auto-calculated
+    status: str
+    notes: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True

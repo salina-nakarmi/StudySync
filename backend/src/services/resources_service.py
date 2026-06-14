@@ -485,17 +485,24 @@ Resource Service Layer - Part 4: Progress Tracking (Pillar 2)
 # PROGRESS TRACKING - Pillar 2 Implementation
 # ============================================================================
 
-async def update_resource_progress(
-        session: AsyncSession,
-        user_id: str,
-        resource_id: int,
-        status: ResourceStatus,
-        progress_percentage:int,
-        notes: Optional[str] = None
+async def update_resource_progress_by_page(
+    session: AsyncSession,
+    user_id: str,
+    resource_id: int,
+    current_page: int,
+    notes: Optional[str] = None
 ) -> Optional[ResourceProgress]:
-    #manula tracking - self reporting
-
-    #try to find existing progress resord
+    """
+    Update progress by current page number
+    Automatically calculates percentage
+    """
+    
+    # Get the resource to find total pages
+    resource = await get_resource_by_id(session, resource_id)
+    if not resource:
+        return None
+    
+    # Get existing progress
     result = await session.execute(
         select(ResourceProgress).where(
             and_(
@@ -505,42 +512,71 @@ async def update_resource_progress(
         )
     )
     progress = result.scalars().first()
-
+    
     now = datetime.utcnow()
-
-    #create new if doesn't exist
-    if progress is None:
+    
+    # Calculate percentage automatically
+    total_pages = resource.total_pages or 1
+    progress_percentage = int((current_page / total_pages) * 100) if total_pages > 0 else 0
+    
+    # Determine status based on page progress
+    if current_page == 0:
+        status = ResourceStatus.NOT_STARTED
+    elif current_page >= total_pages:
+        status = ResourceStatus.COMPLETED
+        progress_percentage = 100
+    else:
+        status = ResourceStatus.IN_PROGRESS
+    
+    if not progress:
+        # Create new progress record
         progress = ResourceProgress(
             user_id=user_id,
             resource_id=resource_id,
-            status=status,
+            current_page=current_page,
+            total_pages=total_pages,
             progress_percentage=progress_percentage,
+            status=status,
             notes=notes,
             started_at=now if status != ResourceStatus.NOT_STARTED else None,
             completed_at=now if status == ResourceStatus.COMPLETED else None
         )
         session.add(progress)
-        await session.flush()
-        return progress
     else:
-        #update esisting
-        progress.status = status
+        # Update existing progress
+        progress.current_page = current_page
+        progress.total_pages = total_pages
         progress.progress_percentage = progress_percentage
-
+        progress.status = status
+        
         if notes is not None:
             progress.notes = notes
-
-        #smart timestamp update
-        if status == ResourceStatus.IN_PROGRESS and not progress.started_at:#when progrss.started is empty
+        
+        # Update timestamps
+        if status == ResourceStatus.IN_PROGRESS and not progress.started_at:
             progress.started_at = now
-
+        
         if status == ResourceStatus.COMPLETED and not progress.completed_at:
             progress.completed_at = now
-            progress.progress_percentage = 100
+    
+    await session.flush()
+    return progress
 
-        await session.flush()
 
-        return progress
+async def get_resource_by_id(
+    session: AsyncSession,
+    resource_id: int
+) -> Optional[Resources]:
+    """Get resource with all details"""
+    result = await session.execute(
+        select(Resources).where(
+            and_(
+                Resources.id == resource_id,
+                Resources.is_deleted == False
+            )
+        )
+    )
+    return result.scalars().first()
     
 
 async def get_resource_progress(
