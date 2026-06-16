@@ -173,10 +173,7 @@ class Resources(Base):
     
     title: Mapped[str]  # Add title
     description: Mapped[str | None]
-    
-    # NEW: Page count for PDFs and documents
-    total_pages: Mapped[int | None]  # NULL if not paginated
-    
+
     # Optional: folder organization
     parent_folder_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
     
@@ -198,7 +195,6 @@ class ResourceProgress(Base):
     
     # Page-based tracking (replaces percentage)
     current_page: Mapped[int] = mapped_column(default=0)
-    total_pages: Mapped[int | None]  # NULL for non-paginated resources
     
     # Auto-calculated percentage
     progress_percentage: Mapped[int] = mapped_column(default=0)  # Computed field
