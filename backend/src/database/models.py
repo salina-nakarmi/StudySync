@@ -484,7 +484,36 @@ class Projects(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
  
- 
+# ============================================================
+# ADD THIS TO models.py — ProjectInvitations table
+# ============================================================
+
+# Add this import at the top of models.py if not already there:
+# import secrets
+
+class ProjectInvitations(Base):
+    __tablename__ = 'project_invitations'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.project_id', ondelete='CASCADE'))
+    invited_by: Mapped[int] = mapped_column(ForeignKey('team_members.member_id', ondelete='CASCADE'))
+
+    invited_email: Mapped[str] = mapped_column(index=True)  # Email of the invitee
+    role: Mapped[str] = mapped_column(default='member')     # Role they'll get on joining
+
+    # Unique token for the invite link: /join?token=xxx
+    token: Mapped[str] = mapped_column(unique=True, index=True)
+
+    status: Mapped[InvitationStatus] = mapped_column(
+        Enum(InvitationStatus),
+        default=InvitationStatus.PENDING
+    )
+
+    expires_at: Mapped[datetime]          # 7-day expiry
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    responded_at: Mapped[datetime | None]
+
 class ProjectMembers(Base):
     """
     Many-to-many: which team members are on which projects.
