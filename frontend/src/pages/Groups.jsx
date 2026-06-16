@@ -623,15 +623,25 @@ export default function Groups() {
                               <div className="flex items-center gap-3">
                                 <button
                                   onClick={() => {
-                                    if (res.format === "pdf") {
+                                    console.log("================================");
+                                    console.log("RESOURCE CLICKED");
+                                    console.log("FORMAT:", res.format);
+                                    console.log("URL:", res.url);
+                                    console.log("RESOURCE:", res);
+
+                                    if (res.format?.toLowerCase() === "pdf") {
+                                      console.log("OPENING INTERNAL PDF VIEWER");
                                       setViewingResource(res);
                                     } else {
-                                      window.open(res.url, '_blank');
+                                      console.log("OPENING EXTERNAL URL");
+                                      window.open(res.url, "_blank");
                                     }
+
+                                    console.log("================================");
                                   }}
                                   className="text-xs font-bold text-[#2C76BA] hover:underline"
                                 >
-                                  {res.format === "pdf" ? "View" : "Open"}
+                                  {res.format?.toLowerCase() === "pdf" ? "View" : "Open"}
                                 </button>
                                 <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
                                   <XMarkIcon className="w-4 h-4" />
@@ -784,7 +794,7 @@ export default function Groups() {
               </div>
               
               {/* PDF Viewer Component */}
-              <PDFViewer 
+              <PDFViewerWithControls
                 resource={viewingResource}
                 onProgressChange={(progress) => {
                   handleResourceProgressChange(viewingResource.id, progress);

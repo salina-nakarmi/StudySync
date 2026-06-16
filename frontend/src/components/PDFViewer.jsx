@@ -37,10 +37,16 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         await renderPage(1);
         setLoading(false);
       } catch (error) {
-        console.error('Error loading PDF:', error);
-        setError('Failed to load PDF');
-        setLoading(false);
-      }
+            console.error("================================");
+            console.error("PDF LOAD FAILED");
+            console.error(error);
+            console.error("message:", error?.message);
+            console.error("name:", error?.name);
+            console.error("================================");
+
+            setError(error?.message || "Failed to load PDF");
+            setLoading(false);
+        }
     };
 
     loadPDF();
