@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
-
+from ..database.models import ResourceType, ResourceStatus
 
 class ResourceType(str, Enum):
     image = "image"
@@ -22,6 +22,8 @@ class ResourceCreate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     parent_folder_id: Optional[int] = Field(None, description="Parent folder for organization")
     file_size: Optional[int] = Field(None, ge=0, description="File size in bytes, if applicable")
+    resource_type: ResourceType
+    total_pages: Optional[int] = None 
 
 class ResourceUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -42,6 +44,7 @@ class ResourceResponse(BaseModel):
     description: Optional[str]
     parent_folder_id: Optional[int]
     file_size: Optional[int]
+    total_pages: Optional[int]
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
@@ -126,6 +129,27 @@ class ResourceProgressUpdate(BaseModel):
     class Config:
         from_attributes = True
 """
+class ResourceProgressResponse(BaseModel):
+    """Progress response with auto-calculated percentage"""
+    id: int
+    user_id: str
+    resource_id: int
+    current_page: int
+    total_pages: Optional[int]
+    progress_percentage: int  # Auto-calculated
+    status: str
+    notes: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+class PageProgressUpdate(BaseModel):
+    """Update progress by page number"""
+    current_page: int
+    notes: Optional[str] = None
+    
 class ResourceWithProgress(ResourceResponse):
     """
     Resource with user's progress data
@@ -151,23 +175,5 @@ class ResourceWithProgress(ResourceResponse):
         description="User's progress on this resource"
     )
 
-class PageProgressUpdate(BaseModel):
-    """Update resource progress by page number"""
-    current_page: int
-    notes: Optional[str] = None
 
-class ResourceProgressResponse(BaseModel):
-    """Progress response with auto-calculated percentage"""
-    id: int
-    user_id: str
-    resource_id: int
-    current_page: int
-    total_pages: Optional[int]
-    progress_percentage: int  # Auto-calculated
-    status: str
-    notes: Optional[str]
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
-    
-    class Config:
-        from_attributes = True
+

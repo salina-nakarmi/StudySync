@@ -16,6 +16,7 @@ import { createGroupHandlers } from "../handlers/groupHandlers";
 import { useGroupChat } from "../hooks/UseGroupChat";
 import { groupService } from "../services/group_services";
 import { resourceService } from "../services/resource_services";
+import PDFViewer from "../components/PDFViewer";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -33,7 +34,9 @@ export default function Groups() {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [resources, setResources] = useState([]);
+ const [resources, setResources] = useState([]); // Group resources
+  const [personalResources, setPersonalResources] = useState([]); // ADD THIS
+  const [resourceFilter, setResourceFilter] = useState("all"); // ADD THIS
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
