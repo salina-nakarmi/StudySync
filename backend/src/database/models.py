@@ -4,7 +4,7 @@ from datetime import datetime, date
 from .database import Base
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint
+from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint, Numeric, Text, Index
 
 class GroupRole(enum.Enum):
     LEADER="leader" #Can have multiple leaders in shared group
@@ -41,6 +41,30 @@ class ResourceStatus(enum.Enum):
 class MessageType(enum.Enum):
     IMAGE="image"
     TEXT = "text"
+
+# ============================================================
+# ENUMS — Project Tracker
+# ============================================================
+ 
+class ProjectStatus(enum.Enum):
+    PLANNING = "Planning"
+    ACTIVE = "Active"
+    ON_HOLD = "On Hold"
+    COMPLETED = "Completed"
+    CANCELLED = "Cancelled"
+ 
+class ProjectHealth(enum.Enum):
+    GREEN = "Green"
+    YELLOW = "Yellow"
+    RED = "Red"
+ 
+class TaskStatus(enum.Enum):
+    TODO = "Todo"
+    IN_PROGRESS = "In Progress"
+    IN_REVIEW = "In Review"
+    DONE = "Done"
+ 
+ 
 
 # clerk gives user_id in str format so, "user_2ab34CDeFG" user_id and its related foreing key will be in str format
 class Users(Base):
@@ -378,4 +402,224 @@ class DailyActivity(Base):
     # Unique constraint so you only have one row per user/day
     __table_args__ = (UniqueConstraint('user_id', 'activity_date', name='_user_date_uc'),)
 
+ 
+# ============================================================
+# PROJECT TRACKER MODELS
+# ============================================================
+  
+class TeamMembers(Base):
+    """
+    Project tracker participants.
+ 
+    Optionally linked to a StudySync Users account via `user_id`.
+    Someone can be a team member without ever touching the StudySync
+    study/group features — or they can have both.
+ 
+    The `github_username` field is used to resolve commit authors from
+    the GitHub API back to an internal team member.
+    """
+    __tablename__ = 'team_members'
+ 
+    member_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    # Every team member must have a StudySync (Clerk) account.
+    # Created lazily on first request like all other users — but the
+    # TeamMember profile itself is created manually when the user opts
+    # into the project tracker (so hourly_rate / github_username can
+    # be filled in intentionally).
+    # UNIQUE: one Clerk account → at most one team member profile.
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey('users.user_id', ondelete='CASCADE'),
+        unique=True,
+        index=True,
+    )
+ 
+    # full_name and email are intentionally NOT duplicated here —
+    # they already live on Users (synced from Clerk). Join to Users
+    # whenever you need to display a member's name or contact.
+ 
+    # Numeric(10,2): up to 99,999,999.99 with cent precision
+    hourly_rate: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
+ 
+    # Used to match GitHub commit authors to this member automatically
+    github_username: Mapped[str | None] = mapped_column(unique=True, index=True, default=None)
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+ 
+ 
+class Projects(Base):
+    """
+    A project being tracked. Supports GitHub integration for commit syncing.
+    """
+    __tablename__ = 'projects'
+ 
+    project_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    project_name: Mapped[str]
+    description: Mapped[str | None]
+ 
+    status: Mapped[ProjectStatus] = mapped_column(
+        Enum(ProjectStatus),
+        default=ProjectStatus.PLANNING,
+    )
+    health_indicator: Mapped[ProjectHealth] = mapped_column(
+        Enum(ProjectHealth),
+        default=ProjectHealth.GREEN,
+    )
+ 
+    # Numeric(12,2): up to 9,999,999,999.99
+    budget: Mapped[float] = mapped_column(Numeric(12, 2))
+ 
+    # The member who owns/leads this project
+    project_owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey('team_members.member_id', ondelete='SET NULL'),
+        default=None,
+    )
+ 
+    # GitHub integration — store owner + repo name separately so we can
+    # call the API without parsing a URL each time
+    is_github_integrated: Mapped[bool] = mapped_column(Boolean, default=False)
+    github_repo_owner: Mapped[str | None] = mapped_column(default=None)  # e.g. 'facebook'
+    github_repo_name: Mapped[str | None] = mapped_column(default=None)   # e.g. 'react'
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+ 
+# ============================================================
+# ADD THIS TO models.py — ProjectInvitations table
+# ============================================================
+
+# Add this import at the top of models.py if not already there:
+# import secrets
+
+class ProjectInvitations(Base):
+    __tablename__ = 'project_invitations'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.project_id', ondelete='CASCADE'))
+    invited_by: Mapped[int] = mapped_column(ForeignKey('team_members.member_id', ondelete='CASCADE'))
+
+    invited_email: Mapped[str] = mapped_column(index=True)  # Email of the invitee
+    role: Mapped[str] = mapped_column(default='member')     # Role they'll get on joining
+
+    # Unique token for the invite link: /join?token=xxx
+    token: Mapped[str] = mapped_column(unique=True, index=True)
+
+    status: Mapped[InvitationStatus] = mapped_column(
+        Enum(InvitationStatus),
+        default=InvitationStatus.PENDING
+    )
+
+    expires_at: Mapped[datetime]          # 7-day expiry
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    responded_at: Mapped[datetime | None]
+
+class ProjectMembers(Base):
+    """
+    Many-to-many: which team members are on which projects.
+    Mirrors the Groupings pattern from the StudySync side.
+    """
+    __tablename__ = 'project_members'
+ 
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.project_id', ondelete='CASCADE'))
+    member_id: Mapped[int] = mapped_column(ForeignKey('team_members.member_id', ondelete='CASCADE'))
+ 
+    # Simple role string — extend to an Enum if needed later
+    role: Mapped[str] = mapped_column(default='member')  # 'owner' | 'member'
+ 
+    joined_at: Mapped[datetime] = mapped_column(default=func.now())
+ 
+    __table_args__ = (
+        PrimaryKeyConstraint('project_id', 'member_id'),
+    )
+ 
+ 
+class Tasks(Base):
+    """
+    A unit of work inside a project, optionally assigned to a team member.
+    """
+    __tablename__ = 'tasks'
+ 
+    task_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey('projects.project_id', ondelete='CASCADE'),
+        index=True,
+    )
+    assigned_to: Mapped[int | None] = mapped_column(
+        ForeignKey('team_members.member_id', ondelete='SET NULL'),
+        default=None,
+    )
+ 
+    task_name: Mapped[str]
+    description: Mapped[str | None]
+ 
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus),
+        default=TaskStatus.TODO,
+    )
+ 
+    due_date: Mapped[date | None]
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+ 
+ 
+class TimeLogs(Base):
+    """
+    Hours logged by a team member against a specific task.
+    Used to calculate labour cost: hours_spent × member.hourly_rate.
+    """
+    __tablename__ = 'time_logs'
+ 
+    log_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey('tasks.task_id', ondelete='CASCADE'),
+        index=True,
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey('team_members.member_id', ondelete='CASCADE'),
+    )
+ 
+    # Numeric(5,2): up to 999.99 hours per log entry
+    hours_spent: Mapped[float] = mapped_column(Numeric(5, 2))
+ 
+    logged_at: Mapped[date]         # The work date (not the insert date)
+    notes: Mapped[str | None]       # Optional: what was worked on
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+ 
+ 
+class GithubCommits(Base):
+    """
+    Ledger of commits synced from the GitHub API for integrated projects.
+ 
+    `sha` has a unique constraint to prevent duplicate imports on re-sync.
+    `member_id` is resolved by matching `author_github_username` against
+    TeamMembers.github_username at sync time — null if no match found.
+    """
+    __tablename__ = 'github_commits'
+ 
+    commit_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey('projects.project_id', ondelete='CASCADE'),
+        index=True,
+    )
+ 
+    sha: Mapped[str] = mapped_column(unique=True, index=True)          # Prevents duplicate syncs
+    author_github_username: Mapped[str]                                 # Raw value from GitHub API
+    member_id: Mapped[int | None] = mapped_column(                     # Resolved internal user
+        ForeignKey('team_members.member_id', ondelete='SET NULL'),
+        default=None,
+    )
+ 
+    commit_message: Mapped[str] = mapped_column(Text)
+    commit_url: Mapped[str]
+    committed_at: Mapped[datetime]                                      # GitHub's authored/committed timestamp
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())   # When we synced it
  

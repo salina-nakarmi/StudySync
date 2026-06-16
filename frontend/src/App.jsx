@@ -16,7 +16,8 @@ import Groups from "./pages/Groups.jsx";
 import Feed from "./pages/Feed.jsx";
 import Messages from "./pages/Messages.jsx";
 import Projects from "./pages/Projects.jsx";
-import ProjectBoard from "./pages/Projectboard.jsx";
+// import ProjectBoard from "./pages/Projectboard.jsx";
+import ProjectDetail from "./pages/ProjectDetail.jsx";
 import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
@@ -131,11 +132,11 @@ function App() {
         />
 
 <Route
-  path="/projects/:projectId"
+  path="/projects/:id"
   element={
     <>
       <SignedIn>
-        <ProjectBoard />
+        <ProjectDetail />
       </SignedIn>
       <SignedOut>
         <RedirectToSignIn />
