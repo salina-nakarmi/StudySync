@@ -20,7 +20,7 @@ import {
   
   export default function ProjectSidebar({ project, activeTab, onTabChange, onInvite }) {
     return (
-      <aside className="w-52 shrink-0 bg-white border-r border-gray-100 flex flex-col h-full">
+      <aside className="fixed top-16 left-0 w-52 h-[calc(100vh-64px)] bg-white border-r border-gray-100 flex flex-col z-40">
         {/* Project identity */}
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -48,8 +48,8 @@ import {
                 onClick={() => onTabChange(id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
                   active
-                    ? "bg-[#2C76BA] text-white shadow-sm"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                    ? "bg-gray-800 text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />

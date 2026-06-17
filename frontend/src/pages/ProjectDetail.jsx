@@ -1,8 +1,8 @@
 // pages/ProjectDetail.jsx
 import { useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronDownIcon, MoreVerticalIcon } from "lucide-react";
 
+import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
@@ -83,9 +83,9 @@ export default function ProjectDetail() {
   }
 
   return (
-    // Full viewport height, no scroll on the shell — scroll happens inside the board
-    <div className="flex h-screen bg-[#f8f9fb] overflow-hidden">
-      {/* ── Left Sidebar ── */}
+    <div className="min-h-screen bg-white">
+      <Navbar />
+
       <ProjectSidebar
         project={project}
         activeTab={activeTab}
@@ -93,21 +93,34 @@ export default function ProjectDetail() {
         onInvite={handleInvite}
       />
 
-      {/* ── Main content area ── */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="flex items-center gap-3 px-8 py-4 bg-white border-b border-gray-100 shrink-0">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-            Back
-          </button>
-        </header>
+      <main className="ml-52 pt-24 min-h-screen">
+        {/* Breadcrumb + filter bar */}
+        <div className="flex items-center justify-between px-8 pr-40 h-12">
+          <div className="flex items-center gap-2 text-sm">
+            <button
+              onClick={() => navigate("/projects")}
+              className="text-gray-400 hover:text-gray-700 transition font-medium"
+            >
+              Projects
+            </button>
+            <span className="text-gray-300">/</span>
+            <span className="font-semibold text-gray-800 truncate max-w-xs">
+              {project.name}
+            </span>
+          </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto px-8 py-6">
+          <button className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+              <line x1="11" y1="18" x2="13" y2="18" />
+            </svg>
+            Filter
+          </button>
+        </div>
+
+        {/* Page content */}
+        <div className="px-8 py-6">
           {renderContent()}
         </div>
       </main>
