@@ -51,13 +51,10 @@ async def upload_file_to_cloudinary(
         if file.content_type == "application/pdf":
             result = cloudinary.uploader.upload(
                 file.file,
-                folder=folder,
-                resource_type="image",  # Upload PDF as image type (avoids 401)
-                format="pdf",           # Keep PDF format
-                use_filename=True,     # <-- keep original filename
-                unique_filename=False, # <-- keep the extension
-                filename_override=file.filename,  # <-- forces .pdf to be preserved
-                content_disposition="inline",
+                resource_type="raw",
+                use_filename=True,
+                unique_filename=False,
+                filename_override=file.filename,
                 access_mode="public",
                 type="upload",
             )

@@ -16,6 +16,7 @@ import { createGroupHandlers } from "../handlers/groupHandlers";
 import { useGroupChat } from "../hooks/UseGroupChat";
 import { groupService } from "../services/group_services";
 import { resourceService } from "../services/resource_services";
+import PDFViewerWithControls from "../components/PDFViewer";
 
 const PRIMARY_BLUE = "#2C76BA";
 
@@ -33,7 +34,9 @@ export default function Groups() {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [resources, setResources] = useState([]);
+ const [resources, setResources] = useState([]); // Group resources
+  const [personalResources, setPersonalResources] = useState([]); // ADD THIS
+  const [resourceFilter, setResourceFilter] = useState("all"); // ADD THIS
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
@@ -42,6 +45,7 @@ export default function Groups() {
   const [activeDirectChatId, setActiveDirectChatId] = useState(null);
   const [unreadByContact, setUnreadByContact] = useState({});
   const [resourceProgressById, setResourceProgressById] = useState({});
+  const [viewingResource, setViewingResource] = useState(null);
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -617,7 +621,28 @@ export default function Groups() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <a href={res.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#2C76BA] hover:underline">Open</a>
+                                <button
+                                  onClick={() => {
+                                    console.log("================================");
+                                    console.log("RESOURCE CLICKED");
+                                    console.log("FORMAT:", res.format);
+                                    console.log("URL:", res.url);
+                                    console.log("RESOURCE:", res);
+
+                                    if (res.format?.toLowerCase() === "pdf") {
+                                      console.log("OPENING INTERNAL PDF VIEWER");
+                                      setViewingResource(res);
+                                    } else {
+                                      console.log("OPENING EXTERNAL URL");
+                                      window.open(res.url, "_blank");
+                                    }
+
+                                    console.log("================================");
+                                  }}
+                                  className="text-xs font-bold text-[#2C76BA] hover:underline"
+                                >
+                                  {res.format?.toLowerCase() === "pdf" ? "View" : "Open"}
+                                </button>
                                 <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
                                   <XMarkIcon className="w-4 h-4" />
                                 </button>
@@ -735,6 +760,67 @@ export default function Groups() {
             </div>
           </div>
         )}
+        {viewingResource && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 truncate">{viewingResource.title}</h3>
+                  <p className="text-xs text-gray-500 truncate">{viewingResource.description}</p>
+                </div>
+                <button
+                  onClick={() => setViewingResource(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0 ml-2"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex justify-between text-xs text-gray-600 mb-2">
+                  <span className="font-medium">Reading Progress</span>
+                  <span className="font-bold text-[#2C76BA]">
+                    {Math.round(resourceProgressById[viewingResource.id] || 0)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-[#2C76BA] h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${resourceProgressById[viewingResource.id] || 0}%` }}
+                  />
+                </div>
+              </div>
+              
+              {/* PDF Viewer Component */}
+              <PDFViewerWithControls
+                resource={viewingResource}
+                onProgressChange={(progress) => {
+                  handleResourceProgressChange(viewingResource.id, progress);
+                }}
+              />
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 bg-white flex justify-between items-center">
+                
+                  href={viewingResource.url}
+                  download
+                  className="text-xs font-bold text-gray-600 hover:text-gray-900 hover:underline transition"
+                <a>
+                  Download PDF
+                </a>
+                <button
+                  onClick={() => setViewingResource(null)}
+                  className="px-4 py-2 text-sm font-bold text-white bg-gray-800 rounded-lg hover:bg-black transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}        
+
       </div>
     </>
   );

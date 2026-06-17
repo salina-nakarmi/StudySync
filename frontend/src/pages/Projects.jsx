@@ -2,9 +2,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import ProjectCard from "../components/Projects/ProjectCard";
-import StartNewProjectCard from "../components/Projects/StartNewProjectCard";
-import CreateProjectModal from "../components/Projects/CreateProjectModal";
 import {
   PlusIcon,
   MagnifyingGlassIcon,

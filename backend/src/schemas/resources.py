@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
-
+from ..database.models import ResourceType, ResourceStatus
 
 class ResourceType(str, Enum):
     image = "image"
@@ -22,6 +22,7 @@ class ResourceCreate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     parent_folder_id: Optional[int] = Field(None, description="Parent folder for organization")
     file_size: Optional[int] = Field(None, ge=0, description="File size in bytes, if applicable")
+    resource_type: ResourceType 
 
 class ResourceUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -106,12 +107,12 @@ class ResourceProgressUpdate(BaseModel):
     progress_percentage: int = Field(..., ge=0, le=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
-class ResourceProgressResponse(BaseModel):
-    """
+"""class ResourceProgressResponse(BaseModel):
+    
     Resource progress response
     
     Shows user's tracking data for a resource
-    """
+    
     id: int
     user_id: str
     resource_id: int
@@ -125,6 +126,27 @@ class ResourceProgressResponse(BaseModel):
     
     class Config:
         from_attributes = True
+"""
+class ResourceProgressResponse(BaseModel):
+    """Progress response with auto-calculated percentage"""
+    id: int
+    user_id: str
+    resource_id: int
+    current_page: int
+    total_pages: Optional[int]
+    progress_percentage: int  # Auto-calculated
+    status: str
+    notes: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+class PageProgressUpdate(BaseModel):
+    """Update progress by page number"""
+    current_page: int
+    notes: Optional[str] = None
 
 class ResourceWithProgress(ResourceResponse):
     """
@@ -150,3 +172,6 @@ class ResourceWithProgress(ResourceResponse):
         None, 
         description="User's progress on this resource"
     )
+
+
+
