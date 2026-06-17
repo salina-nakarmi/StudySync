@@ -1,5 +1,6 @@
 // pages/Projects.jsx
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import ProjectCard from "../components/Projects/ProjectCard";
 import StartNewProjectCard from "../components/Projects/StartNewProjectCard";
@@ -286,6 +287,7 @@ function InlineCreateModal({ onClose, onCreate }) {
 }
 
 export default function Projects() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -411,7 +413,7 @@ export default function Projects() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((project) => (
-              <InlineProjectCard key={project.id} project={project} onClick={() => {}} />
+              <InlineProjectCard key={project.id} project={project} onClick={() => navigate(`/projects/${project.id}`)} />
             ))}
             <StartNewCard onClick={() => setShowModal(true)} />
           </div>
