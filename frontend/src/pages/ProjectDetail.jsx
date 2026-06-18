@@ -6,6 +6,7 @@ import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
+import DocsEditor from "./Docs";
 
 // ------------------------------------------------------------------
 // Tab → view mapping
@@ -68,6 +69,10 @@ export default function ProjectDetail() {
       return <TasksView projectName={project.subtitle ?? project.name} />;
     }
 
+    if (activeTab === "docs") {
+      return null;
+    }
+
     const view = TAB_VIEWS[activeTab];
     if (view) {
       return (
@@ -120,10 +125,19 @@ export default function ProjectDetail() {
         </div>
 
         {/* Page content */}
-        <div className="px-8 py-6">
-          {renderContent()}
-        </div>
+        {activeTab !== "docs" && (
+          <div className="px-8 py-6">
+            {renderContent()}
+          </div>
+        )}
       </main>
+
+      {/* Docs editor — full bleed below navbar, beside sidebar */}
+      {activeTab === "docs" && (
+        <div className="fixed top-16 left-52 right-0 bottom-0 z-30 overflow-hidden">
+          <DocsEditor embedded />
+        </div>
+      )}
     </div>
   );
 }

@@ -133,7 +133,7 @@ const NumberField = ({ label, value, labelW = 64 }) => (
   </div>
 );
 
-export default function Docs() {
+export default function Docs({ embedded = false }) {
   const [activeTab, setActiveTab]           = useState('Home');
   const [fontFamily, setFontFamily]         = useState('Calibri');
   const [fontSize, setFontSize]             = useState('12');
@@ -1198,7 +1198,7 @@ export default function Docs() {
   const PAPER_H = 1056;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden select-none" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+    <div className={`flex flex-col overflow-hidden select-none ${embedded ? 'h-full w-full' : 'h-screen w-screen'}`} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
 
       {/* ── Title bar ──────────────────────────────────────────── */}
       <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-100 px-3" style={{ height: '40px' }}>
