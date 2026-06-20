@@ -5,6 +5,7 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
+import MyTasksView from "../components/ProjectDetail/MyTasksView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
 import DocsEditor from "./Docs";
 
@@ -13,11 +14,7 @@ import DocsEditor from "./Docs";
 // ------------------------------------------------------------------
 const TAB_VIEWS = {
     tasks: null,
-    "my-tasks": {
-      title: "My Tasks",
-      description: "Tasks assigned specifically to you will appear here.",
-      icon: "✅",
-    },
+    "my-tasks": null,
     docs: {
       title: "Docs",
       description: "Project documentation and notes will live here.",
@@ -58,6 +55,7 @@ export default function ProjectDetail() {
   };
 
   const [activeTab, setActiveTab] = useState("tasks");
+  const [docsMaximized, setDocsMaximized] = useState(false);
 
   const handleInvite = () => {
     // Wire up to your invite modal / API later
@@ -67,6 +65,10 @@ export default function ProjectDetail() {
   function renderContent() {
     if (activeTab === "tasks") {
       return <TasksView projectName={project.subtitle ?? project.name} />;
+    }
+
+    if (activeTab === "my-tasks") {
+      return <MyTasksView />;
     }
 
     if (activeTab === "docs") {
@@ -132,10 +134,18 @@ export default function ProjectDetail() {
         )}
       </main>
 
-      {/* Docs editor — full bleed below navbar, beside sidebar */}
+      {/* Docs editor — expands to full screen when maximized */}
       {activeTab === "docs" && (
-        <div className="fixed top-16 left-52 right-0 bottom-0 z-30 overflow-hidden">
-          <DocsEditor embedded />
+        <div className={`fixed z-50 overflow-hidden transition-all duration-200 ${
+          docsMaximized ? "inset-0" : "top-16 left-52 right-0 bottom-0"
+        }`}>
+          <DocsEditor
+            embedded
+            isMaximized={docsMaximized}
+            onMaximize={() => setDocsMaximized(true)}
+            onMinimize={() => setDocsMaximized(false)}
+            onClose={() => setActiveTab("tasks")}
+          />
         </div>
       )}
     </div>

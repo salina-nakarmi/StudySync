@@ -133,7 +133,7 @@ const NumberField = ({ label, value, labelW = 64 }) => (
   </div>
 );
 
-export default function Docs({ embedded = false }) {
+export default function Docs({ embedded = false, isMaximized = false, onMaximize, onMinimize, onClose }) {
   const [activeTab, setActiveTab]           = useState('Home');
   const [fontFamily, setFontFamily]         = useState('Calibri');
   const [fontSize, setFontSize]             = useState('12');
@@ -1201,17 +1201,17 @@ export default function Docs({ embedded = false }) {
     <div className={`flex flex-col overflow-hidden select-none ${embedded ? 'h-full w-full' : 'h-screen w-screen'}`} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
 
       {/* ── Title bar ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-100 px-3" style={{ height: '40px' }}>
+      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-100 px-3 min-w-0" style={{ height: '40px' }}>
 
         {/* Left: W logo + AutoSave + QAT + doc title */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           {/* W logo */}
           <div className="w-8 h-8 flex items-center justify-center rounded shrink-0">
             <span className="font-black text-2xl leading-none" style={{ color: WORD_BLUE, letterSpacing: '-2px' }}>W</span>
           </div>
 
           {/* AutoSave toggle */}
-          <div className="flex items-center gap-1 ml-1">
+          <div className="hidden sm:flex items-center gap-1 ml-1">
             <span className="text-xs text-gray-600">AutoSave</span>
             <div className="flex items-center gap-1">
               <div className="w-7 h-3.5 bg-gray-300 rounded-full flex items-center px-0.5 cursor-pointer">
@@ -1267,7 +1267,7 @@ export default function Docs({ embedded = false }) {
         </div>
 
         {/* Center: Search bar */}
-        <div className="flex-1 flex justify-center px-6">
+        <div className="hidden md:flex flex-1 justify-center px-6">
           <div className="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 w-full max-w-sm border border-gray-200 hover:border-gray-300 transition-colors">
             <Search size={13} className="text-gray-500 shrink-0" />
             <input placeholder="Search" className="bg-transparent text-sm outline-none flex-1 text-gray-600 placeholder-gray-400 w-0 min-w-0" />
@@ -1280,7 +1280,25 @@ export default function Docs({ embedded = false }) {
             DU
           </div>
           <div className="w-px h-5 bg-gray-200 mx-1" />
-          {[
+          {embedded && (
+            <>
+              <button
+                title={isMaximized ? 'Restore' : 'Maximize'}
+                onClick={isMaximized ? onMinimize : onMaximize}
+                className="w-8 h-7 flex items-center justify-center rounded transition-colors hover:bg-gray-200 text-gray-600"
+              >
+                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+              <button
+                title="Close Docs"
+                onClick={onClose}
+                className="w-8 h-7 flex items-center justify-center rounded transition-colors hover:bg-red-500 hover:text-white text-gray-600"
+              >
+                <X size={14} />
+              </button>
+            </>
+          )}
+          {!embedded && [
             { Icon: Minimize2, label: 'Minimize', danger: false },
             { Icon: Maximize2, label: 'Maximize', danger: false },
             { Icon: X,         label: 'Close',    danger: true  },
@@ -1295,9 +1313,9 @@ export default function Docs({ embedded = false }) {
       </div>
 
       {/* ── Ribbon tab bar ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-200" style={{ height: '32px' }}>
+      <div className="flex items-center shrink-0 bg-white border-b border-gray-200 overflow-x-auto" style={{ height: '32px' }}>
         {/* Tabs */}
-        <div className="flex items-stretch h-full">
+        <div className="flex items-stretch h-full shrink-0">
           {/* File tab — always blue */}
           <button
             onClick={() => setActiveTab('File')}
@@ -1322,11 +1340,11 @@ export default function Docs({ embedded = false }) {
         </div>
 
         {/* Right side: Comments · Editing · Share */}
-        <div className="flex items-center gap-1.5 pr-3">
-          <button className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
+        <div className="flex items-center gap-1.5 pr-3 ml-auto shrink-0">
+          <button className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
             <MessageSquare size={12} /> Comments
           </button>
-          <button className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
+          <button className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
             <Eye size={12} /> Editing <ChevronDown size={10} />
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1 text-xs text-white rounded font-medium transition-opacity hover:opacity-90 shrink-0" style={{ backgroundColor: WORD_BLUE }}>
@@ -1337,7 +1355,7 @@ export default function Docs({ embedded = false }) {
 
       {/* ── Ribbon content ─────────────────────────────────────── */}
       <div
-        className="shrink-0 border-b border-gray-200 overflow-hidden bg-white w-full"
+        className="shrink-0 border-b border-gray-200 overflow-x-auto bg-white w-full"
         style={{ minHeight: '88px' }}
         onClick={() => { setShowFontDrop(false); setShowSizeDrop(false); }}
       >
