@@ -6,6 +6,9 @@ import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
 import MyTasksView from "../components/ProjectDetail/MyTasksView";
+import TrackingView from "../components/ProjectDetail/TrackingView";
+import RepositoryView from "../components/ProjectDetail/RepositoryView";
+import TeamView from "../components/ProjectDetail/TeamView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
 import DocsEditor from "./Docs";
 
@@ -20,21 +23,9 @@ const TAB_VIEWS = {
       description: "Project documentation and notes will live here.",
       icon: "📄",
     },
-    tracking: {
-      title: "Tracking",
-      description: "Time logs, budget usage, and GitHub commit activity.",
-      icon: "📊",
-    },
-    team: {
-      title: "Team",
-      description: "View and manage everyone on this project.",
-      icon: "👥",
-    },
-    repository: {
-      title: "Repository",
-      description: "GitHub repository and code management.",
-      icon: "💻",
-    },
+    tracking: null,
+    team: null,
+    repository: null,
   };
 
 // ------------------------------------------------------------------
@@ -69,6 +60,18 @@ export default function ProjectDetail() {
 
     if (activeTab === "my-tasks") {
       return <MyTasksView />;
+    }
+
+    if (activeTab === "tracking") {
+      return <TrackingView />;
+    }
+
+    if (activeTab === "repository") {
+      return <RepositoryView />;
+    }
+
+    if (activeTab === "team") {
+      return <TeamView />;
     }
 
     if (activeTab === "docs") {
