@@ -286,3 +286,74 @@ class ProjectTrackingResponse(BaseModel):
     # Only populated if is_github_integrated = True
     recent_commits: list[GithubCommitResponse] = []
     total_commit_count: int = 0
+
+
+# ============================================================
+# INVITATION CREATION RESPONSE (includes the shareable link)
+# ============================================================
+ 
+class ProjectInvitationCreateResponse(BaseModel):
+    """
+    Response for POST /api/projects/{id}/invite
+ 
+    Includes invite_link since no mailer is wired up yet — the owner
+    needs the raw link to share manually (email, DM, copy/paste).
+    Once a real mailer is added, this field can stay for "copy link" UX
+    even alongside an automatic email send.
+    """
+    id: int
+    project_id: int
+    invited_email: str
+    role: str
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    invite_link: str
+ 
+    class Config:
+        from_attributes = True
+ 
+ 
+# ============================================================
+# INVITATION TOKEN FLOW (public preview + accept)
+# ============================================================
+ 
+class InvitationPreviewResponse(BaseModel):
+    """
+    Response for GET /api/invitations/{token}
+    Public endpoint — no auth required. Shown before the user logs in/signs up,
+    mirrors how Jira/Linear show "You've been invited to X" before the auth wall.
+    """
+    project_id: int
+    project_name: str
+    project_description: Optional[str]
+    invited_email: str
+    invited_by_name: str          # display name of the inviter (joined from Users)
+    role: str
+    status: str                   # pending | accepted | declined | expired
+    expires_at: datetime
+ 
+    class Config:
+        from_attributes = True
+ 
+ 
+class InvitationAcceptResponse(BaseModel):
+    """
+    Response for POST /api/invitations/{token}/accept
+    Confirms the result of accepting — including whether a TeamMember
+    profile was auto-created (first-time tracker user).
+    """
+    project_id: int
+    project_name: str
+    member_id: int
+    role: str
+    team_member_auto_created: bool   # True if this accept also created their TeamMember profile
+ 
+ 
+# ============================================================
+# Add this field to the existing TeamMemberResponse usage —
+# no model change needed, just noting that GET /team-members/me
+# should return 404 (not an empty object) if the profile doesn't exist yet,
+# so the frontend can distinguish "not onboarded" from "onboarded with zero rate"
+# ============================================================
+ 
