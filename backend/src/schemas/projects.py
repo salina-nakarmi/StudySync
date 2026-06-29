@@ -28,6 +28,49 @@ class TaskStatus(str, Enum):
     DONE = "Done"
 
 
+# ---- TaskCreate: add this field ----
+
+class TaskCreate(BaseModel):
+    task_name: str = Field(..., min_length=1, max_length=300)
+    description: Optional[str] = None
+    status: TaskStatus = TaskStatus.TODO
+    progress_percentage: int = Field(default=0, ge=0, le=100)   # NEW
+    assigned_to: Optional[int] = None
+    due_date: Optional[date] = None
+
+
+# ---- TaskUpdate: add this field ----
+
+class TaskUpdate(BaseModel):
+    task_name: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    description: Optional[str] = None
+    status: Optional[TaskStatus] = None
+    progress_percentage: Optional[int] = Field(default=None, ge=0, le=100)   # NEW
+    assigned_to: Optional[int] = None
+    due_date: Optional[date] = None
+
+
+# ---- TaskResponse: add this field ----
+
+class TaskResponse(BaseModel):
+    task_id: int
+    project_id: int
+    task_name: str
+    description: Optional[str]
+    status: TaskStatus
+    progress_percentage: int                 # NEW
+    assigned_to: Optional[int]
+    due_date: Optional[date]
+    created_at: datetime
+    updated_at: datetime
+    total_hours_logged: float = 0.0
+    assignee_username: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+
 # ============================================================
 # TEAM MEMBERS
 # ============================================================

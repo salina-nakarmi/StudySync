@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, date
 from .database import Base
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint, Numeric, Text, Index
 
 class GroupRole(enum.Enum):
@@ -87,6 +87,7 @@ class Users(Base):
     # Denormalized field: Updated whenever a StudySession is created
     # Kept for performance (avoids SUM query on every dashboard load)
     total_study_time: Mapped[int] = mapped_column(default=0)  # Total seconds
+    # team_member = relationship("TeamMember", back_populates="user", uselist=False)
     preferences: Mapped[str | None]  # JSON string for settings
 
     created_at:Mapped[datetime] = mapped_column(default=func.now())
@@ -537,9 +538,6 @@ class ProjectMembers(Base):
  
  
 class Tasks(Base):
-    """
-    A unit of work inside a project, optionally assigned to a team member.
-    """
     __tablename__ = 'tasks'
  
     task_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -561,12 +559,16 @@ class Tasks(Base):
         default=TaskStatus.TODO,
     )
  
+    # User-facing completion slider (0-100). Frontend derives `status`
+    # from this value on every update (0 -> Todo, 1-99 -> In Progress,
+    # 100 -> Done) and sends both fields together so they never drift.
+    progress_percentage: Mapped[int] = mapped_column(default=0)
+ 
     due_date: Mapped[date | None]
  
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
- 
- 
+
 class TimeLogs(Base):
     """
     Hours logged by a team member against a specific task.
