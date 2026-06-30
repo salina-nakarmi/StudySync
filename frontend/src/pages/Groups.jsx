@@ -20,6 +20,18 @@ import PDFViewerWithControls from "../components/PDFViewer";
 
 const PRIMARY_BLUE = "#2C76BA";
 
+const isPdfResource = (resource) => {
+  if (resource.resource_type === "file") {
+    if (resource.url?.toLowerCase().includes(".pdf")) {
+      return true;
+    }
+    if (resource.mime_type?.toLowerCase().includes("pdf")) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -623,25 +635,17 @@ export default function Groups() {
                               <div className="flex items-center gap-3">
                                 <button
                                   onClick={() => {
-                                    console.log("================================");
-                                    console.log("RESOURCE CLICKED");
-                                    console.log("FORMAT:", res.format);
-                                    console.log("URL:", res.url);
-                                    console.log("RESOURCE:", res);
-
-                                    if (res.format?.toLowerCase() === "pdf") {
-                                      console.log("OPENING INTERNAL PDF VIEWER");
+                                    if (isPdfResource(res)) {                        // ✅ Correct detection
+                                      console.log("📄 Opening PDF in internal viewer:", res.title);
                                       setViewingResource(res);
                                     } else {
-                                      console.log("OPENING EXTERNAL URL");
+                                      console.log("🔗 Opening external resource:", res.title);
                                       window.open(res.url, "_blank");
                                     }
-
-                                    console.log("================================");
                                   }}
                                   className="text-xs font-bold text-[#2C76BA] hover:underline"
                                 >
-                                  {res.format?.toLowerCase() === "pdf" ? "View" : "Open"}
+                                  {isPdfResource(res) ? "View PDF" : "Open"}         // ✅ Shows "View PDF" for PDFs
                                 </button>
                                 <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
                                   <XMarkIcon className="w-4 h-4" />
@@ -803,23 +807,20 @@ export default function Groups() {
               
               {/* Footer */}
               <div className="p-4 border-t border-gray-200 bg-white flex justify-between items-center">
-                
+                <a                                                  // ✅ Proper opening tag
                   href={viewingResource.url}
                   download
                   className="text-xs font-bold text-gray-600 hover:text-gray-900 hover:underline transition"
-                <a>
+                >
                   Download PDF
                 </a>
-                <button
-                  onClick={() => setViewingResource(null)}
-                  className="px-4 py-2 text-sm font-bold text-white bg-gray-800 rounded-lg hover:bg-black transition"
-                >
+                <button onClick={() => setViewingResource(null)} className="px-4 py-2 text-sm font-bold text-white bg-gray-800 rounded-lg hover:bg-black transition">
                   Close
                 </button>
               </div>
             </div>
           </div>
-        )}        
+        )}
 
       </div>
     </>

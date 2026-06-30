@@ -27,6 +27,7 @@ class InvitationStatus(enum.Enum):
 class ResourceType(enum.Enum):
     IMAGE="image"
     VIDEO="video"
+    PDF="pdf"
     FILE="file"
     FOLDER="folder"
     LINK ="link" # external URL
@@ -203,6 +204,7 @@ class Resources(Base):
     parent_folder_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
     
     file_size: Mapped[int | None]  # bytes
+    total_pages: Mapped[int | None]
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     
     created_at: Mapped[datetime] = mapped_column(default=func.now())
@@ -220,7 +222,8 @@ class ResourceProgress(Base):
     
     # Page-based tracking (replaces percentage)
     current_page: Mapped[int] = mapped_column(default=0)
-    
+    total_pages: Mapped[int | None] = mapped_column(default=None)
+
     # Auto-calculated percentage
     progress_percentage: Mapped[int] = mapped_column(default=0)  # Computed field
     
