@@ -30,7 +30,7 @@ export default function TaskCard({ task, isDone = false }) {
 
   return (
     <div
-      className={`bg-white rounded-2xl border p-4 flex flex-col gap-3 transition-all hover:shadow-md ${
+      className={`bg-white rounded-2xl border p-4 flex flex-col justify-between h-52 transition-all hover:shadow-md ${
         isDone ? "border-gray-100 opacity-80" : "border-gray-200 hover:border-[#2C76BA]/20"
       }`}
     >

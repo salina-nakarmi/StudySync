@@ -1,6 +1,5 @@
 // components/ProjectDetail/TasksView.jsx
 import { useState } from "react";
-import { SlidersHorizontalIcon } from "lucide-react";
 import KanbanColumn from "./KanbanColumn";
 
 const INITIAL_TASKS = {
@@ -82,20 +81,15 @@ export default function TasksView({ projectName }) {
   return (
     <div className="flex flex-col h-full">
       {/* View header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h2 className="text-lg font-bold text-gray-900">
           Project Tasks:{" "}
           <span className="text-[#2C76BA]">{projectName ?? "Alpha Dev"}</span>
         </h2>
-
-        <button className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-700 hover:border-gray-300 transition shadow-sm">
-          <SlidersHorizontalIcon className="h-3.5 w-3.5" />
-          Filter
-        </button>
       </div>
 
-      {/* Kanban board — 4 columns */}
-      <div className="grid grid-cols-4 gap-5 flex-1 overflow-y-auto pb-4">
+      {/* Kanban board — each status as its own row */}
+      <div className="flex flex-col gap-6 pb-4">
         {Object.entries(columns).map(([title, tasks]) => (
           <KanbanColumn
             key={title}

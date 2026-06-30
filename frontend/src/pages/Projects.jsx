@@ -1,13 +1,7 @@
 // pages/Projects.jsx
 import React, { useState } from "react";
-import Navbar from "../components/Navbar";
-import ProjectCard from "../components/Projects/ProjectCard";
-import StartNewProjectCard from "../components/Projects/StartNewProjectCard";
-import CreateProjectModal from "../components/Projects/CreateProjectModal";
 import { useNavigate } from "react-router-dom";
-
-
-
+import Navbar from "../components/Navbar";
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -290,9 +284,7 @@ function InlineCreateModal({ onClose, onCreate }) {
 }
 
 export default function Projects() {
-// inside the Projects component:
   const navigate = useNavigate();
-
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -417,15 +409,11 @@ export default function Projects() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-  {filtered.map((project) => (
-    <InlineProjectCard
-      key={project.id}
-      project={project}
-      onClick={() => navigate(`/projects/${project.id}`, { state: { project } })}
-    />
-  ))}
-  <StartNewCard onClick={() => setShowModal(true)} />
-</div>
+            {filtered.map((project) => (
+              <InlineProjectCard key={project.id} project={project} onClick={() => navigate(`/projects/${project.id}`)} />
+            ))}
+            <StartNewCard onClick={() => setShowModal(true)} />
+          </div>
 
           {filtered.length === 0 && (
             <div className="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 mt-4">
