@@ -12,7 +12,7 @@ import {
   Video,
   Link as LinkIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import Navbar from "../components/Navbar";
 import AddResourceModal from "../components/AddResourceModal";
@@ -47,6 +47,7 @@ const Index = () => {
   const [selectedResource, setSelectedResource] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [progressPage, setProgressPage] = useState(1);
   const [progressStatus, setProgressStatus] = useState("not_started");
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressNotes, setProgressNotes] = useState("");
@@ -199,26 +200,40 @@ const Index = () => {
   // reused for video/link viewers later) as the user reads/watches.
   // Updates the backend AND keeps local modal state in sync so the
   // user sees accurate progress without manually saving.
-  const handleAutoProgressChange = async (percent) => {
-    if (!selectedResource) return;
-    const status = getStatusForPercent(percent);
+  const latestSeqRef = useRef(0);
 
-    setProgressPercent(percent);
-    setProgressStatus(status);
+  const handleAutoProgressChange = useCallback(
+    async (percent, page, seq, totalPages) => {
+    console.log("[Resources] handleAutoProgressChange called", { percent, page, seq, totalPages, selectedResource });
+    if (!selectedResource) {
+      console.warn("[Resources] no selectedResource, aborting");
+      return;
+    }
 
-    try {
+      // Drop this write if a newer one has already started — prevents
+      // an older slow request from overwriting fresher progress.
+      if (seq < latestSeqRef.current) return;
+      latestSeqRef.current = seq;
+
+      setProgressPercent(percent);
+      setProgressStatus(getStatusForPercent(percent));
+      setProgressPage(page);
+
+      try {
       const token = await getToken();
-      await resourceService.updateProgress(token, selectedResource.id, {
-        status,
-        progress_percentage: percent,
-        notes: progressNotes || null,
+      const result = await resourceService.updateProgress(token, selectedResource.id, {
+        current_page: page,
+        total_pages: totalPages,
       });
+      // sync from authoritative backend-calculated values
+      setProgressPercent(result.progress_percentage);
+      setProgressStatus(result.status);
     } catch (err) {
-      // Don't surface a blocking error for background auto-tracking;
-      // just log it so it doesn't interrupt reading.
       console.error("Failed to auto-update progress", err);
     }
-  };
+  },
+  [selectedResource, getToken]
+);
 
   const handleMarkComplete = async () => {
     if (!selectedResource) return;
