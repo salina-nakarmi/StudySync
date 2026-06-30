@@ -1,208 +1,225 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MagnifyingGlassPlusIcon,
+  MagnifyingGlassMinusIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
 
-export default function PDFViewerWithControls({ resource, onProgressChange }) {
+pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+
+export default function PDFViewerWithControls({
+  resource,
+  onProgressChange,
+}) {
+  const [numPages, setNumPages] = useState(0);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [scale, setScale] = useState(1.5);
+
   const containerRef = useRef(null);
-  const [totalPages, setTotalPages] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const pdfRef = useRef(null);
+  const pageRefs = useRef({});
+  const observerRef = useRef(null);
 
-  // Load PDF from Cloudinary URL
-  useEffect(() => {
-    const loadPDF = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // ✅ Load PDF from Cloudinary link
-        const cloudinaryUrl = resource.url;
-        
-        console.log('Loading PDF from:', cloudinaryUrl);
-
-        const pdf = await pdfjsLib.getDocument({
-          url: cloudinaryUrl,
-          withCredentials: false,
-        }).promise;
-
-        pdfRef.current = pdf;
-        setTotalPages(pdf.numPages);
-        console.log('PDF loaded with', pdf.numPages, 'pages');
-        
-        // Render first page
-        await renderPage(1);
-        setLoading(false);
-      } catch (error) {
-            console.error("================================");
-            console.error("PDF LOAD FAILED");
-            console.error(error);
-            console.error("message:", error?.message);
-            console.error("name:", error?.name);
-            console.error("================================");
-
-            setError(error?.message || "Failed to load PDF");
-            setLoading(false);
-        }
-    };
-
-    loadPDF();
-  }, [resource.url]);
-
-  // Update progress when current page changes
-  useEffect(() => {
-    if (totalPages > 0) {
-      const progress = Math.round((currentPage / totalPages) * 100);
-      onProgressChange(progress);
+  function reportProgress(page, total) {
+    if (onProgressChange && total) {
+      onProgressChange(Math.round((page / total) * 100));
     }
-  }, [currentPage, totalPages, onProgressChange]);
-
-  // Render a specific page
-  const renderPage = async (pageNum) => {
-    if (!pdfRef.current) return;
-
-    try {
-      const page = await pdfRef.current.getPage(pageNum);
-      
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-
-      // Get viewport and scale
-      const viewport = page.getViewport({ scale: 1.5 });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      // Render page to canvas
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport,
-      };
-
-      await page.render(renderContext).promise;
-
-      // Display canvas in container
-      const container = containerRef.current;
-      if (container) {
-        container.innerHTML = ''; // Clear previous page
-        container.appendChild(canvas);
-        
-        // Style the canvas
-        canvas.style.maxWidth = '100%';
-        canvas.style.height = 'auto';
-        canvas.style.display = 'block';
-        canvas.style.margin = '0 auto';
-        canvas.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-      }
-
-      setCurrentPage(pageNum);
-    } catch (error) {
-      console.error('Error rendering page:', error);
-      setError('Failed to render page');
-    }
-  };
-
-  // Navigation handlers
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      renderPage(currentPage + 1);
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      renderPage(currentPage - 1);
-    }
-  };
-
-  const goToPage = (pageNum) => {
-    const page = parseInt(pageNum);
-    if (page >= 1 && page <= totalPages) {
-      renderPage(page);
-    }
-  };
-
-  const handlePageInputChange = (e) => {
-    goToPage(e.target.value);
-  };
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-[#2C76BA] mx-auto mb-3"></div>
-          <p className="text-gray-600 text-sm font-medium">Loading PDF...</p>
-        </div>
-      </div>
-    );
   }
 
-  // Error state
-  if (error) {
+  function onLoadSuccess({ numPages }) {
+    setNumPages(numPages);
+    setPageNumber(1);
+    reportProgress(1, numPages);
+  }
+
+  const setPageRef = useCallback(
+    (page) => (node) => {
+      if (!node) {
+        delete pageRefs.current[page];
+        return;
+      }
+
+      pageRefs.current[page] = node;
+      node.dataset.pageNumber = page;
+
+      if (observerRef.current) {
+        observerRef.current.observe(node);
+      }
+    },
+    []
+  );
+
+  const setContainerRef = useCallback(
+    (node) => {
+      containerRef.current = node;
+
+      if (!node) return;
+
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort(
+              (a, b) => b.intersectionRatio - a.intersectionRatio
+            )[0];
+
+          if (visible) {
+            const page = Number(visible.target.dataset.pageNumber);
+            setPageNumber(page);
+            reportProgress(page, numPages);
+          }
+        },
+        {
+          root: node,
+          threshold: 0.5,
+        }
+      );
+
+      Object.values(pageRefs.current).forEach((el) => {
+        observerRef.current.observe(el);
+      });
+    },
+    [numPages]
+  );
+
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, []);
+
+  function scrollToPage(page) {
+    if (page < 1 || page > numPages) return;
+
+    pageRefs.current[page]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+
+    setPageNumber(page);
+    reportProgress(page, numPages);
+  }
+
+  function handleDownload() {
+    const link = document.createElement("a");
+    link.href = resource.url;
+    link.download = resource.name || "document.pdf";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  if (!resource?.url) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100">
-        <div className="text-center p-6">
-          <p className="text-red-600 text-sm font-medium mb-2">❌ {error}</p>
-          <p className="text-gray-500 text-xs">Please try downloading the PDF instead.</p>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        No PDF found.
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-100">
-      {/* PDF Canvas Container */}
-      <div 
-        ref={containerRef} 
-        className="flex-1 overflow-auto p-6 flex items-start justify-center"
-        style={{ backgroundColor: '#e5e7eb' }}
-      />
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-100">
 
-      {/* Navigation Controls */}
-      <div className="bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-4">
-        {/* Previous Button */}
-        <button
-          onClick={handlePrevPage}
-          disabled={currentPage === 1}
-          className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
-            currentPage === 1
-              ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
-              : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100'
-          }`}
+      {/* PDF Viewer */}
+      <div
+        ref={setContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-6 p-4 pb-28"
+      >
+        <Document
+          file={resource.url}
+          onLoadSuccess={onLoadSuccess}
+          loading="Loading PDF..."
+          error="Unable to load PDF."
         >
-          ← Previous
+          {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
+            <div
+              key={page}
+              ref={setPageRef(page)}
+              className="bg-white shadow-lg"
+            >
+              <Page
+                pageNumber={page}
+                scale={scale}
+                renderAnnotationLayer={false}
+                renderTextLayer={false}
+              />
+            </div>
+          ))}
+        </Document>
+      </div>
+
+      {/* Bottom Toolbar */}
+      <div className="sticky bottom-0 z-50 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-between">
+
+        {/* Previous */}
+        <button
+          onClick={() => scrollToPage(pageNumber - 1)}
+          disabled={pageNumber === 1}
+          className="flex items-center gap-2 px-3 py-2 border rounded-lg disabled:opacity-40 hover:bg-gray-100"
+        >
+          <ChevronLeftIcon className="w-5 h-5" />
+          Previous
         </button>
 
-        {/* Page Input */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-600 font-medium">Page</span>
-          <input
-            type="number"
-            min="1"
-            max={totalPages}
-            value={currentPage}
-            onChange={handlePageInputChange}
-            className="w-16 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-[#2C76BA] font-medium"
-          />
-          <span className="text-xs text-gray-600 font-medium">of {totalPages}</span>
+        {/* Center Controls */}
+        <div className="flex items-center gap-6">
+
+          <span className="font-medium">
+            Page {pageNumber} / {numPages}
+          </span>
+
+          <button
+            onClick={() =>
+              setScale((s) => Math.max(0.5, s - 0.2))
+            }
+            className="p-2 rounded hover:bg-gray-100"
+          >
+            <MagnifyingGlassMinusIcon className="w-6 h-6" />
+          </button>
+
+          <span className="font-medium w-12 text-center">
+            {Math.round(scale * 100)}%
+          </span>
+
+          <button
+            onClick={() =>
+              setScale((s) => Math.min(3, s + 0.2))
+            }
+            className="p-2 rounded hover:bg-gray-100"
+          >
+            <MagnifyingGlassPlusIcon className="w-6 h-6" />
+          </button>
+
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-100"
+          >
+            <ArrowDownTrayIcon className="w-5 h-5" />
+            Download
+          </button>
+
         </div>
 
-        {/* Next Button */}
+        {/* Next */}
         <button
-          onClick={handleNextPage}
-          disabled={currentPage === totalPages}
-          className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
-            currentPage === totalPages
-              ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
-              : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100'
-          }`}
+          onClick={() => scrollToPage(pageNumber + 1)}
+          disabled={pageNumber === numPages}
+          className="flex items-center gap-2 px-3 py-2 border rounded-lg disabled:opacity-40 hover:bg-gray-100"
         >
-          Next →
+          Next
+          <ChevronRightIcon className="w-5 h-5" />
         </button>
+
       </div>
     </div>
   );
