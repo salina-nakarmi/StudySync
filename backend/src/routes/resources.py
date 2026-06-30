@@ -1140,6 +1140,8 @@ async def upload_file(
         resource_type = ResourceType.IMAGE
     elif content_type.startswith('video/'):
         resource_type = ResourceType.VIDEO
+    elif content_type.startswith('pdf/'):
+        resource_type = ResourceType.PDF
     else:
         resource_type = ResourceType.FILE
     

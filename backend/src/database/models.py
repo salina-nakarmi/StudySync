@@ -27,6 +27,7 @@ class InvitationStatus(enum.Enum):
 class ResourceType(enum.Enum):
     IMAGE="image"
     VIDEO="video"
+    PDF="pdf"
     FILE="file"
     FOLDER="folder"
     LINK ="link" # external URL
