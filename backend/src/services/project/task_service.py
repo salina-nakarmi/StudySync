@@ -8,7 +8,34 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
-from ...database.models import Tasks, TimeLogs, TeamMembers, Users
+from ...database.models import Tasks, TimeLogs, TeamMembers, Users, TaskStatus
+
+
+def _coerce_task_status(value):
+    if value is None:
+        return None
+    if isinstance(value, TaskStatus):
+        return value
+
+    if hasattr(value, "name"):
+        try:
+            return TaskStatus[value.name]
+        except KeyError:
+            pass
+
+    if isinstance(value, str):
+        normalized_name = value.upper().replace(" ", "_")
+        try:
+            return TaskStatus[normalized_name]
+        except KeyError:
+            for member in TaskStatus:
+                if member.value == value:
+                    return member
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Invalid task status '{value}'.",
+    )
 
 
 async def get_task_or_404(db: AsyncSession, task_id: int) -> Tasks:
@@ -20,11 +47,13 @@ async def get_task_or_404(db: AsyncSession, task_id: int) -> Tasks:
 
 
 async def create_task(db: AsyncSession, project_id: int, data: dict) -> Tasks:
+    db_status = _coerce_task_status(data.get("status"))
+
     task = Tasks(
         project_id=project_id,
         task_name=data["task_name"],
         description=data.get("description"),
-        status=data.get("status"),
+        status=db_status,
         progress_percentage=data.get("progress_percentage", 0),
         assigned_to=data.get("assigned_to"),
         due_date=data.get("due_date"),
@@ -90,7 +119,10 @@ async def _build_task_response(db: AsyncSession, task: Tasks) -> dict:
 async def update_task(db: AsyncSession, task_id: int, data: dict) -> Tasks:
     task = await get_task_or_404(db, task_id)
 
-    for field in ("task_name", "description", "status", "progress_percentage", "assigned_to", "due_date"):
+    if data.get("status") is not None:
+        task.status = _coerce_task_status(data.get("status"))
+
+    for field in ("task_name", "description", "progress_percentage", "assigned_to", "due_date"):
         if field in data and data[field] is not None:
             setattr(task, field, data[field])
 

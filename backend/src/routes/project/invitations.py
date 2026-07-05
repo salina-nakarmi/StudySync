@@ -97,7 +97,7 @@ async def accept_invitation(
     the token is the source of truth regardless of how it reached the person
     (email, DM, copy-pasted link all work identically).
 
-    Auto-onboards a TeamMember profile (hourly_rate=0) if this is their
+    Auto-onboards a TeamMember profile if this is their
     first project-tracker interaction.
     """
     result = await invitation_service.accept_invitation(

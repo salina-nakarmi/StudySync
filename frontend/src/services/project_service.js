@@ -5,7 +5,7 @@ import { useApi } from '../utils/api';
 // ============================================================================
 // TEAM MEMBER ONBOARDING
 // ============================================================================
-export const useTeamMember = () => {
+export const useTeamMember = (options = {}) => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
 
@@ -13,7 +13,11 @@ export const useTeamMember = () => {
   const getMyProfile = useQuery({
     queryKey: ['team-members', 'me'],
     queryFn: () => makeRequest('team-members/me'),
+    enabled: options.fetchProfile ?? true,
     retry: false, // don't retry a 404 — it just means "not onboarded", not a transient failure
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const onboard = useMutation({
@@ -295,7 +299,7 @@ export const useTimeLogs = () => {
 
 
 // ============================================================================
-// TRACKING TAB (budget burn, per-member cost, commit activity)
+// TRACKING TAB (per-member hours + commit activity)
 // ============================================================================
 export const useProjectTracking = (projectId) => {
   const { makeRequest } = useApi();
@@ -311,14 +315,14 @@ export const useProjectTracking = (projectId) => {
 // ============================================================================
 // GITHUB SYNC
 // ============================================================================
-export const useGithub = (projectId) => {
+export const useGithub = (projectId, options = {}) => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
 
   const getCommits = useQuery({
     queryKey: ['projects', projectId, 'github', 'commits'],
     queryFn: () => makeRequest(`projects/${projectId}/github/commits`),
-    enabled: !!projectId,
+    enabled: (options.enabled ?? true) && !!projectId,
   });
 
   // Manual trigger only — no scheduled/automatic sync, per design

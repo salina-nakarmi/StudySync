@@ -1,4 +1,5 @@
 import enum
+import secrets
 import uuid
 from datetime import datetime, date
 from .database import Base
@@ -493,9 +494,6 @@ class Projects(Base):
 # ============================================================
 # ADD THIS TO models.py — ProjectInvitations table
 # ============================================================
-
-# Add this import at the top of models.py if not already there:
-# import secrets
 
 class ProjectInvitations(Base):
     __tablename__ = 'project_invitations'

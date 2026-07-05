@@ -4,9 +4,9 @@ Business logic for TeamMember profiles — the project tracker's user identity.
 
 Every TeamMember maps 1:1 to a Users row (Clerk account). The TeamMember
 profile itself is created either:
-  1. Explicitly — user visits the tracker and onboards (sets hourly_rate, github_username)
+    1. Explicitly — user visits the tracker and onboards (sets github_username)
   2. Implicitly — user accepts a project invitation before ever onboarding
-     (auto-created with hourly_rate=0, github_username=None)
+         (auto-created with github_username=None)
 """
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,7 +45,6 @@ async def get_team_member_by_id(db: AsyncSession, member_id: int) -> TeamMembers
 async def onboard_team_member(
     db: AsyncSession,
     user_id: str,
-    hourly_rate: float,
     github_username: str | None,
 ) -> TeamMembers:
     """
@@ -55,7 +54,6 @@ async def onboard_team_member(
     """
     existing = await get_team_member_by_user_id(db, user_id)
     if existing:
-        existing.hourly_rate = hourly_rate
         existing.github_username = github_username
         await db.flush()
         return existing
@@ -65,7 +63,6 @@ async def onboard_team_member(
 
     member = TeamMembers(
         user_id=user_id,
-        hourly_rate=hourly_rate,
         github_username=github_username,
     )
     db.add(member)
@@ -82,7 +79,7 @@ async def get_or_create_team_member(db: AsyncSession, user_id: str) -> tuple[Tea
     if existing:
         return existing, False
 
-    member = TeamMembers(user_id=user_id, hourly_rate=0.00, github_username=None)
+    member = TeamMembers(user_id=user_id, github_username=None)
     db.add(member)
     await db.flush()
     return member, True
@@ -91,14 +88,10 @@ async def get_or_create_team_member(db: AsyncSession, user_id: str) -> tuple[Tea
 async def update_team_member(
     db: AsyncSession,
     user_id: str,
-    hourly_rate: float | None,
     github_username: str | None,
 ) -> TeamMembers:
     """PATCH /team-members/me — partial update, only touches provided fields."""
     member = await get_team_member_or_404(db, user_id)
-
-    if hourly_rate is not None:
-        member.hourly_rate = hourly_rate
 
     if github_username is not None:
         if github_username != member.github_username:
@@ -132,7 +125,6 @@ async def build_team_member_response_data(db: AsyncSession, member: TeamMembers)
     return {
         "member_id": member.member_id,
         "user_id": member.user_id,
-        "hourly_rate": float(member.hourly_rate),
         "github_username": member.github_username,
         "username": user.username,
         "email": user.email,

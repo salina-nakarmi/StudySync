@@ -17,9 +17,9 @@ async def onboard_team_member(
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """User opts into the project tracker by setting hourly_rate / github_username."""
+    """User opts into the project tracker by optionally setting github_username."""
     member = await team_member_service.onboard_team_member(
-        db, current_user.user_id, data.hourly_rate, data.github_username
+        db, current_user.user_id, data.github_username
     )
     await db.commit()
     return await team_member_service.build_team_member_response_data(db, member)
@@ -42,7 +42,7 @@ async def update_my_team_member_profile(
     db: AsyncSession = Depends(get_db),
 ):
     member = await team_member_service.update_team_member(
-        db, current_user.user_id, data.hourly_rate, data.github_username
+        db, current_user.user_id, data.github_username
     )
     await db.commit()
     return await team_member_service.build_team_member_response_data(db, member)

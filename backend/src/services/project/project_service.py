@@ -12,7 +12,43 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 
-from ...database.models import Projects, ProjectMembers, Tasks, TeamMembers, Users, TaskStatus
+from ...database.models import (
+    Projects,
+    ProjectMembers,
+    Tasks,
+    TeamMembers,
+    Users,
+    TaskStatus,
+    ProjectStatus,
+    ProjectHealth,
+)
+
+
+def _coerce_enum(value, enum_cls):
+    if value is None:
+        return None
+    if isinstance(value, enum_cls):
+        return value
+
+    if hasattr(value, "name"):
+        try:
+            return enum_cls[value.name]
+        except KeyError:
+            pass
+
+    if isinstance(value, str):
+        normalized_name = value.upper().replace(" ", "_")
+        try:
+            return enum_cls[normalized_name]
+        except KeyError:
+            for member in enum_cls:
+                if member.value == value:
+                    return member
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Invalid value '{value}' for {enum_cls.__name__}.",
+    )
 
 
 # ============================================================
@@ -69,12 +105,16 @@ async def create_project(db: AsyncSession, creator_member_id: int, data: dict) -
     Creates a project and atomically makes the creator the owner —
     both project_owner_id AND a ProjectMembers row with role='owner'.
     """
+    db_status = _coerce_enum(data.get("status"), ProjectStatus)
+    db_health = _coerce_enum(data.get("health_indicator"), ProjectHealth)
+
     project = Projects(
         project_name=data["project_name"],
         description=data.get("description"),
-        budget=data.get("budget", 0.0),
-        status=data.get("status"),
-        health_indicator=data.get("health_indicator"),
+        # Column retained in DB; fixed at 0 while budget feature is dropped.
+        budget=0.0,
+        status=db_status,
+        health_indicator=db_health,
         is_github_integrated=data.get("is_github_integrated", False),
         github_repo_owner=data.get("github_repo_owner"),
         github_repo_name=data.get("github_repo_name"),
@@ -138,7 +178,6 @@ async def _attach_list_counts(db: AsyncSession, project: Projects) -> dict:
         "description": project.description,
         "status": project.status,
         "health_indicator": project.health_indicator,
-        "budget": float(project.budget),
         "is_github_integrated": project.is_github_integrated,
         "created_at": project.created_at,
         "member_count": member_count,
@@ -187,7 +226,6 @@ async def get_project_detail(db: AsyncSession, project_id: int) -> dict:
         "description": project.description,
         "status": project.status,
         "health_indicator": project.health_indicator,
-        "budget": float(project.budget),
         "project_owner_id": project.project_owner_id,
         "is_github_integrated": project.is_github_integrated,
         "github_repo_owner": project.github_repo_owner,
@@ -204,11 +242,13 @@ async def update_project(db: AsyncSession, project_id: int, data: dict) -> Proje
     """Owner-only — permission check happens in the route via require_owner()."""
     project = await get_project_or_404(db, project_id)
 
-    for field in (
-        "project_name", "description", "budget", "status",
-        "health_indicator", "is_github_integrated",
-        "github_repo_owner", "github_repo_name",
-    ):
+    if data.get("status") is not None:
+        project.status = _coerce_enum(data.get("status"), ProjectStatus)
+
+    if data.get("health_indicator") is not None:
+        project.health_indicator = _coerce_enum(data.get("health_indicator"), ProjectHealth)
+
+    for field in ("project_name", "description", "is_github_integrated", "github_repo_owner", "github_repo_name"):
         if field in data and data[field] is not None:
             setattr(project, field, data[field])
 

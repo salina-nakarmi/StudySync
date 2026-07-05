@@ -17,13 +17,13 @@ import KanbanColumn from "./KanbanColumn";
  * "In Review" is intentionally not reachable from the UI anymore — the
  * backend enum still has it (no migration needed), it's just unused here.
  */
-export function deriveColumn(progressPercentage) {
+function deriveColumn(progressPercentage) {
   if (progressPercentage >= 100) return "DONE";
   if (progressPercentage > 0) return "IN PROGRESS";
   return "TO DO";
 }
 
-export function deriveStatus(progressPercentage) {
+function deriveStatus(progressPercentage) {
   if (progressPercentage >= 100) return "Done";
   if (progressPercentage > 0) return "In Progress";
   return "Todo";

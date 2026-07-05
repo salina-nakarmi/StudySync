@@ -3,7 +3,7 @@
 Manual time logging — no timer, just "I worked N hours on this task."
 Per earlier discussion: this is deliberately NOT like StudySessions.
 StudySessions = habit tracking (seconds, via timer).
-TimeLogs = cost tracking (hours, via manual entry) -> hours x hourly_rate = labour cost.
+TimeLogs = effort tracking (hours, via manual entry).
 """
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,11 +38,11 @@ async def _build_log_response(db: AsyncSession, log: TimeLogs) -> dict:
     task_name = task_result.scalar_one()
 
     member_result = await db.execute(
-        select(Users.username, TeamMembers.hourly_rate)
+        select(Users.username)
         .join(TeamMembers, TeamMembers.user_id == Users.user_id)
         .where(TeamMembers.member_id == log.member_id)
     )
-    username, hourly_rate = member_result.one()
+    username = member_result.scalar_one()
 
     return {
         "log_id": log.log_id,
@@ -51,7 +51,6 @@ async def _build_log_response(db: AsyncSession, log: TimeLogs) -> dict:
         "member_id": log.member_id,
         "member_username": username,
         "hours_spent": float(log.hours_spent),
-        "labour_cost": float(log.hours_spent) * float(hourly_rate),
         "logged_at": log.logged_at,
         "notes": log.notes,
         "created_at": log.created_at,
@@ -88,20 +87,18 @@ async def delete_time_log(db: AsyncSession, log_id: int) -> None:
 
 async def get_project_tracking(db: AsyncSession, project_id: int) -> dict:
     """
-    Per earlier discussion: shows per-member breakdown + total cost vs
-    budget + commit activity, all together in one response.
+    Returns project-level time + commit activity in one response.
     """
     project_result = await db.execute(select(Projects).where(Projects.project_id == project_id))
     project = project_result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
 
-    # Per-member: hours logged x hourly_rate, grouped by member
+    # Per-member hours grouped by member
     breakdown_result = await db.execute(
         select(
             TeamMembers.member_id,
             Users.username,
-            TeamMembers.hourly_rate,
             func.coalesce(func.sum(TimeLogs.hours_spent), 0).label("total_hours"),
         )
         .select_from(TimeLogs)
@@ -109,25 +106,19 @@ async def get_project_tracking(db: AsyncSession, project_id: int) -> dict:
         .join(TeamMembers, TeamMembers.member_id == TimeLogs.member_id)
         .join(Users, Users.user_id == TeamMembers.user_id)
         .where(Tasks.project_id == project_id)
-        .group_by(TeamMembers.member_id, Users.username, TeamMembers.hourly_rate)
+        .group_by(TeamMembers.member_id, Users.username)
     )
 
     member_breakdown = []
-    total_cost = 0.0
-    for member_id, username, hourly_rate, total_hours in breakdown_result.all():
-        cost = float(total_hours) * float(hourly_rate)
-        total_cost += cost
+    total_hours = 0.0
+    for member_id, username, member_total_hours in breakdown_result.all():
+        member_total_hours = float(member_total_hours)
+        total_hours += member_total_hours
         member_breakdown.append({
             "member_id": member_id,
             "username": username,
-            "hourly_rate": float(hourly_rate),
-            "total_hours": float(total_hours),
-            "total_cost": cost,
+            "total_hours": member_total_hours,
         })
-
-    budget = float(project.budget)
-    budget_remaining = budget - total_cost
-    budget_burned_percent = (total_cost / budget * 100) if budget > 0 else 0.0
 
     recent_commits = []
     total_commit_count = 0
@@ -169,10 +160,7 @@ async def get_project_tracking(db: AsyncSession, project_id: int) -> dict:
     return {
         "project_id": project.project_id,
         "project_name": project.project_name,
-        "budget": budget,
-        "total_cost": total_cost,
-        "budget_remaining": budget_remaining,
-        "budget_burned_percent": round(budget_burned_percent, 2),
+        "total_hours": round(total_hours, 2),
         "member_breakdown": member_breakdown,
         "recent_commits": recent_commits,
         "total_commit_count": total_commit_count,

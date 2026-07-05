@@ -77,19 +77,16 @@ class TaskResponse(BaseModel):
 
 class TeamMemberOnboard(BaseModel):
     """Request: user sets up their project tracker profile"""
-    hourly_rate: float = Field(default=0.0, ge=0)
     github_username: Optional[str] = None
 
 class TeamMemberUpdate(BaseModel):
     """Request: update profile fields"""
-    hourly_rate: Optional[float] = Field(default=None, ge=0)
     github_username: Optional[str] = None
 
 class TeamMemberResponse(BaseModel):
     """Response: TeamMember profile"""
     member_id: int
     user_id: str
-    hourly_rate: float
     github_username: Optional[str]
     # Joined from Users table
     username: str
@@ -111,7 +108,6 @@ class ProjectCreate(BaseModel):
     """Request: create a new project"""
     project_name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    budget: float = Field(default=0.0, ge=0)
     status: ProjectStatus = ProjectStatus.PLANNING
     health_indicator: ProjectHealth = ProjectHealth.GREEN
     is_github_integrated: bool = False
@@ -128,7 +124,6 @@ class ProjectUpdate(BaseModel):
     """Request: update project — all fields optional"""
     project_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
-    budget: Optional[float] = Field(default=None, ge=0)
     status: Optional[ProjectStatus] = None
     health_indicator: Optional[ProjectHealth] = None
     is_github_integrated: Optional[bool] = None
@@ -154,7 +149,6 @@ class ProjectResponse(BaseModel):
     description: Optional[str]
     status: ProjectStatus
     health_indicator: ProjectHealth
-    budget: float
     project_owner_id: Optional[int]
     is_github_integrated: bool
     github_repo_owner: Optional[str]
@@ -176,7 +170,6 @@ class ProjectListResponse(BaseModel):
     description: Optional[str]
     status: ProjectStatus
     health_indicator: ProjectHealth
-    budget: float
     is_github_integrated: bool
     created_at: datetime
     member_count: int = 0
@@ -271,7 +264,6 @@ class TimeLogResponse(BaseModel):
     member_id: int
     member_username: str
     hours_spent: float
-    labour_cost: float          # hours_spent × member.hourly_rate
     logged_at: date
     notes: Optional[str]
     created_at: datetime
@@ -309,23 +301,18 @@ class GithubSyncResponse(BaseModel):
 # TRACKING (analytics)
 # ============================================================
 
-class MemberCostBreakdown(BaseModel):
-    """Per-member cost in the tracking tab"""
+class MemberTrackingBreakdown(BaseModel):
+    """Per-member total hours in the tracking tab"""
     member_id: int
     username: str
-    hourly_rate: float
     total_hours: float
-    total_cost: float
 
 class ProjectTrackingResponse(BaseModel):
     """Response: full tracking tab data"""
     project_id: int
     project_name: str
-    budget: float
-    total_cost: float               # SUM of all labour costs
-    budget_remaining: float         # budget - total_cost
-    budget_burned_percent: float    # (total_cost / budget) × 100, 0 if budget is 0
-    member_breakdown: list[MemberCostBreakdown]
+    total_hours: float
+    member_breakdown: list[MemberTrackingBreakdown]
     # Only populated if is_github_integrated = True
     recent_commits: list[GithubCommitResponse] = []
     total_commit_count: int = 0

@@ -6,6 +6,9 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useProjects } from "../services/project_service";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
+import TeamView from "../components/ProjectDetail/TeamView";
+import TrackingView from "../components/ProjectDetail/TrackingView";
+import RepositoryView from "../components/ProjectDetail/RepositoryView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
 import InviteMemberModal from "../components/ProjectDetail/InviteMemberModal";
 
@@ -19,7 +22,7 @@ const TAB_VIEWS = {
   },
   tracking: {
     title: "Tracking",
-    description: "Time logs, budget usage, and GitHub commit activity.",
+    description: "Time logs and GitHub commit activity.",
     icon: "📊",
   },
   team: {
@@ -78,6 +81,15 @@ export default function ProjectDetail() {
     if (activeTab === "my-tasks") {
       return <TasksView projectId={projectId} projectName={project.project_name} onlyMine />;
     }
+    if (activeTab === "team") {
+      return <TeamView projectId={projectId} project={project} />;
+    }
+    if (activeTab === "tracking") {
+      return <TrackingView projectId={projectId} project={project} />;
+    }
+    if (activeTab === "repository") {
+      return <RepositoryView projectId={projectId} project={project} />;
+    }
 
     const view = TAB_VIEWS[activeTab];
     if (view) {
@@ -99,7 +111,7 @@ export default function ProjectDetail() {
         onInvite={() => setShowInviteModal(true)}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden ml-52 mt-16">
         <header className="flex items-center gap-3 px-8 py-4 bg-white border-b border-gray-100 shrink-0">
           <button
             onClick={() => navigate(-1)}
