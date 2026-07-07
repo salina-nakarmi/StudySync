@@ -24,6 +24,12 @@ async def get_username_by_id(session: AsyncSession, user_id:str):
     )
     return result.scalars().first()
 
+async def get_user_by_email(session: AsyncSession, email: str):
+    result = await session.execute(
+        select(Users).where(Users.email == email)
+    )
+    return result.scalars().first()
+
 async def get_or_create_user(
         session:AsyncSession,
         user_id:str,

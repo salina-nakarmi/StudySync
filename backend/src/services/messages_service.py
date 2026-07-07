@@ -446,7 +446,7 @@ async def handle_direct_messages_history(
     try:
         frontend_data = LoadDirectMessageRequest(**data)
 
-        query = select(DirectMessages).where(DirectMessages.receiver_id == receiver_id)
+        query = select(DirectMessages).where(DirectMessages.receiver_id == frontend_data.receiver_id)
 
         if frontend_data.last_message_id:
             query = query.where(DirectMessages.id < frontend_data.last_message_id)

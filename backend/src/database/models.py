@@ -3,8 +3,8 @@ import uuid
 from datetime import datetime, date
 from .database import Base
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
-from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint
+from sqlalchemy.orm import mapped_column, relationship
+from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint, Text, Integer, DateTime, String
 
 class GroupRole(enum.Enum):
     LEADER="leader" #Can have multiple leaders in shared group
@@ -295,7 +295,7 @@ class DirectMessages(Base):
     receiver_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
     content:Mapped[str]
     message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))    
-    is_reply:Mapped[bool] = mapped_column
+    is_reply: Mapped[bool] = mapped_column(Boolean, default=False)
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     seen_no: Mapped[int] = mapped_column(default = 0)
@@ -321,7 +321,7 @@ class Notifications(Base):
 
     id:Mapped[int]=mapped_column(primary_key=True, autoincrement=True)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.user_id'))
-    title = Mapped[str]
+    title: Mapped[str]
     notification_message:Mapped[str]
     notification_type:Mapped[str]
     is_read:Mapped[bool]=mapped_column(Boolean, default=False) 
@@ -354,6 +354,75 @@ class ChatConversations(Base):
     # For soft deletion (keep history but hide from UI)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
+
+class Document(Base):
+    """Collaborative documents with version support."""
+    __tablename__ = 'documents'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(index=True)
+    content: Mapped[str]
+    owner_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id'), default=None)
+    latest_version_number: Mapped[int] = mapped_column(default=1)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
+
+class DocumentVersion(Base):
+    """History of saved document revisions."""
+    __tablename__ = 'document_versions'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey('documents.id'), index=True)
+    version_number: Mapped[int] = mapped_column(index=True)
+    content: Mapped[str]
+    change_summary: Mapped[str | None]
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+class DocumentCollaborator(Base):
+    """Many-to_many relationship between documents and users for collaboration. """
+    __tablename__ = 'document_collaborators'
+
+    document_id: Mapped[int] = mapped_column(ForeignKey('documents.id'), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), primary_key=True)
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=False)
+    added_at: Mapped[datetime] = mapped_column(default = func.now())
+        
+
+ 
+class Comment(Base):
+    __tablename__ = "comments"
+ 
+    id : Mapped[int]=mapped_column( primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column( ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+ 
+    # Self-referential FK for one level of threading (replies).
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
+ 
+    text :Mapped[str]=mapped_column(Text, nullable=False)
+    quoted_text :Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_offset :Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_offset :Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resolved :Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+ 
+    created_at :Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at :Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc), nullable=True)
+ 
+    document = relationship("Document", backref="comments")
+    author = relationship("Users")
+    replies = relationship(
+        "Comment",
+        backref="parent",
+        remote_side=[id],
+        cascade="all, delete-orphan",
+        single_parent=True,
+    )
+
+
 class DailyActivity(Base):
     """
     NEW TABLE: Summarizes activity per day for the heatmap calendar.
@@ -375,5 +444,35 @@ class DailyActivity(Base):
 
     # Unique constraint so you only have one row per user/day
     __table_args__ = (UniqueConstraint('user_id', 'activity_date', name='_user_date_uc'),)
+
+
+class FriendRequest(Base):
+    """
+    Friend request system for establishing direct message connections
+    """
+    __tablename__ = 'friend_requests'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sender_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    receiver_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    status: Mapped[str] = mapped_column(default='pending')  # pending, accepted, rejected
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+    
+    __table_args__ = (UniqueConstraint('sender_id', 'receiver_id', name='_sender_receiver_uc'),)
+
+
+class Friends(Base):
+    """
+    Confirmed friendships/connections for direct messaging
+    """
+    __tablename__ = 'friends'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    friend_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    
+    __table_args__ = (UniqueConstraint('user_id', 'friend_id', name='_user_friend_uc'),)
 
  

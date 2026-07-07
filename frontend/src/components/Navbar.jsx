@@ -14,6 +14,7 @@ const Navbar = () => {
     if (pathname === "/progress-tracking") return "Progress Tracking";
     if (pathname === "/dashboard") return "Dashboard";
     if (pathname === "/resources") return "Resources";
+    if (pathname === "/documents") return "Documents";
     if (pathname === "/groups") return "Groups";
     if (pathname === "/feed") return "Communities";
     if (pathname === "/projects") return "Projects";
@@ -23,7 +24,7 @@ const Navbar = () => {
   const [activeTab, setActiveTab] = useState(() => getActiveTabFromPath(location.pathname));
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Communities", "Projects"];
+  const navItems = ["Dashboard", "Resources", "Documents", "Progress Tracking", "Groups", "Communities", "Projects"];
   const navigate = useNavigate();
   const isMessagesActive = location.pathname === "/messages";
 
@@ -37,6 +38,7 @@ const Navbar = () => {
     if (item === "Progress Tracking") navigate("/progress-tracking");
     else if (item === "Dashboard") navigate("/dashboard");
     else if (item === "Resources") navigate("/resources");
+    else if (item === "Documents") navigate("/documents");
     else if (item === "Groups") navigate("/groups");
     else if (item === "Communities") navigate("/feed");
     else if (item === "Projects") navigate("/projects");
