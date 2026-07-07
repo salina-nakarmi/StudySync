@@ -47,6 +47,7 @@ class ConnectionManager:
         """Broadcast message to all connected clients in the group"""
         payload = {
             "action": "new_message",
+            "type": "message",
             "message": {
                 "sender_id": message.user_id,
                 "group_id": message.group_id,
@@ -87,11 +88,12 @@ class DirectConnectionManager:
     async def send_to_user(self, user_id: str, DM: DirectMessages):
         payload = {
             "action": "new_message",
+            "type": "message",
             "message": {
                 "sender_id" : DM.sender_id,
                 "receiver_id": DM.receiver_id,
                 "content": DM.content,
-                "type": DM.message_type
+                "type": str(DM.message_type)
             }  
         }
         if user_id in self.active_connections:
@@ -191,7 +193,8 @@ async def handle_history(
 
         await websocket.send_json({
             "action": "load_history",
-            "history": [msg.model_dump() for msg in response_data]
+            "type": "history",
+            "messages": [msg.model_dump() for msg in response_data]
         })
 
     except Exception as e:
@@ -468,7 +471,8 @@ async def handle_direct_messages_history(
 
         await websocket.send_json({
             "action": "load_history",
-            "history": [msg.model_dump() for msg in response_data]
+            "type": "history",
+            "messages": [msg.model_dump() for msg in response_data]
         })
 
     except Exception as e:
