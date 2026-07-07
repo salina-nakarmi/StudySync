@@ -626,3 +626,108 @@ class GithubCommits(Base):
  
     created_at: Mapped[datetime] = mapped_column(default=func.now())   # When we synced it
  
+
+ #Communities Related Schemas
+class PostType(enum.Enum):
+    RESOURCE = "resource"
+    QUESTION = "question"
+    LINK = "link"
+    ASSIGNMENT = "assignment"
+
+class Posts(Base):
+    """
+    Community feed posts. Reuses Groups as the "community" a post
+    belongs to (a post's `community` in the UI is just a Group).
+    Type-specific fields (link url, resource file info, etc.) are kept
+    in a JSON blob rather than one wide table with lots of nullable
+    columns — mirrors how `preferences` is stored on Users.
+    """
+    __tablename__ = 'posts'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id'), index=True)
+
+    post_type: Mapped[PostType] = mapped_column(Enum(PostType), index=True)
+
+    title: Mapped[str]
+    text: Mapped[str | None] = mapped_column(Text)
+
+    # Links a resource-type post back to an actual uploaded Resource
+    # instead of duplicating file_size/total_pages/etc. here.
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
+
+    # Type-specific extras that don't warrant their own columns/tables:
+    # link  -> {"link_title": ..., "link_url": ..., "link_snippet": ...}
+    # question -> {} (answers are just comments)
+    # assignment -> {} (for now)
+    # Stored as text (JSON string) to match the `preferences` pattern
+    # already used on Users; parse/serialize in the service layer.
+    type_data: Mapped[str | None] = mapped_column(Text)
+
+    # Denormalized counters (same rationale as Users.total_study_time —
+    # avoids COUNT() over post_likes/post_saves/post_comments on every
+    # feed render)
+    like_count: Mapped[int] = mapped_column(default=0)
+    save_count: Mapped[int] = mapped_column(default=0)
+    share_count: Mapped[int] = mapped_column(default=0)
+    comment_count: Mapped[int] = mapped_column(default=0)
+
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
+class PostLikes(Base):
+    """
+    Toggle table for likes/upvotes. One row = one user has liked/
+    upvoted a post. Presence of the row is the "liked" state.
+    """
+    __tablename__ = 'post_likes'
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'))
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'post_id'),
+    )
+
+
+class PostSaves(Base):
+    """Toggle table for saves/bookmarks — same pattern as PostLikes."""
+    __tablename__ = 'post_saves'
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'))
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'post_id'),
+    )
+
+class PostComments(Base):
+    """
+    Comments/replies on a post. `parent_comment_id` null = top-level
+    comment (or "answer", for question-type posts); non-null = a
+    reply to that comment. Matches the one-level-deep nesting already
+    used in the Communities UI.
+    """
+    __tablename__ = 'post_comments'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    parent_comment_id: Mapped[int | None] = mapped_column(ForeignKey('post_comments.id'))
+
+    text: Mapped[str] = mapped_column(Text)
+
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
