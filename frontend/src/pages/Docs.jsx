@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bold, Italic, Underline, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -38,6 +39,15 @@ const wordStyles = [
 ];
 
 const styleSets = ['Basic', 'Affix', 'Lines', 'Ion', 'Minimalist', 'Shaded', 'Grid', 'Lines (Stylish)'];
+
+const marginPresets = [
+  { name: 'Normal',   values: { top: 1,   right: 1,    bottom: 1,   left: 1    } },
+  { name: 'Narrow',   values: { top: 0.5, right: 0.5,  bottom: 0.5, left: 0.5  } },
+  { name: 'Moderate', values: { top: 1,   right: 0.75, bottom: 1,   left: 0.75 } },
+  { name: 'Wide',     values: { top: 1,   right: 2,    bottom: 1,   left: 2    } },
+];
+
+const lineSpacingOptions = ['1.0', '1.15', '1.5', '2.0', '2.5', '3.0'];
 
 const SmallBtn = ({ icon: Icon, label, onClick, active = false, children }) => (
   <button
@@ -120,23 +130,68 @@ const RadioRow = ({ label, checked = false, name }) => (
 );
 
 /* Numeric stepper field, like Word's Indent / Spacing controls in the Layout tab. */
-const NumberField = ({ label, value, labelW = 64 }) => (
+const NumberField = ({ label, value, unit = '"', onIncrement, onDecrement, labelW = 64 }) => (
   <div className="flex items-center gap-1 text-xs text-gray-700">
     <span style={{ width: `${labelW}px` }} className="shrink-0">{label}</span>
     <div className="flex items-center border border-gray-300 rounded bg-white">
-      <span className="px-1.5 text-xs w-10">{value}</span>
+      <span className="px-1.5 text-xs w-10">{value}{unit}</span>
       <div className="flex flex-col border-l border-gray-300">
-        <button className="px-0.5 hover:bg-gray-100"><ChevronUp size={8} /></button>
-        <button className="px-0.5 hover:bg-gray-100"><ChevronDown size={8} /></button>
+        <button type="button" onClick={onIncrement} className="px-0.5 hover:bg-gray-100"><ChevronUp size={8} /></button>
+        <button type="button" onClick={onDecrement} className="px-0.5 hover:bg-gray-100"><ChevronDown size={8} /></button>
       </div>
     </div>
   </div>
 );
 
+/* Portal-based dropdown panel. The ribbon strip scrolls horizontally
+   (overflow-x-auto), which per the CSS overflow spec forces overflow-y
+   to 'auto' too — any regular absolutely-positioned dropdown nested
+   inside it gets silently clipped at the ribbon's height. Rendering
+   into document.body via a portal, positioned from the anchor's
+   bounding rect, escapes that clipping entirely. */
+const DropdownPanel = ({ open, anchorRef, onClose, width = 176, align = 'left', offset = 4, children }) => {
+  const panelRef = useRef(null);
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    if (open && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + offset, left: align === 'right' ? rect.right - width : rect.left });
+    }
+  }, [open, anchorRef, align, width, offset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (e) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target) &&
+        anchorRef.current && !anchorRef.current.contains(e.target)
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [open, onClose, anchorRef]);
+
+  if (!open || !pos) return null;
+  return createPortal(
+    <div
+      ref={panelRef}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, width, zIndex: 9999 }}
+      className="bg-white border border-gray-300 shadow-lg rounded"
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
+
 export default function Docs({ embedded = false, isMaximized = false, onMaximize, onMinimize, onClose }) {
   const [activeTab, setActiveTab]           = useState('Home');
   const [fontFamily, setFontFamily]         = useState('Calibri');
   const [fontSize, setFontSize]             = useState('12');
+  const [fontSizeDraft, setFontSizeDraft]   = useState('12');
   const [isBold, setIsBold]                 = useState(false);
   const [isItalic, setIsItalic]             = useState(false);
   const [isUnderline, setIsUnderline]       = useState(false);
@@ -150,13 +205,55 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
   const [showSizeDrop, setShowSizeDrop]     = useState(false);
   const [editingTitle, setEditingTitle]     = useState(false);
 
+  const [pageMargins, setPageMargins]       = useState({ top: 1, right: 1, bottom: 1, left: 1 });
+  const [showMarginsDrop, setShowMarginsDrop] = useState(false);
+  const [lineSpacing, setLineSpacing]       = useState('1.5');
+  const [showSpacingDrop, setShowSpacingDrop] = useState(false);
+  const [indentLeft, setIndentLeft]         = useState(0);
+  const [indentRight, setIndentRight]       = useState(0);
+  const [spacingBefore, setSpacingBefore]   = useState(0);
+  const [spacingAfter, setSpacingAfter]     = useState(8);
+
   const editorRef    = useRef(null);
   const titleRef     = useRef(null);
+  const fontFamilyBtnRef = useRef(null);
+  const fontSizeBtnRef   = useRef(null);
+  const marginsBtnRef    = useRef(null);
+  const spacingBtnRef    = useRef(null);
+  const savedSelectionRef = useRef(null);
 
   const exec = (cmd, val = null) => {
     document.execCommand(cmd, false, val);
     editorRef.current?.focus();
     syncState();
+  };
+
+  /* Real <input>/<textarea> elements own their own native text selection,
+     so focusing one wipes out window.getSelection() inside the editor —
+     execCommand then has nothing to act on. Toolbar inputs (like the font
+     size box) must save the editor's selection on mousedown (before focus
+     moves) and restore it right before applying a command. */
+  const saveEditorSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current && editorRef.current.contains(sel.anchorNode)) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreEditorSelection = () => {
+    const sel = window.getSelection();
+    // A non-collapsed selection still anchored in the editor means nothing
+    // hijacked it (e.g. a plain toolbar button was clicked) — leave it alone.
+    // Focusing the editor after an <input> held focus collapses whatever
+    // selection existed, even though anchorNode stays "inside" the editor,
+    // so collapsed doesn't count as valid here.
+    const liveSelectionValid = sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+      editorRef.current && editorRef.current.contains(sel.anchorNode);
+    if (liveSelectionValid) return;
+    const range = savedSelectionRef.current;
+    if (!range) return;
+    sel.removeAllRanges();
+    sel.addRange(range);
   };
 
   const syncState = () => {
@@ -171,6 +268,107 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
     const words = text.trim().split(/\s+/).filter(Boolean);
     setWordCount(words.length);
     syncState();
+  };
+
+  /* Finds the block-level element (paragraph/list-item/heading) that the current
+     selection sits in, so spacing/indent tweaks apply to that paragraph rather
+     than the whole document. Falls back to the editor root when the caret is
+     sitting directly inside it (e.g. before any block wrapper exists). */
+  const getSelectedBlock = () => {
+    const editor = editorRef.current;
+    if (!editor) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return editor;
+    let node = sel.getRangeAt(0).commonAncestorContainer;
+    if (node.nodeType === 3) node = node.parentNode;
+    const blockTags = ['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE'];
+    while (node && node !== editor) {
+      if (blockTags.includes(node.tagName)) return node;
+      node = node.parentNode;
+    }
+    return editor;
+  };
+
+  /* Applies an arbitrary pixel font size to the current selection. execCommand
+     only supports sizes 1-7, so we tag the selection with size="7" then swap
+     that marker for a real inline pixel size. */
+  const applyFontSize = (size) => {
+    setFontSize(size);
+    setFontSizeDraft(size);
+    setShowSizeDrop(false);
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    restoreEditorSelection();
+    document.execCommand('fontSize', false, '7');
+    editor.querySelectorAll('font[size="7"]').forEach(el => {
+      el.removeAttribute('size');
+      el.style.fontSize = `${size}px`;
+    });
+  };
+
+  /* Validates and applies whatever the user typed into the font size box. */
+  const commitFontSize = (raw) => {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) { setFontSizeDraft(fontSize); return; }
+    applyFontSize(String(Math.min(400, Math.max(1, n))));
+  };
+
+  const stepFontSize = (dir) => {
+    const current = parseInt(fontSize, 10) || 12;
+    const i = fontSizes.findIndex(s => parseInt(s, 10) === current);
+    const next = i !== -1
+      ? (dir > 0 ? fontSizes[Math.min(i + 1, fontSizes.length - 1)] : fontSizes[Math.max(i - 1, 0)])
+      : String(Math.min(400, Math.max(1, current + dir)));
+    if (next !== fontSize) applyFontSize(next);
+  };
+
+  const applyLineSpacing = (value) => {
+    setLineSpacing(value);
+    setShowSpacingDrop(false);
+    const block = getSelectedBlock();
+    if (block) block.style.lineHeight = value;
+    editorRef.current?.focus();
+  };
+
+  const setParaSpacing = (which, value) => {
+    const next = Math.max(0, value);
+    const block = getSelectedBlock();
+    if (which === 'before') {
+      setSpacingBefore(next);
+      if (block) block.style.marginTop = `${next}pt`;
+    } else {
+      setSpacingAfter(next);
+      if (block) block.style.marginBottom = `${next}pt`;
+    }
+    editorRef.current?.focus();
+  };
+
+  const adjustParaSpacing = (which, delta) => {
+    setParaSpacing(which, (which === 'before' ? spacingBefore : spacingAfter) + delta);
+  };
+
+  const adjustIndent = (side, delta) => {
+    const block = getSelectedBlock();
+    if (side === 'left') {
+      const next = Math.max(0, Math.round((indentLeft + delta) * 100) / 100);
+      setIndentLeft(next);
+      if (block) block.style.marginLeft = `${next}in`;
+    } else {
+      const next = Math.max(0, Math.round((indentRight + delta) * 100) / 100);
+      setIndentRight(next);
+      if (block) block.style.marginRight = `${next}in`;
+    }
+    editorRef.current?.focus();
+  };
+
+  const applyMarginPreset = (values) => {
+    setPageMargins(values);
+    setShowMarginsDrop(false);
+  };
+
+  const adjustPageMargin = (side, delta) => {
+    setPageMargins(m => ({ ...m, [side]: Math.max(0, Math.round((m[side] + delta) * 100) / 100) }));
   };
 
   /* ── Home ribbon ──────────────────────────────────────────────── */
@@ -204,16 +402,17 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
         <div className="flex flex-col gap-1">
           {/* Row 1: font family + size + grow/shrink */}
           <div className="flex items-center gap-1">
-            <div className="relative">
+            <div>
               <button
+                ref={fontFamilyBtnRef}
                 onClick={() => { setShowFontDrop(p => !p); setShowSizeDrop(false); }}
                 className="flex items-center gap-1 px-1.5 h-6 border border-gray-400 rounded bg-white hover:bg-gray-50 text-xs w-[112px] justify-between"
               >
                 <span className="truncate" style={{ fontFamily }}>{fontFamily}</span>
                 <ChevronDown size={10} className="text-gray-500 shrink-0" />
               </button>
-              {showFontDrop && (
-                <div className="absolute top-7 left-0 z-50 bg-white border border-gray-300 shadow-lg rounded max-h-52 overflow-y-auto w-44">
+              <DropdownPanel open={showFontDrop} anchorRef={fontFamilyBtnRef} onClose={() => setShowFontDrop(false)} width={176}>
+                <div className="max-h-52 overflow-y-auto">
                   {fonts.map(f => (
                     <button
                       key={f}
@@ -225,35 +424,52 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
                     </button>
                   ))}
                 </div>
-              )}
+              </DropdownPanel>
             </div>
 
-            <div className="relative">
-              <button
-                onClick={() => { setShowSizeDrop(p => !p); setShowFontDrop(false); }}
-                className="flex items-center gap-1 px-1.5 h-6 border border-gray-400 rounded bg-white hover:bg-gray-50 text-xs w-12 justify-between"
-              >
-                <span>{fontSize}</span>
-                <ChevronDown size={10} className="text-gray-500" />
-              </button>
-              {showSizeDrop && (
-                <div className="absolute top-7 left-0 z-50 bg-white border border-gray-300 shadow-lg rounded max-h-52 overflow-y-auto w-16">
+            <div>
+              <div ref={fontSizeBtnRef} className="flex items-center h-6 border border-gray-400 rounded bg-white hover:bg-gray-50 w-14 overflow-hidden">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  title="Font Size"
+                  value={fontSizeDraft}
+                  onMouseDown={saveEditorSelection}
+                  onChange={(e) => { if (/^\d{0,3}$/.test(e.target.value)) setFontSizeDraft(e.target.value); }}
+                  onFocus={(e) => e.target.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                    if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.value = fontSize; setFontSizeDraft(fontSize); e.currentTarget.blur(); }
+                  }}
+                  onBlur={(e) => commitFontSize(e.target.value)}
+                  className="w-9 h-full px-1.5 text-xs outline-none bg-transparent"
+                />
+                <button
+                  title="Font Size options"
+                  onClick={() => { setShowSizeDrop(p => !p); setShowFontDrop(false); }}
+                  className="h-full px-1 flex items-center justify-center hover:bg-gray-100 border-l border-gray-300 shrink-0"
+                >
+                  <ChevronDown size={10} className="text-gray-500" />
+                </button>
+              </div>
+              <DropdownPanel open={showSizeDrop} anchorRef={fontSizeBtnRef} onClose={() => setShowSizeDrop(false)} width={64}>
+                <div className="max-h-52 overflow-y-auto">
                   {fontSizes.map(s => (
                     <button
                       key={s}
-                      onClick={() => { setFontSize(s); setShowSizeDrop(false); }}
+                      onClick={() => applyFontSize(s)}
                       className={`w-full text-left px-3 py-1 text-xs hover:bg-blue-50 ${fontSize === s ? 'bg-blue-100' : ''}`}
                     >{s}</button>
                   ))}
                 </div>
-              )}
+              </DropdownPanel>
             </div>
 
-            <SmallBtn label="Increase Font Size" onClick={() => { const i = fontSizes.indexOf(fontSize); if (i < fontSizes.length - 1) setFontSize(fontSizes[i + 1]); }}>
+            <SmallBtn label="Increase Font Size" onClick={() => stepFontSize(1)}>
               <span className="font-bold text-sm text-gray-700" style={{ fontSize: '13px' }}>A</span>
               <span className="text-gray-500" style={{ fontSize: '8px', marginTop: '-2px' }}>▲</span>
             </SmallBtn>
-            <SmallBtn label="Decrease Font Size" onClick={() => { const i = fontSizes.indexOf(fontSize); if (i > 0) setFontSize(fontSizes[i - 1]); }}>
+            <SmallBtn label="Decrease Font Size" onClick={() => stepFontSize(-1)}>
               <span className="font-bold text-sm text-gray-700" style={{ fontSize: '11px' }}>A</span>
               <span className="text-gray-500" style={{ fontSize: '8px', marginTop: '-2px' }}>▼</span>
             </SmallBtn>
@@ -374,15 +590,35 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
             <SmallBtn icon={AlignJustify} label="Justify (Ctrl+J)"     onClick={() => { setTextAlign('justify'); exec('justifyFull');   }} active={textAlign === 'justify'} />
 
             {/* Line spacing */}
-            <SmallBtn label="Line and Paragraph Spacing">
-              <svg width="14" height="14" viewBox="0 0 14 14">
-                <line x1="4" y1="3" x2="13" y2="3" stroke="#555" strokeWidth="1.5" />
-                <line x1="4" y1="7" x2="13" y2="7" stroke="#555" strokeWidth="1.5" />
-                <line x1="4" y1="11" x2="13" y2="11" stroke="#555" strokeWidth="1.5" />
-                <polygon points="1.5,1 3,4 0,4" fill="#555" />
-                <polygon points="1.5,13 3,10 0,10" fill="#555" />
-              </svg>
-            </SmallBtn>
+            <div ref={spacingBtnRef}>
+              <SmallBtn label="Line and Paragraph Spacing" onClick={() => setShowSpacingDrop(p => !p)}>
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <line x1="4" y1="3" x2="13" y2="3" stroke="#555" strokeWidth="1.5" />
+                  <line x1="4" y1="7" x2="13" y2="7" stroke="#555" strokeWidth="1.5" />
+                  <line x1="4" y1="11" x2="13" y2="11" stroke="#555" strokeWidth="1.5" />
+                  <polygon points="1.5,1 3,4 0,4" fill="#555" />
+                  <polygon points="1.5,13 3,10 0,10" fill="#555" />
+                </svg>
+              </SmallBtn>
+              <DropdownPanel open={showSpacingDrop} anchorRef={spacingBtnRef} onClose={() => setShowSpacingDrop(false)} width={176}>
+                <div className="py-1">
+                  {lineSpacingOptions.map(v => (
+                    <button
+                      key={v}
+                      onClick={() => applyLineSpacing(v)}
+                      className={`w-full text-left px-3 py-1 text-xs hover:bg-blue-50 ${lineSpacing === v ? 'bg-blue-100' : ''}`}
+                    >{v} Line Spacing</button>
+                  ))}
+                  <div className="border-t border-gray-200 my-1" />
+                  <button onClick={() => { setParaSpacing('before', 0); setShowSpacingDrop(false); }} className="w-full text-left px-3 py-1 text-xs hover:bg-blue-50">
+                    Remove Space Before Paragraph
+                  </button>
+                  <button onClick={() => { setParaSpacing('after', 0); setShowSpacingDrop(false); }} className="w-full text-left px-3 py-1 text-xs hover:bg-blue-50">
+                    Remove Space After Paragraph
+                  </button>
+                </div>
+              </DropdownPanel>
+            </div>
 
             {/* Shading */}
             <button title="Shading" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
@@ -734,14 +970,43 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
     <div className="flex items-stretch h-full">
       <RibbonGroup label="Page Setup">
         <div className="flex items-center gap-0.5">
-          <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '50px' }}>
-            <svg width="18" height="18" viewBox="0 0 18 18">
-              <rect x="2" y="1" width="14" height="16" fill="none" stroke="#374151" strokeWidth="1.2" />
-              <line x1="5" y1="1" x2="5" y2="17" stroke="#374151" strokeWidth="1" strokeDasharray="1.5,1.5" />
-              <line x1="13" y1="1" x2="13" y2="17" stroke="#374151" strokeWidth="1" strokeDasharray="1.5,1.5" />
-            </svg>
-            <span className="text-[11px] text-gray-700 flex items-center gap-0.5">Margins <ChevronDown size={8} /></span>
-          </button>
+          <div>
+            <button
+              ref={marginsBtnRef}
+              onClick={() => setShowMarginsDrop(p => !p)}
+              className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0"
+              style={{ height: '60px', width: '50px' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <rect x="2" y="1" width="14" height="16" fill="none" stroke="#374151" strokeWidth="1.2" />
+                <line x1="5" y1="1" x2="5" y2="17" stroke="#374151" strokeWidth="1" strokeDasharray="1.5,1.5" />
+                <line x1="13" y1="1" x2="13" y2="17" stroke="#374151" strokeWidth="1" strokeDasharray="1.5,1.5" />
+              </svg>
+              <span className="text-[11px] text-gray-700 flex items-center gap-0.5">Margins <ChevronDown size={8} /></span>
+            </button>
+            <DropdownPanel open={showMarginsDrop} anchorRef={marginsBtnRef} onClose={() => setShowMarginsDrop(false)} width={224}>
+              <div className="py-1">
+                {marginPresets.map(p => (
+                  <button
+                    key={p.name}
+                    onClick={() => applyMarginPreset(p.values)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center justify-between"
+                  >
+                    <span>{p.name}</span>
+                    <span className="text-gray-400">T:{p.values.top}&quot; L:{p.values.left}&quot;</span>
+                  </button>
+                ))}
+                <div className="border-t border-gray-200 mt-1 pt-1.5 px-3 pb-1.5">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                    <NumberField label="Top" value={pageMargins.top} labelW={32} onIncrement={() => adjustPageMargin('top', 0.1)} onDecrement={() => adjustPageMargin('top', -0.1)} />
+                    <NumberField label="Bottom" value={pageMargins.bottom} labelW={40} onIncrement={() => adjustPageMargin('bottom', 0.1)} onDecrement={() => adjustPageMargin('bottom', -0.1)} />
+                    <NumberField label="Left" value={pageMargins.left} labelW={32} onIncrement={() => adjustPageMargin('left', 0.1)} onDecrement={() => adjustPageMargin('left', -0.1)} />
+                    <NumberField label="Right" value={pageMargins.right} labelW={36} onIncrement={() => adjustPageMargin('right', 0.1)} onDecrement={() => adjustPageMargin('right', -0.1)} />
+                  </div>
+                </div>
+              </div>
+            </DropdownPanel>
+          </div>
           <LargeBtn icon={Smartphone} label="Orientation" w={56} />
           <LargeBtn icon={FileText} label="Size" w={46} />
           <LargeBtn icon={LayoutGrid} label="Columns" w={52} />
@@ -758,12 +1023,12 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       <RibbonGroup label="Paragraph">
         <div className="flex items-center gap-3">
           <div className="flex flex-col gap-1">
-            <NumberField label="Indent Left" value="0&quot;" labelW={72} />
-            <NumberField label="Indent Right" value="0&quot;" labelW={72} />
+            <NumberField label="Indent Left" value={indentLeft} labelW={72} onIncrement={() => adjustIndent('left', 0.25)} onDecrement={() => adjustIndent('left', -0.25)} />
+            <NumberField label="Indent Right" value={indentRight} labelW={72} onIncrement={() => adjustIndent('right', 0.25)} onDecrement={() => adjustIndent('right', -0.25)} />
           </div>
           <div className="flex flex-col gap-1">
-            <NumberField label="Spacing Before" value="0 pt" labelW={84} />
-            <NumberField label="Spacing After" value="8 pt" labelW={84} />
+            <NumberField label="Spacing Before" value={spacingBefore} unit=" pt" labelW={84} onIncrement={() => adjustParaSpacing('before', 6)} onDecrement={() => adjustParaSpacing('before', -6)} />
+            <NumberField label="Spacing After" value={spacingAfter} unit=" pt" labelW={84} onIncrement={() => adjustParaSpacing('after', 6)} onDecrement={() => adjustParaSpacing('after', -6)} />
           </div>
         </div>
       </RibbonGroup>
@@ -1181,15 +1446,22 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
         ))}
       </div>
     );
-    if (activeTab === 'Home')       return <HomeRibbon />;
-    if (activeTab === 'Insert')     return <InsertRibbon />;
-    if (activeTab === 'Design')     return <DesignRibbon />;
-    if (activeTab === 'Layout')     return <LayoutRibbon />;
-    if (activeTab === 'References') return <ReferencesRibbon />;
-    if (activeTab === 'Mailings')   return <MailingsRibbon />;
-    if (activeTab === 'Review')     return <ReviewRibbon />;
-    if (activeTab === 'View')       return <ViewRibbon />;
-    if (activeTab === 'Help')       return <HelpRibbon />;
+    /* Call these as plain functions rather than JSX (<HomeRibbon />) — they're
+       closures defined inside Docs, so a new function identity is created on
+       every render. Using them as JSX component tags would make React treat
+       each render as a brand new component type and remount the whole ribbon
+       subtree (destroying focus/selection in any input inside it, e.g. while
+       typing in the font size box). Calling them inlines their JSX with no
+       separate component boundary, so reconciliation just diffs normally. */
+    if (activeTab === 'Home')       return HomeRibbon();
+    if (activeTab === 'Insert')     return InsertRibbon();
+    if (activeTab === 'Design')     return DesignRibbon();
+    if (activeTab === 'Layout')     return LayoutRibbon();
+    if (activeTab === 'References') return ReferencesRibbon();
+    if (activeTab === 'Mailings')   return MailingsRibbon();
+    if (activeTab === 'Review')     return ReviewRibbon();
+    if (activeTab === 'View')       return ViewRibbon();
+    if (activeTab === 'Help')       return HelpRibbon();
     return null;
   };
 
@@ -1357,7 +1629,6 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       <div
         className="shrink-0 border-b border-gray-200 overflow-x-auto bg-white w-full"
         style={{ minHeight: '88px' }}
-        onClick={() => { setShowFontDrop(false); setShowSizeDrop(false); }}
       >
         <div className="flex items-stretch h-full px-1 w-full" style={{ minHeight: '88px' }}>
           {renderRibbon()}
@@ -1371,7 +1642,6 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       <div
         className="flex-1 overflow-auto flex flex-col items-center py-6"
         style={{ background: '#e0e0e0' }}
-        onClick={() => { setShowFontDrop(false); setShowSizeDrop(false); }}
       >
         {/* Outer wrapper reserves the scaled space so scrolling works correctly */}
         <div style={{
@@ -1385,7 +1655,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
             style={{
               width: `${PAPER_W}px`,
               minHeight: `${PAPER_H}px`,
-              padding: '96px 120px',
+              padding: `${pageMargins.top}in ${pageMargins.right}in ${pageMargins.bottom}in ${pageMargins.left}in`,
               background: 'white',
               boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
               transformOrigin: 'top left',
@@ -1406,9 +1676,9 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
               style={{
                 fontFamily,
                 fontSize: `${parseInt(fontSize)}px`,
-                lineHeight: '1.5',
+                lineHeight: lineSpacing,
                 color: '#000',
-                minHeight: `${PAPER_H - 192}px`,
+                minHeight: `${PAPER_H - (pageMargins.top + pageMargins.bottom) * 96}px`,
               }}
               data-placeholder="Start typing your document..."
             />
