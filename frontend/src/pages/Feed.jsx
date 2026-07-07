@@ -20,7 +20,8 @@ import {
   BookmarkIcon as BookmarkIconSolid,
   HeartIcon as HeartIconSolid,
 } from "@heroicons/react/24/solid";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { TrashIcon } from "@heroicons/react/24/outline";
 import Navbar from "../components/Navbar";
 import { communityService } from "../services/community_services";
 import AddPostModal from "../components/AddPostModal";
@@ -58,9 +59,24 @@ const getAuthorName = (author) => {
   return author.username || `${author.first_name || ""} ${author.last_name || ""}`.trim() || "Unknown";
 };
 
+// Adjust these two field names if your API uses different keys for the
+// author/owner id on posts and comments (e.g. post.author.id vs post.user_id).
+const isPostOwner = (post, currentUserId) =>
+  !!currentUserId && post.author?.user_id === currentUserId;
+
+const isCommentOwner = (comment, currentUserId) =>
+  !!currentUserId && comment.author?.user_id === currentUserId;
+
 const formatRelativeTime = (value) => {
   if (!value) return "";
-  const date = new Date(value);
+  // If the backend sends a timestamp with no timezone info (no trailing Z,
+  // no +HH:MM/-HH:MM offset), JS's Date constructor assumes it's LOCAL time.
+  // If the backend actually meant UTC (very common), this silently shifts
+  // every timestamp by your local UTC offset - e.g. showing "6h ago" for
+  // something that just happened, for a user at UTC+5:45.
+  // Normalize: if there's no zone info, treat it as UTC explicitly.
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(value);
+  const date = new Date(hasZone ? value : `${value}Z`);
   if (Number.isNaN(date.getTime())) return "";
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -142,9 +158,22 @@ const injectStyles = () => {
    ══════════════════════════════════════════════════════════════ */
 
 /* ── PostHeader ── */
-const PostHeader = ({ post }) => {
+const PostHeader = ({ post, currentUserId, onDeletePost }) => {
   const typeMeta = TYPE_META[post.post_type] || TYPE_META.resource;
   const authorName = getAuthorName(post.author);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const canDelete = isPostOwner(post, currentUserId);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [menuOpen]);
+
   return (
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
@@ -179,14 +208,44 @@ const PostHeader = ({ post }) => {
           </div>
         </div>
       </div>
-      <button
-        style={{
-          background: "none", border: "none", cursor: "pointer",
-          color: "#94a3b8", padding: 6, borderRadius: "50%",
-        }}
-      >
-        <EllipsisHorizontalIcon style={{ width: 20, height: 20 }} />
-      </button>
+
+      {canDelete && (
+        <div style={{ position: "relative" }} ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "#94a3b8", padding: 6, borderRadius: "50%",
+            }}
+          >
+            <EllipsisHorizontalIcon style={{ width: 20, height: 20 }} />
+          </button>
+          {menuOpen && (
+            <div
+              style={{
+                position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 10,
+                background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.1)", minWidth: 140, overflow: "hidden",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeletePost(post.id);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "10px 14px", background: "none", border: "none",
+                  cursor: "pointer", color: "#dc2626", fontSize: 13, fontWeight: 500,
+                }}
+              >
+                <TrashIcon style={{ width: 15, height: 15 }} />
+                Delete post
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -238,7 +297,7 @@ const ReactionBar = ({ post, onToggleReaction, onToggleDiscussion, onShare }) =>
 );
 
 /* ── Comment (recursive, one level of replies from backend) ── */
-const CommentItem = ({ comment }) => (
+const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
   <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
       <div
@@ -248,11 +307,26 @@ const CommentItem = ({ comment }) => (
         {getInitials(getAuthorName(comment.author))}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
-            {getAuthorName(comment.author)}
-          </span>
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatRelativeTime(comment.created_at)}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+              {getAuthorName(comment.author)}
+            </span>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatRelativeTime(comment.created_at)}</span>
+          </div>
+          {isCommentOwner(comment, currentUserId) && (
+            <button
+              onClick={() => onDeleteComment(comment.id)}
+              title="Delete comment"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#cbd5e1", padding: 4, borderRadius: 6, flexShrink: 0,
+                display: "flex", alignItems: "center",
+              }}
+            >
+              <TrashIcon style={{ width: 14, height: 14 }} />
+            </button>
+          )}
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           {comment.text}
@@ -289,9 +363,11 @@ const DiscussionSection = ({
   isLoadingComments,
   replyDraft,
   isSendingReply,
+  currentUserId,
   onToggleDiscussion,
   onReplyChange,
   onSendReply,
+  onDeleteComment,
 }) => (
   <div style={{ marginTop: 16 }}>
     <button
@@ -332,7 +408,14 @@ const DiscussionSection = ({
                 No comments yet. Be the first to reply.
               </p>
             ) : (
-              postComments.map((comment) => <CommentItem key={comment.id} comment={comment} />)
+              postComments.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  currentUserId={currentUserId}
+                  onDeleteComment={(commentId) => onDeleteComment(post.id, commentId)}
+                />
+              ))
             )}
 
             <div className="cm-thread-input-wrap">
@@ -345,13 +428,13 @@ const DiscussionSection = ({
                 value={replyDraft}
                 onChange={(e) => onReplyChange(post.id, e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") onSendReply(post.id);
+                  if (e.key === "Enter") onSendReply(post.id, replyDraft);
                 }}
               />
               <button
                 className="cm-btn cm-btn-dark"
                 style={{ padding: "6px 14px" }}
-                onClick={() => onSendReply(post.id)}
+                onClick={() => onSendReply(post.id, replyDraft)}
                 disabled={isSendingReply || !replyDraft.trim()}
               >
                 <PaperAirplaneIcon style={{ width: 14, height: 14 }} />
@@ -521,11 +604,14 @@ const PostCard = ({
   isLoadingComments,
   replyDraft,
   isSendingReply,
+  currentUserId,
   onToggleReaction,
   onToggleDiscussion,
   onShare,
   onReplyChange,
   onSendReply,
+  onDeletePost,
+  onDeleteComment,
 }) => (
   <MotionArticle
     className="cm-card"
@@ -534,7 +620,7 @@ const PostCard = ({
     viewport={{ once: true, amount: 0.1 }}
     transition={{ duration: 0.4, ease: "easeOut" }}
   >
-    <PostHeader post={post} />
+    <PostHeader post={post} currentUserId={currentUserId} onDeletePost={onDeletePost} />
     <div style={{ marginTop: 16 }}>
       <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>
         {post.title}
@@ -570,9 +656,11 @@ const PostCard = ({
       isLoadingComments={isLoadingComments}
       replyDraft={replyDraft}
       isSendingReply={isSendingReply}
+      currentUserId={currentUserId}
       onToggleDiscussion={onToggleDiscussion}
       onReplyChange={onReplyChange}
       onSendReply={onSendReply}
+      onDeleteComment={onDeleteComment}
     />
   </MotionArticle>
 );
@@ -654,6 +742,9 @@ const Sidebar = ({ recentUploads, topContributors }) => (
 const Communities = () => {
   injectStyles();
   const { getToken } = useAuth();
+  const { user } = useUser();
+  const currentUserId = user?.id;
+  console.log("currentUserId:", currentUserId);
 
   const [addPostModalOpen, setAddPostModalOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
@@ -702,6 +793,7 @@ const Communities = () => {
       const data = await communityService.getPosts(token, params);
       const fetchedPosts = Array.isArray(data?.posts) ? data.posts : [];
       setPosts(fetchedPosts);
+      console.log("sample post:", JSON.stringify(fetchedPosts[0], null, 2));
 
       // Eagerly load comments for question posts so answer previews show immediately
       const questionPosts = fetchedPosts.filter((p) => p.post_type === "question");
@@ -802,31 +894,75 @@ const Communities = () => {
     setReplyDrafts((cur) => ({ ...cur, [postId]: value }));
   }, []);
 
-  const handleSendReply = useCallback(async (postId) => {
-    setReplyDrafts((cur) => {
-      const text = (cur[postId] || "").trim();
-      if (!text) return cur;
+  const handleSendReply = useCallback(async (postId, rawText) => {
+    const text = (rawText || "").trim();
+    if (!text) return;
 
-      (async () => {
-        setReplySending((s) => ({ ...s, [postId]: true }));
-        try {
-          const token = await getToken();
-          await communityService.addComment(token, postId, { text });
-          setReplyDrafts((d) => ({ ...d, [postId]: "" }));
-          await loadComments(postId);
-          setPosts((p) =>
-            p.map((post) => (post.id === postId ? { ...post, comment_count: post.comment_count + 1 } : post))
-          );
-        } catch (err) {
-          console.error("Failed to add comment", err);
-        } finally {
-          setReplySending((s) => ({ ...s, [postId]: false }));
-        }
-      })();
+    // Guard against double-fires (e.g. Enter key + button click both firing
+    // for the same submission, or an in-flight request already running).
+    if (replySending[postId]) return;
 
-      return cur;
-    });
-  }, [getToken, loadComments]);
+    setReplySending((s) => ({ ...s, [postId]: true }));
+    try {
+      const token = await getToken();
+      await communityService.addComment(token, postId, { text });
+      setReplyDrafts((d) => ({ ...d, [postId]: "" }));
+      await loadComments(postId);
+      setPosts((p) =>
+        p.map((post) => (post.id === postId ? { ...post, comment_count: post.comment_count + 1 } : post))
+      );
+    } catch (err) {
+      console.error("Failed to add comment", err);
+    } finally {
+      setReplySending((s) => ({ ...s, [postId]: false }));
+    }
+  }, [getToken, loadComments, replySending]);
+
+  /* ── Delete post / comment ──
+     Assumes communityService exposes deletePost(token, postId) and
+     deleteComment(token, postId, commentId). Adjust names/signatures to
+     match your actual service client if they differ. */
+  const handleDeletePost = useCallback(async (postId) => {
+    const confirmed = window.confirm("Delete this post? This can't be undone.");
+    if (!confirmed) return;
+
+    const previousPosts = posts;
+    setPosts((cur) => cur.filter((p) => p.id !== postId)); // optimistic removal
+
+    try {
+      const token = await getToken();
+      await communityService.deletePost(token, postId);
+    } catch (err) {
+      console.error("Failed to delete post", err);
+      setPosts(previousPosts); // roll back on failure
+    }
+  }, [getToken, posts]);
+
+  const handleDeleteComment = useCallback(async (postId, commentId) => {
+    const confirmed = window.confirm("Delete this comment? This can't be undone.");
+    if (!confirmed) return;
+
+    const previousComments = comments[postId] || [];
+    setComments((cur) => ({
+      ...cur,
+      [postId]: previousComments.filter((c) => c.id !== commentId),
+    }));
+    setPosts((cur) =>
+      cur.map((p) => (p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p))
+    );
+
+    try {
+      const token = await getToken();
+      await communityService.deleteComment(token, postId, commentId);
+    } catch (err) {
+      console.error("Failed to delete comment", err);
+      // roll back on failure
+      setComments((cur) => ({ ...cur, [postId]: previousComments }));
+      setPosts((cur) =>
+        cur.map((p) => (p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p))
+      );
+    }
+  }, [getToken, comments]);
 
   /* ── Page ── */
   return (
@@ -905,11 +1041,14 @@ const Communities = () => {
                   isLoadingComments={!!commentsLoading[post.id]}
                   replyDraft={replyDrafts[post.id] || ""}
                   isSendingReply={!!replySending[post.id]}
+                  currentUserId={currentUserId}
                   onToggleReaction={toggleReaction}
                   onToggleDiscussion={toggleDiscussion}
                   onShare={handleShare}
                   onReplyChange={handleReplyChange}
                   onSendReply={handleSendReply}
+                  onDeletePost={handleDeletePost}
+                  onDeleteComment={handleDeleteComment}
                 />
               ))
             )}

@@ -51,6 +51,37 @@ async def can_user_modify_post(
 
     return post.user_id == user_id
 
+# --- Add to the PERMISSION CHECKS section, alongside can_user_modify_post ---
+
+async def get_comment_by_id(
+    session: AsyncSession,
+    comment_id: int,
+) -> Optional[PostComments]:
+    result = await session.execute(
+        select(PostComments).where(
+            and_(PostComments.id == comment_id, PostComments.is_deleted == False)
+        )
+    )
+    return result.scalars().first()
+
+
+async def can_user_delete_comment(
+    session: AsyncSession,
+    user_id: str,
+    comment_id: int,
+) -> bool:
+    """Mirrors can_user_modify_post: only the comment's author may delete it.
+    (Extend this later if you want post owners / group moderators to also
+    be able to delete comments on their own posts.)"""
+    comment = await get_comment_by_id(session, comment_id)
+    if not comment:
+        return False
+    return comment.user_id == user_id
+
+
+# --- delete_comment already exists; just have it use get_comment_by_id
+#     instead of re-querying, no functional change needed there ---
+
 
 # ============================================================================
 # HELPERS
