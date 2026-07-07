@@ -1,11 +1,12 @@
 // services/project_service.js
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApi } from '../utils/api';
 
 // ============================================================================
 // TEAM MEMBER ONBOARDING
 // ============================================================================
-export const useTeamMember = (options = {}) => {
+export const useTeamMember = () => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
 
@@ -13,11 +14,7 @@ export const useTeamMember = (options = {}) => {
   const getMyProfile = useQuery({
     queryKey: ['team-members', 'me'],
     queryFn: () => makeRequest('team-members/me'),
-    enabled: options.fetchProfile ?? true,
     retry: false, // don't retry a 404 — it just means "not onboarded", not a transient failure
-    retryOnMount: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
   });
 
   const onboard = useMutation({
@@ -299,7 +296,7 @@ export const useTimeLogs = () => {
 
 
 // ============================================================================
-// TRACKING TAB (per-member hours + commit activity)
+// TRACKING TAB (budget burn, per-member cost, commit activity)
 // ============================================================================
 export const useProjectTracking = (projectId) => {
   const { makeRequest } = useApi();
@@ -318,11 +315,29 @@ export const useProjectTracking = (projectId) => {
 export const useGithub = (projectId, options = {}) => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
+  const [allCommits, setAllCommits] = useState([]);
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 20;
 
   const getCommits = useQuery({
-    queryKey: ['projects', projectId, 'github', 'commits'],
-    queryFn: () => makeRequest(`projects/${projectId}/github/commits`),
+    queryKey: ['projects', projectId, 'github', 'commits', skip],
+    queryFn: () => makeRequest(
+      `projects/${projectId}/github/commits?skip=${skip}&limit=${PAGE_SIZE}`
+    ),
     enabled: (options.enabled ?? true) && !!projectId,
+    onSuccess: (data) => {
+      if (skip === 0) {
+        // Fresh load or post-sync reset — replace everything
+        setAllCommits(data.commits || []);
+      } else {
+        // Load more — accumulate
+        setAllCommits((prev) => [...prev, ...(data.commits || [])]);
+      }
+      setHasMore(data.has_more || false);
+      setTotal(data.total || 0);
+    },
   });
 
   // Manual trigger only — no scheduled/automatic sync, per design
@@ -331,15 +346,22 @@ export const useGithub = (projectId, options = {}) => {
       method: 'POST',
     }),
     onSuccess: () => {
+      // Reset to first page — onSuccess in getCommits will repopulate allCommits
+      setSkip(0);
+      setAllCommits([]);
       queryClient.invalidateQueries(['projects', projectId, 'github']);
       queryClient.invalidateQueries(['projects', projectId, 'tracking']);
     },
   });
 
   return {
-    commits: getCommits.data,
-    isLoading: getCommits.isLoading,
+    commits: allCommits,
+    total,
+    hasMore,
+    isLoading: getCommits.isLoading && skip === 0,
+    isFetchingMore: getCommits.isFetching && skip > 0,
     error: getCommits.error,
+    loadMore: () => setSkip((s) => s + PAGE_SIZE),
     syncCommits,
   };
 };

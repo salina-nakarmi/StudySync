@@ -21,7 +21,7 @@ function formatDateTime(value) {
 }
 
 export default function RepositoryView({ projectId, project }) {
-    const { commits, isLoading, error, syncCommits } = useGithub(projectId, {
+    const { commits, total, hasMore, isLoading, isFetchingMore, error, loadMore, syncCommits } = useGithub(projectId, {
         enabled: Boolean(project?.is_github_integrated),
     });
 
@@ -59,6 +59,27 @@ export default function RepositoryView({ projectId, project }) {
                     <p className="mt-3 text-sm font-semibold text-gray-900">No GitHub repository linked</p>
                     <p className="mt-1 text-sm text-gray-500">
                         Enable GitHub integration and set the repository owner/name in the backend project settings.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // GitHub integration is enabled but repo owner/name haven't been set yet
+    if (!project?.github_repo_owner || !project?.github_repo_name) {
+        return (
+            <div className="flex flex-col gap-5">
+                <div>
+                    <h2 className="text-lg font-bold text-gray-900">Repository</h2>
+                    <p className="text-sm text-gray-500">GitHub integration is enabled but no repository has been linked yet.</p>
+                </div>
+                <div className="rounded-2xl border border-dashed border-yellow-200 bg-yellow-50 p-8 text-center">
+                    <CodeIcon className="mx-auto h-8 w-8 text-yellow-400" />
+                    <p className="mt-3 text-sm font-semibold text-gray-900">Repository not configured</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Use <span className="font-mono text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5">PATCH /api/projects/{projectId}</span> to set{" "}
+                        <span className="font-mono text-xs">github_repo_owner</span> and{" "}
+                        <span className="font-mono text-xs">github_repo_name</span>.
                     </p>
                 </div>
             </div>
@@ -104,7 +125,7 @@ export default function RepositoryView({ projectId, project }) {
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-white p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-400">Commits synced</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900">{commits?.length || 0}</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">{total}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-white p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-400">Status</p>
@@ -118,15 +139,17 @@ export default function RepositoryView({ projectId, project }) {
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                     <h3 className="text-sm font-bold text-gray-900">Recent synced commits</h3>
-                    <a
-                        href={`https://github.com/${project.github_repo_owner}/${project.github_repo_name}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 text-xs font-medium text-[#2C76BA] hover:underline"
-                    >
-                        Open repo
-                        <ExternalLinkIcon className="h-3.5 w-3.5" />
-                    </a>
+                    {project.github_repo_owner && project.github_repo_name && (
+                        <a
+                            href={`https://github.com/${project.github_repo_owner}/${project.github_repo_name}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1 text-xs font-medium text-[#2C76BA] hover:underline"
+                        >
+                            Open repo
+                            <ExternalLinkIcon className="h-3.5 w-3.5" />
+                        </a>
+                    )}
                 </div>
                 <div className="divide-y divide-gray-100">
                     {(commits || []).map((commit) => (
@@ -150,6 +173,21 @@ export default function RepositoryView({ projectId, project }) {
                     {(commits || []).length === 0 && (
                         <div className="px-5 py-10 text-center text-sm text-gray-400">
                             No commits have been synced for this project yet.
+                        </div>
+                    )}
+
+                    {/* Load more button — only shown when more commits exist in DB */}
+                    {hasMore && (
+                        <div className="px-5 py-4 border-t border-gray-100">
+                            <button
+                                onClick={loadMore}
+                                disabled={isFetchingMore}
+                                className="w-full py-2.5 text-sm font-bold text-[#2C76BA] rounded-xl border border-[#2C76BA]/20 hover:bg-blue-50 transition disabled:opacity-50"
+                            >
+                                {isFetchingMore
+                                    ? "Loading..."
+                                    : `Load more (${total - commits.length} remaining)`}
+                            </button>
                         </div>
                     )}
                 </div>

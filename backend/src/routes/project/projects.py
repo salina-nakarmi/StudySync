@@ -1,5 +1,5 @@
 # routes/project/projects.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.database import get_db
@@ -166,15 +166,17 @@ async def sync_github_commits(
     return result
 
 
-@router.get("/{project_id}/github/commits", response_model=list[GithubCommitResponse])
+@router.get("/{project_id}/github/commits")
 async def list_github_commits(
     project_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     member = await team_member_service.get_team_member_or_404(db, current_user.user_id)
     await project_service.require_membership(db, project_id, member.member_id)
-    return await github_service.list_project_commits(db, project_id)
+    return await github_service.list_project_commits(db, project_id, skip=skip, limit=limit)
 
 
 # ============================================================

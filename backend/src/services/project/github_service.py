@@ -16,7 +16,7 @@ to set their github_username in their profile.
 import os
 import httpx
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
@@ -103,14 +103,22 @@ async def sync_project_commits(db: AsyncSession, project_id: int) -> dict:
             detail="GitHub repo owner/name not set on this project.",
         )
 
-    # Only fetch commits newer than the latest one we've already synced
+    # Only fetch commits newer than the latest one we've already synced.
+    # Ensure the datetime is timezone-aware before passing to GitHub API —
+    # Postgres may return a naive datetime even for timestamptz columns
+    # depending on the driver, and GitHub requires ISO 8601 with UTC offset.
     latest_result = await db.execute(
         select(GithubCommits.committed_at)
         .where(GithubCommits.project_id == project_id)
         .order_by(GithubCommits.committed_at.desc())
         .limit(1)
     )
-    latest_committed_at = latest_result.scalar_one_or_none()
+    latest_committed_at_raw = latest_result.scalar_one_or_none()
+    if latest_committed_at_raw is not None and latest_committed_at_raw.tzinfo is None:
+        from datetime import timezone as tz
+        latest_committed_at = latest_committed_at_raw.replace(tzinfo=tz.utc)
+    else:
+        latest_committed_at = latest_committed_at_raw
 
     raw_commits = await _fetch_commits_from_github(
         project.github_repo_owner, project.github_repo_name, since=latest_committed_at
@@ -151,7 +159,11 @@ async def sync_project_commits(db: AsyncSession, project_id: int) -> dict:
             member_id=member_id,
             commit_message=commit_data["message"],
             commit_url=raw["html_url"],
-            committed_at=datetime.fromisoformat(commit_data["author"]["date"].replace("Z", "+00:00")),
+            # Strip tzinfo before storing — the column is TIMESTAMP WITHOUT TIME ZONE.
+            # The value is always UTC from GitHub so no information is lost.
+            committed_at=datetime.fromisoformat(
+                commit_data["author"]["date"].replace("Z", "+00:00")
+            ).replace(tzinfo=None),
         )
         db.add(commit_row)
         new_commits_count += 1
@@ -170,11 +182,23 @@ async def sync_project_commits(db: AsyncSession, project_id: int) -> dict:
     }
 
 
-async def list_project_commits(db: AsyncSession, project_id: int, limit: int = 50) -> list[dict]:
+async def list_project_commits(
+    db: AsyncSession,
+    project_id: int,
+    skip: int = 0,
+    limit: int = 20,        # smaller page size — frontend loads more on demand
+) -> dict:
+    """Returns a page of commits plus the total count for the frontend to know if more exist."""
+    total_result = await db.execute(
+        select(func.count()).select_from(GithubCommits).where(GithubCommits.project_id == project_id)
+    )
+    total = total_result.scalar_one()
+
     result = await db.execute(
         select(GithubCommits)
         .where(GithubCommits.project_id == project_id)
         .order_by(GithubCommits.committed_at.desc())
+        .offset(skip)
         .limit(limit)
     )
     commits = result.scalars().all()
@@ -201,4 +225,12 @@ async def list_project_commits(db: AsyncSession, project_id: int, limit: int = 5
             "commit_url": commit.commit_url,
             "committed_at": commit.committed_at,
         })
+
+    return {
+        "commits": output,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "has_more": (skip + limit) < total,
+    }
     return output
