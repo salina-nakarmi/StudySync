@@ -16,8 +16,21 @@ import { createGroupHandlers } from "../handlers/groupHandlers";
 import { useGroupChat } from "../hooks/UseGroupChat";
 import { groupService } from "../services/group_services";
 import { resourceService } from "../services/resource_services";
+import PDFViewerWithControls from "../components/PDFViewer";
 
 const PRIMARY_BLUE = "#2C76BA";
+
+const isPdfResource = (resource) => {
+  if (resource.resource_type === "file") {
+    if (resource.url?.toLowerCase().includes(".pdf")) {
+      return true;
+    }
+    if (resource.mime_type?.toLowerCase().includes("pdf")) {
+      return true;
+    }
+  }
+  return false;
+};
 
 export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
@@ -33,7 +46,9 @@ export default function Groups() {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [resources, setResources] = useState([]);
+ const [resources, setResources] = useState([]); // Group resources
+  const [personalResources, setPersonalResources] = useState([]); // ADD THIS
+  const [resourceFilter, setResourceFilter] = useState("all"); // ADD THIS
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
@@ -41,7 +56,9 @@ export default function Groups() {
   const [directChatPanelOpen, setDirectChatPanelOpen] = useState(true);
   const [activeDirectChatId, setActiveDirectChatId] = useState(null);
   const [unreadByContact, setUnreadByContact] = useState({});
-  const [resourceProgressById, setResourceProgressById] = useState({});
+  const [resourceProgress, setResourceProgress] = useState({}); // { [resourceId]: { percent, status } }
+  const latestSeqRef = useRef(0);
+  const [viewingResource, setViewingResource] = useState(null);
   const [formData, setFormData] = useState({
     group_name: "",
     description: "",
@@ -270,13 +287,88 @@ export default function Groups() {
   useEffect(() => {
     activeDirectChatIdRef.current = activeDirectChatId;
   }, [activeDirectChatId]);
+ 
+  //resource tracking realted
+  const progressTimeoutRef = useRef(null);
 
-  const handleResourceProgressChange = (resourceId, value) => {
-    setResourceProgressById((prev) => ({
-      ...prev,
-      [resourceId]: value,
-    }));
+  const viewingResourceRef = useRef(null);
+  useEffect(() => {
+    viewingResourceRef.current = viewingResource;
+  }, [viewingResource]);
+
+  const handleAutoProgressChange = useCallback(
+    (percent, page, seq, totalPages) => {
+      const resource = viewingResourceRef.current;
+      if (!resource) return;
+      if (seq < latestSeqRef.current) return;
+      latestSeqRef.current = seq;
+
+      setResourceProgress((prev) => ({
+        ...prev,
+        [resource.id]: { percent, status: getStatusForPercent(percent) },
+      }));
+
+      clearTimeout(progressTimeoutRef.current);
+      progressTimeoutRef.current = setTimeout(async () => {
+        try {
+          const token = await getToken();
+          const result = await resourceService.updateProgress(token, resource.id, {
+            current_page: page,
+            total_pages: totalPages,
+          });
+          setResourceProgress((prev) => ({
+            ...prev,
+            [resource.id]: { percent: result.progress_percentage, status: result.status },
+          }));
+        } catch (err) {
+          console.error("Failed to auto-update progress", err);
+        }
+      }, 800);
+    },
+    [getToken]
+  );
+
+  const getStatusForPercent = (percent) => {
+    if (percent >= 100) return "completed";
+    if (percent > 0) return "in_progress";
+    return "not_started";
   };
+
+  const getProgressLabel = (status) => {
+    if (status === "completed") return "Completed";
+    if (status === "in_progress") return "In Progress";
+    if (status === "paused") return "Paused";
+    return "Not Started";
+  };
+
+  useEffect(() => {
+    const loadAllProgress = async () => {
+      if (!resources.length) return;
+      try {
+        const token = await getToken();
+        const entries = await Promise.all(
+          resources.map(async (res) => {
+            try {
+              const progress = await resourceService.getMyProgress(token, res.id);
+              return [
+                res.id,
+                {
+                  percent: progress?.progress_percentage || 0,
+                  status: progress?.status || "not_started",
+                },
+              ];
+            } catch {
+              return [res.id, { percent: 0, status: "not_started" }];
+            }
+          })
+        );
+        setResourceProgress(Object.fromEntries(entries));
+      } catch (err) {
+        console.error("Failed to load resource progress", err);
+      }
+    };
+    loadAllProgress();
+  }, [resources, getToken]);
 
   if (loading) {
     return (
@@ -600,24 +692,33 @@ export default function Groups() {
                                   <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
                                   <div className="mt-3">
                                     <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
-                                      <span>Progress</span>
-                                      <span>{resourceProgressById[res.id] || 0}%</span>
+                                      <span>{getProgressLabel(resourceProgress[res.id]?.status)}</span>
+                                      <span>{resourceProgress[res.id]?.percent || 0}% Complete</span>
                                     </div>
-                                    <input
-                                      type="range"
-                                      min="0"
-                                      max="100"
-                                      step="1"
-                                      value={resourceProgressById[res.id] || 0}
-                                      onChange={(e) => handleResourceProgressChange(res.id, Number(e.target.value))}
-                                      className="w-62 accent-[#2C76BA]"
-                                      aria-label={`Progress for ${res.title || "resource"}`}
-                                    />
+                                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden w-62">
+                                      <div
+                                        className="h-full bg-[#2C76BA] transition-all"
+                                        style={{ width: `${resourceProgress[res.id]?.percent || 0}%` }}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <a href={res.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#2C76BA] hover:underline">Open</a>
+                                <button
+                                  onClick={() => {
+                                    if (isPdfResource(res)) {                        // ✅ Correct detection
+                                      console.log("📄 Opening PDF in internal viewer:", res.title);
+                                      setViewingResource(res);
+                                    } else {
+                                      console.log("🔗 Opening external resource:", res.title);
+                                      window.open(res.url, "_blank");
+                                    }
+                                  }}
+                                  className="text-xs font-bold text-[#2C76BA] hover:underline"
+                                >
+                                  {isPdfResource(res) ? "View PDF" : "Open"}        
+                                </button>
                                 <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
                                   <XMarkIcon className="w-4 h-4" />
                                 </button>
@@ -735,6 +836,48 @@ export default function Groups() {
             </div>
           </div>
         )}
+        {viewingResource && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 truncate">{viewingResource.title}</h3>
+                  <p className="text-xs text-gray-500 truncate">{viewingResource.description}</p>
+                </div>
+                <button
+                  onClick={() => setViewingResource(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0 ml-2"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              
+              
+              {/* PDF Viewer Component */}
+              <PDFViewerWithControls
+                resource={viewingResource}
+                onProgressChange={handleAutoProgressChange}
+              />
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 bg-white flex justify-between items-center">
+                <a                                                  // ✅ Proper opening tag
+                  href={viewingResource.url}
+                  download
+                  className="text-xs font-bold text-gray-600 hover:text-gray-900 hover:underline transition"
+                >
+                  Download PDF
+                </a>
+                <button onClick={() => setViewingResource(null)} className="px-4 py-2 text-sm font-bold text-white bg-gray-800 rounded-lg hover:bg-black transition">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </>
   );

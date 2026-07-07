@@ -12,10 +12,11 @@ import {
   Video,
   Link as LinkIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import Navbar from "../components/Navbar";
 import AddResourceModal from "../components/AddResourceModal";
+import PDFViewerWithControls from "../components/PDFViewer";
 import { resourceService } from "../services/resource_services";
 import { groupService } from "../services/group_services";
 
@@ -25,6 +26,12 @@ const filterOptions = [
   { label: "Videos", value: "video", icon: Video },
   { label: "Links", value: "link", icon: LinkIcon },
 ];
+
+const getStatusForPercent = (percent) => {
+  if (percent >= 100) return "completed";
+  if (percent > 0) return "in_progress";
+  return "not_started";
+};
 
 const Index = () => {
   const { getToken } = useAuth();
@@ -39,6 +46,8 @@ const Index = () => {
   const [error, setError] = useState("");
   const [selectedResource, setSelectedResource] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [progressPage, setProgressPage] = useState(1);
   const [progressStatus, setProgressStatus] = useState("not_started");
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressNotes, setProgressNotes] = useState("");
@@ -54,7 +63,7 @@ const Index = () => {
       setLoading(true);
       setError("");
       const token = await getToken();
-      
+
       const query = {
         skip: 0,
         limit: 100,
@@ -182,26 +191,49 @@ const Index = () => {
   };
 
   const closeDetails = () => {
+    setViewerOpen(false);
     setDetailOpen(false);
     setSelectedResource(null);
   };
 
-  const handleSaveProgress = async () => {
-    if (!selectedResource) return;
-    try {
-      setProgressSaving(true);
-      const token = await getToken();
-      await resourceService.updateProgress(token, selectedResource.id, {
-        status: progressStatus,
-        progress_percentage: progressPercent,
-        notes: progressNotes || null,
-      });
-    } catch (err) {
-      setError(err.message || "Failed to save progress");
-    } finally {
-      setProgressSaving(false);
+  // Auto-tracking entry point: called by the PDF viewer (and can be
+  // reused for video/link viewers later) as the user reads/watches.
+  // Updates the backend AND keeps local modal state in sync so the
+  // user sees accurate progress without manually saving.
+  const latestSeqRef = useRef(0);
+
+  const handleAutoProgressChange = useCallback(
+    async (percent, page, seq, totalPages) => {
+    console.log("[Resources] handleAutoProgressChange called", { percent, page, seq, totalPages, selectedResource });
+    if (!selectedResource) {
+      console.warn("[Resources] no selectedResource, aborting");
+      return;
     }
-  };
+
+      // Drop this write if a newer one has already started — prevents
+      // an older slow request from overwriting fresher progress.
+      if (seq < latestSeqRef.current) return;
+      latestSeqRef.current = seq;
+
+      setProgressPercent(percent);
+      setProgressStatus(getStatusForPercent(percent));
+      setProgressPage(page);
+
+      try {
+      const token = await getToken();
+      const result = await resourceService.updateProgress(token, selectedResource.id, {
+        current_page: page,
+        total_pages: totalPages,
+      });
+      // sync from authoritative backend-calculated values
+      setProgressPercent(result.progress_percentage);
+      setProgressStatus(result.status);
+    } catch (err) {
+      console.error("Failed to auto-update progress", err);
+    }
+  },
+  [selectedResource, getToken]
+);
 
   const handleMarkComplete = async () => {
     if (!selectedResource) return;
@@ -213,6 +245,23 @@ const Index = () => {
       setProgressPercent(100);
     } catch (err) {
       setError(err.message || "Failed to mark as complete");
+    } finally {
+      setProgressSaving(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedResource) return;
+    try {
+      setProgressSaving(true);
+      const token = await getToken();
+      await resourceService.updateProgress(token, selectedResource.id, {
+        status: progressStatus,
+        progress_percentage: progressPercent,
+        notes: progressNotes || null,
+      });
+    } catch (err) {
+      setError(err.message || "Failed to save notes");
     } finally {
       setProgressSaving(false);
     }
@@ -374,12 +423,10 @@ const Index = () => {
 
             {/* Section Title */}
             <h2 className="text-xl font-bold text-gray-900 mb-5">
-              {resourceScope === "personal" 
-                ? "Your Personal Resources" 
+              {resourceScope === "personal"
+                ? "Your Personal Resources"
                 : `Group Resources${groupIdInput ? ` (${groupIdInput})` : ""}`}
             </h2>
-
-           
 
             {/* Resource Grid */}
             {loading ? (
@@ -417,15 +464,16 @@ const Index = () => {
         isOpen={detailOpen}
         resource={selectedResource}
         onClose={closeDetails}
+        viewerOpen={viewerOpen}
+        setViewerOpen={setViewerOpen}
+        onAutoProgressChange={handleAutoProgressChange}
         progressLoading={progressLoading}
         progressStatus={progressStatus}
         progressPercent={progressPercent}
         progressNotes={progressNotes}
         progressSaving={progressSaving}
-        onProgressStatusChange={setProgressStatus}
-        onProgressPercentChange={setProgressPercent}
         onProgressNotesChange={setProgressNotes}
-        onSaveProgress={handleSaveProgress}
+        onSaveNotes={handleSaveNotes}
         onMarkComplete={handleMarkComplete}
         onDelete={handleDeleteResource}
         onShare={handleShareToGroup}
@@ -515,15 +563,16 @@ const ResourceDetailModal = ({
   isOpen,
   resource,
   onClose,
+  viewerOpen,
+  setViewerOpen,
+  onAutoProgressChange,
   progressLoading,
   progressStatus,
   progressPercent,
   progressNotes,
   progressSaving,
-  onProgressStatusChange,
-  onProgressPercentChange,
   onProgressNotesChange,
-  onSaveProgress,
+  onSaveNotes,
   onMarkComplete,
   onDelete,
   onShare,
@@ -534,6 +583,24 @@ const ResourceDetailModal = ({
   groupsError,
 }) => {
   if (!isOpen || !resource) return null;
+
+  if (viewerOpen) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-black">
+        <button
+          onClick={() => setViewerOpen(false)}
+          className="absolute top-4 right-4 z-[210] bg-white px-4 py-2 rounded-lg shadow"
+        >
+          Close
+        </button>
+
+        <PDFViewerWithControls
+          resource={resource}
+          onProgressChange={onAutoProgressChange}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center">
@@ -571,42 +638,29 @@ const ResourceDetailModal = ({
         </div>
 
         <div className="mt-3.5">
-          <p className="text-[12px] font-semibold text-gray-800 uppercase tracking-wide">Your Progress</p>
+          <p className="text-[12px] font-semibold text-gray-800 uppercase tracking-wide">
+            Your Progress
+          </p>
           {progressLoading ? (
             <p className="text-sm text-gray-500 mt-1">Loading progress...</p>
           ) : (
             <div className="mt-2 space-y-2">
+              {/* Progress is now tracked automatically while reading,
+                  so this is a read-only display rather than a manual slider. */}
               <div className="flex items-center justify-between text-[11px] text-gray-500">
                 <span>{progressPercent}% Complete</span>
                 <span>Status: {getProgressLabel(progressStatus)}</span>
               </div>
               <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                 <div
-                  className="h-full bg-[#2C76BA]"
+                  className="h-full bg-[#2C76BA] transition-all"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={progressPercent}
-                onChange={(event) => onProgressPercentChange(Number(event.target.value))}
-                className="w-full accent-[#2C76BA]"
-              />
-              <div className="flex items-center gap-1.5">
-                <label className="text-[12px] text-gray-500">Status</label>
-                <select
-                  value={progressStatus}
-                  onChange={(event) => onProgressStatusChange(event.target.value)}
-                  className="text-[10px] border border-gray-200 rounded-lg px-1.5 py-0.5"
-                >
-                  <option value="not_started">Not Started</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="paused">Paused</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
+              <p className="text-[10px] text-gray-400">
+                Progress updates automatically as you read.
+              </p>
+
               <div>
                 <label className="text-[12px] text-gray-500">Notes</label>
                 <textarea
@@ -623,14 +677,12 @@ const ResourceDetailModal = ({
 
         <div className="mt-3.5 flex flex-wrap gap-2">
           {resource.url && (
-            <a
-              href={resource.url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setViewerOpen(true)}
               className="px-2 py-1 rounded-lg bg-gray-900 text-white text-[12px] font-semibold hover:bg-gray-800"
             >
-              Open File
-            </a>
+              Open Resource
+            </button>
           )}
           <button
             type="button"
@@ -642,16 +694,18 @@ const ResourceDetailModal = ({
           </button>
           <button
             type="button"
-            onClick={onSaveProgress}
+            onClick={onSaveNotes}
             disabled={progressSaving}
             className="px-2 py-1 rounded-lg border border-gray-200 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            {progressSaving ? "Saving..." : "Save Progress"}
+            {progressSaving ? "Saving..." : "Save Notes"}
           </button>
         </div>
 
         <div className="mt-3.5 pt-3.5 border-t border-gray-200">
-          <p className="text-[10px] font-semibold text-gray-800 mb-1.5 uppercase tracking-wide">Share to Group</p>
+          <p className="text-[10px] font-semibold text-gray-800 mb-1.5 uppercase tracking-wide">
+            Share to Group
+          </p>
           <div className="flex flex-wrap gap-2">
             <select
               value={shareGroupId}

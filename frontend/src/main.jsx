@@ -7,6 +7,8 @@ import './index.css'
 import QueryProvider from './providers/QueryProvider'; 
 import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css'; // Make sure styles are imported!
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState, useRef } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react';
 
 const WORD_BLUE = '#2C76BA';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const fonts = [
   'Calibri', 'Arial', 'Arial Black', 'Arial Narrow', 'Cambria',
@@ -58,6 +56,7 @@ const GroupDivider = () => (
   <div className="self-stretch w-px bg-gray-200 mx-1" />
 );
 
+/* Expand arrow icon that appears in every group label (like Word's ↗ dialog launcher) */
 const ExpandArrow = () => (
   <svg width="11" height="11" viewBox="0 0 11 11" className="text-gray-400 hover:text-gray-700 cursor-pointer shrink-0">
     <path d="M1 1h4v1H2.7l3.15 3.15-.7.7L2 2.7V4H1V1zm9 9H6v-1h1.3L4.15 5.85l.7-.7L8 8.3V7h1v3z" fill="currentColor"/>
@@ -77,6 +76,8 @@ const RibbonGroup = ({ label, children }) => (
   </div>
 );
 
+/* Large icon-on-top button used throughout Insert / Design / Layout / etc, matching
+   the way real Word renders primary ribbon commands (e.g. the Paste button on Home). */
 const LargeBtn = ({ icon: Icon, glyph, label, hasDropdown = true, onClick, w = 58, iconSize = 22 }) => (
   <button
     onClick={onClick}
@@ -93,8 +94,11 @@ const LargeBtn = ({ icon: Icon, glyph, label, hasDropdown = true, onClick, w = 5
   </button>
 );
 
-const TextRowBtn = ({ icon: Icon, label, extra = '', onClick }) => (
-  <button onClick={onClick} className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap shrink-0">
+/* Small single-line text command, used for secondary items stacked inside a group
+   (e.g. Blank Page / Page Break under Cover Page). Label truncates with an ellipsis
+   rather than overflowing its box, so it can never visually overlap a neighboring group. */
+const TextRowBtn = ({ icon: Icon, label, extra = '' }) => (
+  <button className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap shrink-0">
     {Icon && <Icon size={12} className="text-gray-500 shrink-0" />}
     <span>{label}</span>
     {extra && <span className="text-gray-400 text-[11px] ml-1">{extra}</span>}
@@ -115,6 +119,7 @@ const RadioRow = ({ label, checked = false, name }) => (
   </label>
 );
 
+/* Numeric stepper field, like Word's Indent / Spacing controls in the Layout tab. */
 const NumberField = ({ label, value, labelW = 64 }) => (
   <div className="flex items-center gap-1 text-xs text-gray-700">
     <span style={{ width: `${labelW}px` }} className="shrink-0">{label}</span>
@@ -128,7 +133,7 @@ const NumberField = ({ label, value, labelW = 64 }) => (
   </div>
 );
 
-export default function Docs({ embedded = false, documentId = null }) {
+export default function Docs({ embedded = false, isMaximized = false, onMaximize, onMinimize, onClose }) {
   const [activeTab, setActiveTab]           = useState('Home');
   const [fontFamily, setFontFamily]         = useState('Calibri');
   const [fontSize, setFontSize]             = useState('12');
@@ -145,274 +150,8 @@ export default function Docs({ embedded = false, documentId = null }) {
   const [showSizeDrop, setShowSizeDrop]     = useState(false);
   const [editingTitle, setEditingTitle]     = useState(false);
 
-  // Connection and synchronization States
-  const [currentDocId, setCurrentDocId]     = useState(documentId);
-  const [comments, setComments]             = useState([]);
-  const [isSaving, setIsSaving]             = useState(false);
-
-  // Modal states
-  const [showShareModal, setShowShareModal]         = useState(false);
-  const [showCollaboratorsModal, setShowCollaboratorsModal] = useState(false);
-  const [showVersionsModal, setShowVersionsModal]   = useState(false);
-  const [showImageModal, setShowImageModal]         = useState(false);
-  const [showTableModal, setShowTableModal]         = useState(false);
-  const [showLinkModal, setShowLinkModal]           = useState(false);
-
-  // Feature data states
-  const [textColor, setTextColor]                   = useState('#000000');
-  const [highlightColor, setHighlightColor]         = useState('#FFFF00');
-  const [shareLink, setShareLink]                   = useState('');
-  const [collaborators, setCollaborators]           = useState([]);
-  const [versions, setVersions]                     = useState([]);
-  const [newCollaboratorEmail, setNewCollaboratorEmail] = useState('');
-  const [newCollaboratorRole, setNewCollaboratorRole] = useState('viewer');
-  const [tableRows, setTableRows]                   = useState(3);
-  const [tableCols, setTableCols]                   = useState(3);
-  const [linkUrl, setLinkUrl]                       = useState('');
-  const [linkText, setLinkText]                     = useState('');
-
   const editorRef    = useRef(null);
   const titleRef     = useRef(null);
-
-  // Sync editor formatting state
-  const syncState = () => {
-    setIsBold(document.queryCommandState('bold'));
-    setIsItalic(document.queryCommandState('italic'));
-    setIsUnderline(document.queryCommandState('underline'));
-    setIsStrike(document.queryCommandState('strikeThrough'));
-  };
-
-  // Handle editor input: update word count and sync formatting state
-  const handleEditorInput = useCallback(() => {
-    const text = editorRef.current?.innerText ?? '';
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    setWordCount(words.length);
-    syncState();
-  }, []);
-
-  // Load document and comments from backend on mount or ID swap
-  useEffect(() => {
-    if (currentDocId) {
-      axios.get(`${API_BASE_URL}/documents/${currentDocId}`)
-        .then(res => {
-          const doc = res.data;
-          setDocTitle(doc.title);
-          if (editorRef.current) {
-            editorRef.current.innerHTML = doc.content || '';
-          }
-          if (doc.font_family) setFontFamily(doc.font_family);
-          if (doc.font_size) setFontSize(doc.font_size);
-          handleEditorInput();
-        })
-        .catch(err => console.error("Error fetching document:", err));
-
-      axios.get(`${API_BASE_URL}/documents/${currentDocId}/comments`)
-        .then(res => setComments(res.data))
-        .catch(err => console.error("Error fetching comments:", err));
-    }
-  }, [currentDocId, handleEditorInput]);
-
-  // Persistent Save to Database (Create or Update dynamically)
-  const saveDocument = useCallback(async () => {
-    if (!editorRef.current) return;
-    setIsSaving(true);
-    const payload = {
-      title: docTitle,
-      content: editorRef.current.innerHTML,
-      font_family: fontFamily,
-      font_size: fontSize
-    };
-
-    try {
-      if (currentDocId) {
-        await axios.put(`${API_BASE_URL}/documents/${currentDocId}`, payload);
-      } else {
-        const res = await axios.post(`${API_BASE_URL}/documents`, payload);
-        setCurrentDocId(res.data.id);
-      }
-    } catch (err) {
-      console.error("Error synchronization document metrics:", err);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [docTitle, fontFamily, fontSize, currentDocId]);
-
-  // Debounced auto-save triggers whenever contents, titles or structural layouts shift
-  useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      if (editorRef.current?.innerHTML || docTitle !== 'Untitled Document') {
-        saveDocument();
-      }
-    }, 2000);
-    return () => clearTimeout(saveTimeout);
-  }, [docTitle, fontFamily, fontSize, saveDocument]);
-
-  // Comment action triggers
-  const handleAddComment = async () => {
-    const text = prompt("Enter your comment text:");
-    if (!text || !text.trim()) return;
-
-    const selection = window.getSelection();
-    const quotedText = selection ? selection.toString() : null;
-
-    try {
-      if (!currentDocId) await saveDocument();
-      const res = await axios.post(`${API_BASE_URL}/documents/${currentDocId}/comments`, {
-        text,
-        quoted_text: quotedText,
-        start_offset: 0,
-        end_offset: 0
-      });
-      setComments([...comments, res.data]);
-    } catch (err) {
-      console.error("Could not post comment mapping layer:", err);
-    }
-  };
-
-  // Font color handler
-  const handleSetTextColor = (color) => {
-    setTextColor(color);
-    exec('foreColor', color);
-  };
-
-  // Highlight color handler
-  const handleSetHighlightColor = (color) => {
-    setHighlightColor(color);
-    exec('backColor', color);
-  };
-
-  // Insert image handler
-  const handleInsertImage = (imageUrl) => {
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.style.maxWidth = '100%';
-    img.style.height = 'auto';
-    if (editorRef.current) {
-      editorRef.current.appendChild(img);
-      editorRef.current.focus();
-    }
-  };
-
-  // Insert table handler
-  const handleInsertTable = () => {
-    if (!editorRef.current) return;
-    let table = '<table border="1" cellpadding="8" cellspacing="0" style="width:100%;border-collapse:collapse;"><tbody>';
-    for (let i = 0; i < tableRows; i++) {
-      table += '<tr>';
-      for (let j = 0; j < tableCols; j++) {
-        table += '<td style="padding:8px;border:1px solid #999;"></td>';
-      }
-      table += '</tr>';
-    }
-    table += '</tbody></table>';
-    document.execCommand('insertHTML', false, table);
-    setShowTableModal(false);
-  };
-
-  // Insert link handler
-  const handleInsertLink = () => {
-    if (!linkUrl.trim()) {
-      alert('Please enter a URL');
-      return;
-    }
-    exec('createLink', linkUrl);
-    setShowLinkModal(false);
-    setLinkUrl('');
-    setLinkText('');
-  };
-
-  // Share link handlers
-  const handleGenerateShareLink = async () => {
-    if (!currentDocId) return;
-    try {
-      const res = await axios.put(`${API_BASE_URL}/documents/${currentDocId}/share-link`, {
-        enabled: true,
-        role: 'viewer'
-      });
-      setShareLink(res.data.link || `${window.location.origin}/docs/${currentDocId}`);
-    } catch (err) {
-      console.error("Error generating share link:", err);
-    }
-  };
-
-  const handleCopyShareLink = () => {
-    if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
-      alert('Share link copied to clipboard!');
-    }
-  };
-
-  // Collaborator handlers
-  const handleLoadCollaborators = async () => {
-    if (!currentDocId) return;
-    try {
-      const res = await axios.get(`${API_BASE_URL}/documents/${currentDocId}`);
-      setCollaborators(res.data.collaborators || []);
-    } catch (err) {
-      console.error("Error loading collaborators:", err);
-    }
-  };
-
-  const handleAddCollaborator = async () => {
-    if (!newCollaboratorEmail.trim() || !currentDocId) return;
-    try {
-      await axios.post(`${API_BASE_URL}/documents/${currentDocId}/collaborators`, {
-        email: newCollaboratorEmail,
-        role: newCollaboratorRole
-      });
-      setNewCollaboratorEmail('');
-      handleLoadCollaborators();
-    } catch (err) {
-      console.error("Error adding collaborator:", err);
-      alert('Failed to add collaborator. Make sure the email is correct.');
-    }
-  };
-
-  const handleRemoveCollaborator = async (userId) => {
-    if (!currentDocId) return;
-    try {
-      await axios.delete(`${API_BASE_URL}/documents/${currentDocId}/collaborators/${userId}`);
-      handleLoadCollaborators();
-    } catch (err) {
-      console.error("Error removing collaborator:", err);
-    }
-  };
-
-  // Version history handlers
-  const handleLoadVersions = async () => {
-    if (!currentDocId) return;
-    try {
-      const res = await axios.get(`${API_BASE_URL}/documents/${currentDocId}/versions`);
-      setVersions(res.data || []);
-    } catch (err) {
-      console.error("Error loading versions:", err);
-    }
-  };
-
-  const handleSaveVersion = async () => {
-    if (!currentDocId) return;
-    try {
-      await axios.post(`${API_BASE_URL}/documents/${currentDocId}/versions`);
-      handleLoadVersions();
-      alert('Version saved successfully!');
-    } catch (err) {
-      console.error("Error saving version:", err);
-    }
-  };
-
-  const handleRevertVersion = async (versionId) => {
-    if (!currentDocId) return;
-    try {
-      const res = await axios.post(`${API_BASE_URL}/documents/${currentDocId}/versions/${versionId}/revert`);
-      if (editorRef.current) {
-        editorRef.current.innerHTML = res.data.content || '';
-      }
-      handleLoadVersions();
-      alert('Document reverted to previous version!');
-    } catch (err) {
-      console.error("Error reverting version:", err);
-    }
-  };
 
   const exec = (cmd, val = null) => {
     document.execCommand(cmd, false, val);
@@ -420,9 +159,24 @@ export default function Docs({ embedded = false, documentId = null }) {
     syncState();
   };
 
+  const syncState = () => {
+    setIsBold(document.queryCommandState('bold'));
+    setIsItalic(document.queryCommandState('italic'));
+    setIsUnderline(document.queryCommandState('underline'));
+    setIsStrike(document.queryCommandState('strikeThrough'));
+  };
+
+  const handleEditorInput = () => {
+    const text = editorRef.current?.innerText ?? '';
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    setWordCount(words.length);
+    syncState();
+  };
+
   /* ── Home ribbon ──────────────────────────────────────────────── */
   const HomeRibbon = () => (
     <div className="flex items-stretch h-full">
+      {/* Clipboard */}
       <RibbonGroup label="Clipboard">
         <div className="flex items-center gap-0.5">
           <button
@@ -445,8 +199,10 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Font */}
       <RibbonGroup label="Font">
         <div className="flex flex-col gap-1">
+          {/* Row 1: font family + size + grow/shrink */}
           <div className="flex items-center gap-1">
             <div className="relative">
               <button
@@ -504,6 +260,7 @@ export default function Docs({ embedded = false, documentId = null }) {
             <SmallBtn icon={Type} label="Clear All Formatting" onClick={() => exec('removeFormat')} />
           </div>
 
+          {/* Row 2: B I U S sub sup | highlight color */}
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => { setIsBold(p => !p); exec('bold'); }}
@@ -541,50 +298,33 @@ export default function Docs({ embedded = false, documentId = null }) {
 
             <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
-            <div className="flex items-center gap-0">
-              <button title="Text Highlight Color" onClick={() => {
-                const color = prompt("Enter highlight color (hex code, e.g., #FFFF00):", highlightColor);
-                if (color) handleSetHighlightColor(color);
-              }} className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
-                <Highlighter size={13} className="text-gray-700" />
-                <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: highlightColor }} />
-              </button>
-              <button onClick={() => {
-                const colors = ['#FFFF00', '#00FF00', '#FF0000', '#0000FF', '#FFA500', '#FFC0CB'];
-                const color = prompt(`Quick colors: ${colors.join(', ')}\n\nOr enter custom hex:`, '#FFFF00');
-                if (color) handleSetHighlightColor(color);
-              }} title="Highlight color options">
-                <ChevronDown size={9} className="text-gray-500 -ml-1" />
-              </button>
-            </div>
+            {/* Text highlight */}
+            <button title="Text Highlight Color" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
+              <Highlighter size={13} className="text-gray-700" />
+              <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: '#FFFF00' }} />
+            </button>
+            <ChevronDown size={9} className="text-gray-500 -ml-1" />
 
-            <div className="flex items-center gap-0">
-              <button title="Font Color" onClick={() => {
-                const color = prompt("Enter text color (hex code, e.g., #000000):", textColor);
-                if (color) handleSetTextColor(color);
-              }} className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
-                <span className="font-bold text-gray-800" style={{ fontSize: '13px', lineHeight: 1 }}>A</span>
-                <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: textColor }} />
-              </button>
-              <button onClick={() => {
-                const colors = ['#000000', '#FF0000', '#0000FF', '#008000', '#FFFFFF', '#808080'];
-                const color = prompt(`Quick colors: ${colors.join(', ')}\n\nOr enter custom hex:`, '#000000');
-                if (color) handleSetTextColor(color);
-              }} title="Font color options">
-                <ChevronDown size={9} className="text-gray-500 -ml-1" />
-              </button>
-            </div>
+            {/* Font color */}
+            <button title="Font Color" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
+              <span className="font-bold text-gray-800" style={{ fontSize: '13px', lineHeight: 1 }}>A</span>
+              <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: '#FF0000' }} />
+            </button>
+            <ChevronDown size={9} className="text-gray-500 -ml-1" />
           </div>
         </div>
       </RibbonGroup>
 
       <GroupDivider />
 
+      {/* Paragraph */}
       <RibbonGroup label="Paragraph">
         <div className="flex flex-col gap-1">
+          {/* Row 1: lists + indent + sort + pilcrow */}
           <div className="flex items-center gap-0.5">
             <SmallBtn icon={List}         label="Bullets"            onClick={() => exec('insertUnorderedList')} />
             <SmallBtn icon={ListOrdered}  label="Numbering"          onClick={() => exec('insertOrderedList')} />
+            {/* Multilevel list icon */}
             <SmallBtn label="Multilevel List">
               <svg width="14" height="14" viewBox="0 0 14 14">
                 <rect x="0" y="1.5" width="2" height="1.5" fill="#555" />
@@ -611,6 +351,7 @@ export default function Docs({ embedded = false, documentId = null }) {
                 <rect x="1" y="10" width="12" height="1.5" fill="#555" />
               </svg>
             </SmallBtn>
+            {/* Sort A-Z */}
             <SmallBtn label="Sort">
               <svg width="14" height="14" viewBox="0 0 14 14">
                 <text x="0" y="8" fontSize="6" fill="#555" fontWeight="bold">A</text>
@@ -619,17 +360,20 @@ export default function Docs({ embedded = false, documentId = null }) {
                 <polygon points="11,13 9,10 13,10" fill="#555" />
               </svg>
             </SmallBtn>
+            {/* Show/hide ¶ */}
             <SmallBtn label="Show/Hide Paragraph Marks">
               <span className="font-bold text-gray-700" style={{ fontSize: '14px' }}>¶</span>
             </SmallBtn>
           </div>
 
+          {/* Row 2: align + line spacing + shading + borders */}
           <div className="flex items-center gap-0.5">
             <SmallBtn icon={AlignLeft}    label="Align Left (Ctrl+L)"  onClick={() => { setTextAlign('left');    exec('justifyLeft');   }} active={textAlign === 'left'} />
             <SmallBtn icon={AlignCenter}  label="Center (Ctrl+E)"      onClick={() => { setTextAlign('center');  exec('justifyCenter'); }} active={textAlign === 'center'} />
             <SmallBtn icon={AlignRight}   label="Align Right (Ctrl+R)" onClick={() => { setTextAlign('right');   exec('justifyRight');  }} active={textAlign === 'right'} />
             <SmallBtn icon={AlignJustify} label="Justify (Ctrl+J)"     onClick={() => { setTextAlign('justify'); exec('justifyFull');   }} active={textAlign === 'justify'} />
 
+            {/* Line spacing */}
             <SmallBtn label="Line and Paragraph Spacing">
               <svg width="14" height="14" viewBox="0 0 14 14">
                 <line x1="4" y1="3" x2="13" y2="3" stroke="#555" strokeWidth="1.5" />
@@ -640,11 +384,13 @@ export default function Docs({ embedded = false, documentId = null }) {
               </svg>
             </SmallBtn>
 
+            {/* Shading */}
             <button title="Shading" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
               <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: '#BDD7EE' }} />
               <ChevronDown size={8} className="text-gray-500 mt-0.5" />
             </button>
 
+            {/* Borders */}
             <SmallBtn label="Borders">
               <svg width="14" height="14" viewBox="0 0 14 14">
                 <rect x="1" y="1" width="12" height="12" stroke="#555" strokeWidth="1.5" fill="none" />
@@ -660,6 +406,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Styles */}
       <RibbonGroup label="Styles">
         <div className="flex items-center gap-1">
           <div className="flex gap-1" style={{ maxWidth: '340px', overflowX: 'hidden' }}>
@@ -687,20 +434,20 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Editing */}
       <RibbonGroup label="Editing">
         <div className="flex flex-col gap-0.5">
           {[
             { Icon: Search,       label: 'Find',    extra: '▾' },
             { Icon: RefreshCw,    label: 'Replace', extra: '' },
             { Icon: MousePointer, label: 'Select',  extra: '▾' },
-          // eslint-disable-next-line no-unused-vars
-          ].map(({ Icon: IconComp, label, extra }) => (
+          ].map(({ Icon, label, extra }) => (
             <button
               key={label}
               title={label}
               className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap"
             >
-              <IconComp size={13} className="text-gray-500" />
+              <Icon size={13} className="text-gray-500" />
               <span>{label}</span>
               {extra && <span className="text-gray-400 text-[11px]">{extra}</span>}
             </button>
@@ -710,6 +457,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Voice */}
       <RibbonGroup label="Voice">
         <button
           title="Dictate"
@@ -726,6 +474,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Editor (grayed out) */}
       <RibbonGroup label="Editor">
         <button className="flex flex-col items-center justify-center rounded px-3 py-1 h-15.5 w-13 opacity-50 cursor-not-allowed">
           <div className="w-8 h-8 flex items-center justify-center">
@@ -740,6 +489,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Add-ins (grayed out) */}
       <RibbonGroup label="Add-ins">
         <button className="flex flex-col items-center justify-center rounded px-3 py-1 h-15.5 w-13 opacity-50 cursor-not-allowed">
           <div className="w-8 h-8 flex items-center justify-center">
@@ -759,6 +509,7 @@ export default function Docs({ embedded = false, documentId = null }) {
   /* ── Insert ribbon ────────────────────────────────────────────── */
   const InsertRibbon = () => (
     <div className="flex items-stretch h-full">
+      {/* Pages */}
       <RibbonGroup label="Pages">
         <div className="flex flex-col gap-0.5 justify-center">
           <TextRowBtn icon={BookOpen} label="Cover Page" extra="▾" />
@@ -769,15 +520,19 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Tables */}
       <RibbonGroup label="Tables">
-        <LargeBtn icon={LayoutGrid} label="Table" w={48} onClick={() => setShowTableModal(true)} />
+        <LargeBtn icon={LayoutGrid} label="Table" w={48} />
       </RibbonGroup>
 
       <GroupDivider />
 
+      {/* Illustrations */}
       <RibbonGroup label="Illustrations">
         <div className="flex items-center gap-px">
-          <LargeBtn icon={Image} label="Pictures" w={46} onClick={() => setShowImageModal(true)} />
+          {/* Pictures */}
+          <LargeBtn icon={Image} label="Pictures" w={46} />
+          {/* Shapes */}
           <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '44px' }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <polygon points="3,16 7,9 11,16" fill="none" stroke="#374151" strokeWidth="1.3" />
@@ -786,7 +541,9 @@ export default function Docs({ embedded = false, documentId = null }) {
             </svg>
             <span className="text-[11px] text-gray-700 flex items-center gap-0.5">Shapes <ChevronDown size={8} /></span>
           </button>
+          {/* Icons */}
           <LargeBtn icon={Sparkles} label="Icons" w={40} hasDropdown={false} />
+          {/* 3D Models */}
           <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '52px' }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <path d="M10 2L17 6V14L10 18L3 14V6Z" fill="none" stroke="#374151" strokeWidth="1.3"/>
@@ -796,6 +553,7 @@ export default function Docs({ embedded = false, documentId = null }) {
             </svg>
             <span className="text-[11px] text-gray-700 flex items-center gap-0.5">3D Models <ChevronDown size={8} /></span>
           </button>
+          {/* SmartArt */}
           <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '46px' }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <circle cx="10" cy="4" r="2" fill="none" stroke="#374151" strokeWidth="1.2" />
@@ -806,6 +564,7 @@ export default function Docs({ embedded = false, documentId = null }) {
             </svg>
             <span className="text-[11px] text-gray-700 flex items-center gap-0.5">SmartArt <ChevronDown size={8} /></span>
           </button>
+          {/* Chart */}
           <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '40px' }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <line x1="2" y1="17" x2="18" y2="17" stroke="#374151" strokeWidth="1.3" />
@@ -815,6 +574,7 @@ export default function Docs({ embedded = false, documentId = null }) {
             </svg>
             <span className="text-[11px] text-gray-700">Chart</span>
           </button>
+          {/* Screenshot */}
           <button className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 gap-0.5 shrink-0" style={{ height: '60px', width: '52px' }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <rect x="1" y="3" width="18" height="13" rx="1.5" fill="none" stroke="#374151" strokeWidth="1.3"/>
@@ -829,15 +589,17 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Media */}
       <RibbonGroup label="Media">
         <LargeBtn icon={Video} label="Online Videos" hasDropdown={false} w={58} />
       </RibbonGroup>
 
       <GroupDivider />
 
+      {/* Links */}
       <RibbonGroup label="Links">
         <div className="flex flex-col gap-0.5 justify-center">
-          <TextRowBtn icon={Link} label="Link" extra="▾" onClick={() => setShowLinkModal(true)} />
+          <TextRowBtn icon={Link} label="Link" extra="▾" />
           <TextRowBtn icon={Bookmark} label="Bookmark" />
           <TextRowBtn icon={Quote} label="Cross-reference" />
         </div>
@@ -845,12 +607,14 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Comments */}
       <RibbonGroup label="Comments">
-        <LargeBtn icon={MessageSquare} label="Comment" hasDropdown={false} w={52} onClick={handleAddComment} />
+        <LargeBtn icon={MessageSquare} label="Comment" hasDropdown={false} w={52} />
       </RibbonGroup>
 
       <GroupDivider />
 
+      {/* Header & Footer */}
       <RibbonGroup label="Header & Footer">
         <div className="flex items-center gap-0.5">
           <LargeBtn icon={ChevronUp} label="Header" w={44} />
@@ -861,6 +625,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Text */}
       <RibbonGroup label="Text">
         <div className="flex items-center gap-0.5">
           <LargeBtn icon={Type} label="Text Box" w={46} />
@@ -879,6 +644,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* Symbols */}
       <RibbonGroup label="Symbols">
         <div className="flex flex-col gap-0.5 justify-center">
           <button className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap shrink-0">
@@ -896,6 +662,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <GroupDivider />
 
+      {/* eSignature */}
       <RibbonGroup label="eSignature">
         <button
           className="flex flex-col items-center justify-center rounded px-1.5 py-1 hover:bg-gray-100 gap-0.5 shrink-0"
@@ -939,7 +706,7 @@ export default function Docs({ embedded = false, documentId = null }) {
             <TextRowBtn icon={Type} label="Fonts" extra="▾" />
             <TextRowBtn icon={AlignJustify} label="Paragraph Spacing" extra="▾" />
             <TextRowBtn icon={Sparkles} label="Effects" extra="▾" />
-            <TextRowBtn icon={Save} label="Set as Default" onClick={saveDocument} />
+            <TextRowBtn icon={Save} label="Set as Default" />
           </div>
         </div>
       </RibbonGroup>
@@ -1197,7 +964,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       <RibbonGroup label="Comments">
         <div className="flex items-center gap-0.5">
-          <LargeBtn icon={MessageSquare} label="New Comment" hasDropdown={false} w={62} onClick={handleAddComment} />
+          <LargeBtn icon={MessageSquare} label="New Comment" hasDropdown={false} w={62} />
           <div className="flex items-center gap-0.5">
             <TextRowBtn label="Delete" extra="▾" />
             <TextRowBtn icon={ChevronUp} label="Previous" />
@@ -1230,17 +997,6 @@ export default function Docs({ embedded = false, documentId = null }) {
             <TextRowBtn icon={ChevronUp} label="Previous" />
             <TextRowBtn icon={ChevronDown} label="Next" />
           </div>
-        </div>
-      </RibbonGroup>
-
-      <GroupDivider />
-
-      <RibbonGroup label="Version History">
-        <div className="flex items-center gap-0.5">
-          <LargeBtn icon={RotateCw} label="Version History" hasDropdown={false} w={72} onClick={() => {
-            setShowVersionsModal(true);
-            handleLoadVersions();
-          }} />
         </div>
       </RibbonGroup>
 
@@ -1378,10 +1134,12 @@ export default function Docs({ embedded = false, documentId = null }) {
   /* ── Ruler ────────────────────────────────────────────────────── */
   const Ruler = () => (
     <div className="flex items-center bg-gray-100 border-b border-gray-300 select-none" style={{ height: '22px' }}>
+      {/* corner */}
       <div className="w-[54px] h-full bg-gray-100 border-r border-gray-300 shrink-0 flex items-center justify-center">
         <div className="w-3.5 h-3.5 border border-gray-400 rounded-sm text-gray-500" style={{ fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>◫</div>
       </div>
       <div className="flex-1 relative overflow-hidden" style={{ background: 'linear-gradient(to right, #d1d5db 0%, #d1d5db 15%, #f9fafb 15%, #f9fafb 85%, #d1d5db 85%, #d1d5db 100%)' }}>
+        {/* tick marks */}
         <svg width="100%" height="22" preserveAspectRatio="none">
           {Array.from({ length: 82 }, (_, i) => (
             <line
@@ -1395,11 +1153,13 @@ export default function Docs({ embedded = false, documentId = null }) {
             <text key={i} x={`${((i + 1) / 10) * 100}%`} y="10" fontSize="8" fill="#6b7280" textAnchor="middle">{i + 1}</text>
           ))}
         </svg>
+        {/* left indent marker */}
         <div className="absolute top-0 left-[15%]">
           <svg width="12" height="12" viewBox="0 0 12 12">
             <polygon points="0,0 12,0 6,8" fill="#6b7280" />
           </svg>
         </div>
+        {/* right margin marker */}
         <div className="absolute top-0 right-[15%]">
           <svg width="12" height="12" viewBox="0 0 12 12">
             <polygon points="0,0 12,0 6,8" fill="#6b7280" />
@@ -1409,15 +1169,16 @@ export default function Docs({ embedded = false, documentId = null }) {
     </div>
   );
 
+  /* ── Zoom control ─────────────────────────────────────────────── */
   const handleZoom = (delta) => setZoom(z => Math.min(500, Math.max(10, z + delta)));
 
+  /* ── Active ribbon content ────────────────────────────────────── */
   const renderRibbon = () => {
     if (activeTab === 'File') return (
       <div className="flex items-center gap-3 px-4 h-full">
-        {['New', 'Open', 'Print', 'Share', 'Export', 'Close'].map(item => (
+        {['New', 'Open', 'Save', 'Save As', 'Print', 'Share', 'Export', 'Close'].map(item => (
           <button key={item} className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-gray-200 text-sm text-gray-700">{item}</button>
         ))}
-        <button onClick={saveDocument} className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 text-sm text-white font-medium hover:bg-blue-700">Save Changes</button>
       </div>
     );
     if (activeTab === 'Home')       return <HomeRibbon />;
@@ -1432,6 +1193,7 @@ export default function Docs({ embedded = false, documentId = null }) {
     return null;
   };
 
+  /* ── Document zoom style ──────────────────────────────────────── */
   const PAPER_W = 816;
   const PAPER_H = 1056;
 
@@ -1439,26 +1201,32 @@ export default function Docs({ embedded = false, documentId = null }) {
     <div className={`flex flex-col overflow-hidden select-none ${embedded ? 'h-full w-full' : 'h-screen w-screen'}`} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
 
       {/* ── Title bar ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-100 px-3" style={{ height: '40px' }}>
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-100 px-3 min-w-0" style={{ height: '40px' }}>
+
+        {/* Left: W logo + AutoSave + QAT + doc title */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* W logo */}
           <div className="w-8 h-8 flex items-center justify-center rounded shrink-0">
             <span className="font-black text-2xl leading-none" style={{ color: WORD_BLUE, letterSpacing: '-2px' }}>W</span>
           </div>
 
-          <div className="flex items-center gap-1 ml-1">
+          {/* AutoSave toggle */}
+          <div className="hidden sm:flex items-center gap-1 ml-1">
             <span className="text-xs text-gray-600">AutoSave</span>
             <div className="flex items-center gap-1">
-              <div className="w-7 h-3.5 bg-blue-600 rounded-full flex items-center justify-end px-0.5 cursor-pointer">
+              <div className="w-7 h-3.5 bg-gray-300 rounded-full flex items-center px-0.5 cursor-pointer">
                 <div className="w-2.5 h-2.5 bg-white rounded-full shadow-sm" />
               </div>
-              <span className="text-xs text-gray-500">On</span>
+              <span className="text-xs text-gray-500">Off</span>
             </div>
           </div>
 
-          <button title="Save (Ctrl+S)" onClick={saveDocument} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 transition-colors">
+          {/* Save */}
+          <button title="Save (Ctrl+S)" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 transition-colors">
             <Save size={15} className="text-gray-600" />
           </button>
 
+          {/* Undo with dropdown */}
           <div className="flex items-center">
             <button title="Undo (Ctrl+Z)" onClick={() => exec('undo')} className="w-7 h-7 flex items-center justify-center rounded-l hover:bg-gray-100 transition-colors">
               <Undo size={15} className="text-gray-600" />
@@ -1468,22 +1236,25 @@ export default function Docs({ embedded = false, documentId = null }) {
             </button>
           </div>
 
+          {/* Redo */}
           <button title="Redo (Ctrl+Y)" onClick={() => exec('redo')} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 transition-colors">
             <Redo size={15} className="text-gray-600" />
           </button>
 
+          {/* QAT customize */}
           <button className="w-5 h-7 flex items-center justify-center rounded hover:bg-gray-100 transition-colors">
             <ChevronDown size={10} className="text-gray-500" />
           </button>
 
           <div className="w-px h-5 bg-gray-200 mx-1" />
 
+          {/* Document title */}
           {editingTitle ? (
             <input
               ref={titleRef}
               value={docTitle}
               onChange={e => setDocTitle(e.target.value)}
-              onBlur={() => { setEditingTitle(false); saveDocument(); }}
+              onBlur={() => setEditingTitle(false)}
               onKeyDown={e => e.key === 'Enter' && setEditingTitle(false)}
               autoFocus
               className="text-sm text-gray-800 border border-blue-400 rounded px-2 py-0.5 outline-none min-w-48"
@@ -1493,42 +1264,59 @@ export default function Docs({ embedded = false, documentId = null }) {
               {docTitle} — Word
             </button>
           )}
-
-          <span className="text-[11px] text-gray-400 ml-2 italic">
-            {isSaving ? "Saving..." : "Saved to cloud"}
-          </span>
         </div>
 
-        <div className="flex-1 flex justify-center px-6">
+        {/* Center: Search bar */}
+        <div className="hidden md:flex flex-1 justify-center px-6">
           <div className="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 w-full max-w-sm border border-gray-200 hover:border-gray-300 transition-colors">
             <Search size={13} className="text-gray-500 shrink-0" />
             <input placeholder="Search" className="bg-transparent text-sm outline-none flex-1 text-gray-600 placeholder-gray-400 w-0 min-w-0" />
           </div>
         </div>
 
+        {/* Right: user avatar + window controls */}
         <div className="flex items-center gap-1.5">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold cursor-pointer shrink-0" style={{ backgroundColor: WORD_BLUE }}>
             DU
           </div>
           <div className="w-px h-5 bg-gray-200 mx-1" />
-          {[
+          {embedded && (
+            <>
+              <button
+                title={isMaximized ? 'Restore' : 'Maximize'}
+                onClick={isMaximized ? onMinimize : onMaximize}
+                className="w-8 h-7 flex items-center justify-center rounded transition-colors hover:bg-gray-200 text-gray-600"
+              >
+                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+              <button
+                title="Close Docs"
+                onClick={onClose}
+                className="w-8 h-7 flex items-center justify-center rounded transition-colors hover:bg-red-500 hover:text-white text-gray-600"
+              >
+                <X size={14} />
+              </button>
+            </>
+          )}
+          {!embedded && [
             { Icon: Minimize2, label: 'Minimize', danger: false },
             { Icon: Maximize2, label: 'Maximize', danger: false },
             { Icon: X,         label: 'Close',    danger: true  },
-          // eslint-disable-next-line no-unused-vars
-          ].map(({ Icon: IconComp, label, danger }) => (
+          ].map(({ Icon, label, danger }) => (
             <button key={label} title={label}
               className={`w-8 h-7 flex items-center justify-center rounded transition-colors
                 ${danger ? 'hover:bg-red-500 hover:text-white text-gray-600' : 'hover:bg-gray-200 text-gray-600'}`}>
-              <IconComp size={14} />
+              <Icon size={14} />
             </button>
           ))}
         </div>
       </div>
 
       {/* ── Ribbon tab bar ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between shrink-0 bg-white border-b border-gray-200" style={{ height: '32px' }}>
-        <div className="flex items-stretch h-full">
+      <div className="flex items-center shrink-0 bg-white border-b border-gray-200 overflow-x-auto" style={{ height: '32px' }}>
+        {/* Tabs */}
+        <div className="flex items-stretch h-full shrink-0">
+          {/* File tab — always blue */}
           <button
             onClick={() => setActiveTab('File')}
             className="px-4 h-full flex items-center text-sm font-medium text-white transition-colors shrink-0"
@@ -1536,6 +1324,7 @@ export default function Docs({ embedded = false, documentId = null }) {
           >
             File
           </button>
+          {/* Other tabs */}
           {['Home','Insert','Design','Layout','References','Mailings','Review','View','Help'].map(tab => (
             <button
               key={tab}
@@ -1550,14 +1339,15 @@ export default function Docs({ embedded = false, documentId = null }) {
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5 pr-3">
-          <button onClick={handleAddComment} className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
-            <MessageSquare size={12} /> Comments ({comments.length})
+        {/* Right side: Comments · Editing · Share */}
+        <div className="flex items-center gap-1.5 pr-3 ml-auto shrink-0">
+          <button className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
+            <MessageSquare size={12} /> Comments
           </button>
-          <button onClick={() => { setShowCollaboratorsModal(true); handleLoadCollaborators(); }} className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
+          <button className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
             <Eye size={12} /> Editing <ChevronDown size={10} />
           </button>
-          <button onClick={() => { setShowShareModal(true); handleGenerateShareLink(); }} className="flex items-center gap-1.5 px-3 py-1 text-xs text-white rounded font-medium transition-opacity hover:opacity-90 shrink-0" style={{ backgroundColor: WORD_BLUE }}>
+          <button className="flex items-center gap-1.5 px-3 py-1 text-xs text-white rounded font-medium transition-opacity hover:opacity-90 shrink-0" style={{ backgroundColor: WORD_BLUE }}>
             <Share2 size={12} /> Share
           </button>
         </div>
@@ -1565,7 +1355,7 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       {/* ── Ribbon content ─────────────────────────────────────── */}
       <div
-        className="shrink-0 border-b border-gray-200 overflow-hidden bg-white w-full"
+        className="shrink-0 border-b border-gray-200 overflow-x-auto bg-white w-full"
         style={{ minHeight: '88px' }}
         onClick={() => { setShowFontDrop(false); setShowSizeDrop(false); }}
       >
@@ -1579,16 +1369,18 @@ export default function Docs({ embedded = false, documentId = null }) {
 
       {/* ── Document area ──────────────────────────────────────── */}
       <div
-        className="flex-1 overflow-auto flex flex-col items-center py-6 select-text"
+        className="flex-1 overflow-auto flex flex-col items-center py-6"
         style={{ background: '#e0e0e0' }}
         onClick={() => { setShowFontDrop(false); setShowSizeDrop(false); }}
       >
+        {/* Outer wrapper reserves the scaled space so scrolling works correctly */}
         <div style={{
           width: `${PAPER_W * zoom / 100}px`,
           minHeight: `${PAPER_H * zoom / 100}px`,
           position: 'relative',
           flexShrink: 0,
         }}>
+          {/* Paper — only this element scales with zoom */}
           <div
             style={{
               width: `${PAPER_W}px`,
@@ -1636,6 +1428,7 @@ export default function Docs({ embedded = false, documentId = null }) {
         className="flex items-center justify-between px-3 shrink-0 text-white"
         style={{ backgroundColor: WORD_BLUE, height: '24px', fontSize: '11px' }}
       >
+        {/* Left info */}
         <div className="flex items-center gap-4">
           <span>Page 1 of 1</span>
           <span className="opacity-60">|</span>
@@ -1646,26 +1439,29 @@ export default function Docs({ embedded = false, documentId = null }) {
           <button className="hover:bg-white/15 rounded px-1">Spelling &amp; Grammar Check</button>
         </div>
 
+        {/* Right: zoom + view toggles */}
         <div className="flex items-center gap-2">
+          {/* View mode buttons */}
           <div className="flex items-center gap-1 mr-2">
             {[
               { icon: Eye,        label: 'Read Mode' },
               { icon: FileText,   label: 'Print Layout' },
               { icon: LayoutGrid, label: 'Web Layout' },
-            // eslint-disable-next-line no-unused-vars
-            ].map(({ icon: IconComp, label }) => (
+            ].map(({ icon: Icon, label }) => (
               <button key={label} title={label} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/20">
-                <IconComp size={12} className="text-white" />
+                <Icon size={12} className="text-white" />
               </button>
             ))}
           </div>
 
           <div className="w-px h-3.5 bg-white/30" />
 
+          {/* Zoom control */}
           <div className="flex items-center gap-1">
             <button onClick={() => handleZoom(-10)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/20">
               <ZoomOut size={11} className="text-white" />
             </button>
+            {/* Zoom slider */}
             <div className="relative flex items-center" style={{ width: '80px' }}>
               <div className="w-full h-px bg-white/40" />
               <div
@@ -1685,335 +1481,6 @@ export default function Docs({ embedded = false, documentId = null }) {
           </div>
         </div>
       </div>
-
-      {/* ── Share Link Modal ─────────────────────────────────────── */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96 max-h-96 overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Share Document</h3>
-              <button onClick={() => setShowShareModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Share Link</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={shareLink}
-                  readOnly
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded bg-gray-50"
-                />
-                <button
-                  onClick={handleCopyShareLink}
-                  className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <label className="flex items-center">
-                <input type="checkbox" defaultChecked className="mr-2" />
-                <span className="text-sm">Anyone with the link can view</span>
-              </label>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowShareModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Collaborators Modal ─────────────────────────────────────── */}
-      {showCollaboratorsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96 max-h-96 overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Collaborators</h3>
-              <button onClick={() => setShowCollaboratorsModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-
-            <div className="mb-4 pb-4 border-b">
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="email"
-                  placeholder="Enter email address"
-                  value={newCollaboratorEmail}
-                  onChange={e => setNewCollaboratorEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded"
-                />
-                <select
-                  value={newCollaboratorRole}
-                  onChange={e => setNewCollaboratorRole(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded"
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
-                </select>
-              </div>
-              <button
-                onClick={handleAddCollaborator}
-                className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Add Collaborator
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <h4 className="font-medium mb-2">Current Collaborators</h4>
-              {collaborators.length === 0 ? (
-                <p className="text-sm text-gray-500">No collaborators yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {collaborators.map(collab => (
-                    <div key={collab.user_id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <div>
-                        <p className="text-sm font-medium">{collab.user_id}</p>
-                        <p className="text-xs text-gray-500">{collab.can_edit ? 'Editor' : 'Viewer'}</p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveCollaborator(collab.user_id)}
-                        className="text-red-600 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowCollaboratorsModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Insert Image Modal ─────────────────────────────────────── */}
-      {showImageModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Insert Image</h3>
-              <button onClick={() => setShowImageModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Image URL</label>
-              <input
-                type="text"
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && e.target.value) {
-                    handleInsertImage(e.target.value);
-                    setShowImageModal(false);
-                  }
-                }}
-                id="imageUrl"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  const input = document.getElementById('imageUrl');
-                  if (input.value) {
-                    handleInsertImage(input.value);
-                    setShowImageModal(false);
-                  }
-                }}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Insert
-              </button>
-              <button
-                onClick={() => setShowImageModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Insert Table Modal ─────────────────────────────────────── */}
-      {showTableModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-80">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Insert Table</h3>
-              <button onClick={() => setShowTableModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Rows: <span className="text-blue-600">{tableRows}</span>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={tableRows}
-                onChange={(e) => setTableRows(parseInt(e.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Columns: <span className="text-blue-600">{tableCols}</span>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={tableCols}
-                onChange={(e) => setTableCols(parseInt(e.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  handleInsertTable();
-                  setShowTableModal(false);
-                }}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Insert Table
-              </button>
-              <button
-                onClick={() => setShowTableModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Insert Link Modal ─────────────────────────────────────── */}
-      {showLinkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Insert Link</h3>
-              <button onClick={() => setShowLinkModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">URL</label>
-              <input
-                type="text"
-                placeholder="https://example.com"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Display Text</label>
-              <input
-                type="text"
-                placeholder="Click here"
-                value={linkText}
-                onChange={(e) => setLinkText(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleInsertLink}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Insert Link
-              </button>
-              <button
-                onClick={() => setShowLinkModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Version History Modal ─────────────────────────────────────── */}
-      {showVersionsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96 max-h-96 overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Version History</h3>
-              <button onClick={() => setShowVersionsModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-
-            <button
-              onClick={handleSaveVersion}
-              className="w-full mb-4 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Save Current Version
-            </button>
-
-            {versions.length === 0 ? (
-              <p className="text-sm text-gray-500">No versions yet</p>
-            ) : (
-              <div className="space-y-2">
-                {versions.map((version) => (
-                  <div key={version.id} className="p-3 bg-gray-50 rounded border border-gray-200">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-sm font-medium">Version {version.version_number}</p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(version.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    {version.change_summary && (
-                      <p className="text-xs text-gray-600 mb-2">{version.change_summary}</p>
-                    )}
-                    <button
-                      onClick={() => handleRevertVersion(version.id)}
-                      className="text-blue-600 hover:text-blue-700 text-xs"
-                    >
-                      Revert to this version
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setShowVersionsModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

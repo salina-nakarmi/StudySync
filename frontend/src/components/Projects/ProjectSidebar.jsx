@@ -63,20 +63,12 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function ProjectSidebar({ project, activeTab, onTabChange, isOpen, onToggle }) {
+export default function ProjectSidebar({ project, activeTab, onTabChange }) {
   const navigate = useNavigate();
 
   return (
-    <>
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed top-16 left-0 h-[calc(100vh-64px)] bg-white border-r border-gray-100 z-40
-          flex flex-col transition-all duration-300 ease-in-out overflow-hidden
-          ${isOpen ? "w-44" : "w-0"}
-        `}
-      >
-        <div className="flex flex-col h-full min-w-[176px]">
+    <aside className="fixed top-16 left-0 w-44 h-[calc(100vh-64px)] bg-white border-r border-gray-100 z-40 flex flex-col">
+        <div className="flex flex-col h-full">
           {/* Project Header */}
           <div className="px-4 py-4 border-b border-gray-100">
             <div className="flex items-center gap-2.5">
@@ -108,8 +100,8 @@ export default function ProjectSidebar({ project, activeTab, onTabChange, isOpen
                   className={`
                     w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150
                     ${isActive
-                      ? "bg-sky-400 text-white shadow-sm"
-                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                      ? "bg-gray-800 text-white shadow-sm"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                     }
                   `}
                 >
@@ -129,23 +121,6 @@ export default function ProjectSidebar({ project, activeTab, onTabChange, isOpen
             </button>
           </div>
         </div>
-      </aside>
-
-      {/* Hamburger toggle button — always visible */}
-      <button
-        onClick={onToggle}
-        className={`
-          fixed top-[76px] z-50 w-8 h-8 bg-white border border-gray-200 rounded-lg
-          flex items-center justify-center shadow-sm hover:bg-gray-50 transition-all duration-300
-          ${isOpen ? "left-[152px]" : "left-3"}
-        `}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2.5">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
-    </>
+    </aside>
   );
 }

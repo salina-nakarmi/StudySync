@@ -131,19 +131,36 @@ export const resourceService = {
   // ========================================================================
   // UPDATE - Modify Resource
   // ========================================================================
-  updateResource: async (token, resourceId, updateData) => {
-    const response = await fetch(`${API_BASE}/resources/${resourceId}`, {
-      method: "PATCH",
+  updateProgress: async (token, resourceId, progressData) => {
+    // progressData: { current_page, total_pages, notes }
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/page`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(updateData),
+      body: JSON.stringify({
+        current_page: progressData.current_page,
+        total_pages: progressData.total_pages,
+        notes: progressData.notes ?? null,
+      }),
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Update failed" }));
+      const error = await response.json().catch(() => ({ detail: "Failed to update progress" }));
       throw new Error(error.detail);
+    }
+
+    return response.json();
+  },
+
+  getMyProgress: async (token, resourceId) => {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/page`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch progress");
     }
 
     return response.json();
@@ -170,13 +187,17 @@ export const resourceService = {
   // PROGRESS TRACKING
   // ========================================================================
   updateProgress: async (token, resourceId, progressData) => {
-    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress`, {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/page`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(progressData),
+      body: JSON.stringify({
+        current_page: progressData.current_page,
+        total_pages: progressData.total_pages,
+        notes: progressData.notes ?? null,
+      }),
     });
 
     if (!response.ok) {
@@ -188,7 +209,7 @@ export const resourceService = {
   },
 
   getMyProgress: async (token, resourceId) => {
-    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/me`, {
+    const response = await fetch(`${API_BASE}/resources/${resourceId}/progress/page`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

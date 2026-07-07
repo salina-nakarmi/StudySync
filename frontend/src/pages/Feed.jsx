@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowDownTrayIcon,
@@ -14,142 +14,36 @@ import {
   PaperAirplaneIcon,
   PlusIcon,
   ShareIcon,
-  UserGroupIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import {
   BookmarkIcon as BookmarkIconSolid,
   HeartIcon as HeartIconSolid,
 } from "@heroicons/react/24/solid";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { TrashIcon } from "@heroicons/react/24/outline";
 import Navbar from "../components/Navbar";
+import { communityService } from "../services/community_services";
+import AddPostModal from "../components/AddPostModal";
 
 const MotionArticle = motion.article;
 const MotionDiv = motion.div;
 
-/* ─── Data ─── */
-const communityFilters = ["All", "Resources", "Questions", "Notes", "Groups", "Recent"];
+/* ─── Static UI config ─── */
+const communityFilters = ["All", "Resource", "Question", "Link", "Assignment"];
 
-const recentUploads = [
-  { title: "Operating Systems Unit 4 Notes", meta: "PDF · 8 pages" },
-  { title: "Deadlock prevention summary", meta: "Thread · 14 replies" },
-  { title: "DSA practice link collection", meta: "Web link · 3 saves" },
-];
+const TYPE_META = {
+  resource: { label: "Resource", color: "#2563eb", bg: "#eff6ff" },
+  question: { label: "Question", color: "#d97706", bg: "#fffbeb" },
+  link: { label: "Link", color: "#059669", bg: "#ecfdf5" },
+  assignment: { label: "Assignment", color: "#7c3aed", bg: "#f5f3ff" },
+};
 
-const topContributors = [
-  { name: "Melina", points: "124 contributions", rank: 1 },
-  { name: "Jebisha", points: "98 contributions", rank: 2 },
-  { name: "Kristina", points: "86 contributions", rank: 3 },
-];
-
-const initialPosts = [
-  {
-    id: 1,
-    type: "resource",
-    title: "Operating Systems Unit 4 Notes",
-    text: "Covers deadlock, scheduling, and memory management.",
-    user: "Melina",
-    department: "Computer Science · Operating Systems",
-    time: "12 min ago",
-    community: "Computer Networks",
-    avatar: "SA",
-    fileSize: "4.2 MB",
-    pages: 18,
-    subject: "OS",
-    likes: 42,
-    discussionCount: 11,
-    saves: 24,
-    shares: 7,
-    liked: true,
-    saved: false,
-    comments: [
-      {
-        user: "Rizwan",
-        text: "Can you explain page replacement?",
-        time: "8m",
-        replies: [{ user: "Melina", text: "Look at page 12", time: "6m" }],
-      },
-    ],
-  },
-  {
-    id: 2,
-    type: "question",
-    title: "Can someone explain deadlock prevention simply?",
-    text: "Jebisha asked in the DSA Group community.",
-    user: "Jebisha",
-    department: "Information Technology · Theory",
-    time: "34 min ago",
-    community: "DSA Group",
-    avatar: "AK",
-    likes: 18,
-    discussionCount: 16,
-    saves: 9,
-    shares: 3,
-    liked: false,
-    saved: true,
-    answersPreview: [
-      { user: "Kristina", text: "Avoid at least one of the four conditions for deadlock." },
-      { user: "Salina", text: "Think of it as rules that stop circular waiting." },
-    ],
-    comments: [
-      {
-        user: "Kristina",
-        text: "I usually remember it as: no hold and wait, no circular wait.",
-        time: "22m",
-        replies: [{ user: "Jebisha", text: "That helps a lot, thanks.", time: "20m" }],
-      },
-    ],
-  },
-  {
-    id: 3,
-    type: "link",
-    title: "Best DSA practice resource",
-    text: "I have shared a high-quality practice site with topic-wise problem sets and notes.",
-    user: "Dinisha",
-    department: "Software Engineering · Algorithms",
-    time: "1 hour ago",
-    community: "Flutter Learners",
-    avatar: "EA",
-    linkTitle: "DSA Mastery Practice Hub",
-    linkUrl: "practice.example.com",
-    linkSnippet: "Curated problems for arrays, graphs, and dynamic programming.",
-    likes: 28,
-    discussionCount: 6,
-    saves: 21,
-    shares: 14,
-    liked: false,
-    saved: false,
-    comments: [],
-  },
-  {
-    id: 5,
-    type: "assignment",
-    title: "Database assignment solution attempt",
-    text: "Dinisha uploaded a draft solution and invited suggestions.",
-    user: "Salina",
-    department: "Databases · Assignment support",
-    time: "3 hours ago",
-    community: "Semester Projects",
-    avatar: "DU",
-    likes: 35,
-    discussionCount: 19,
-    saves: 17,
-    shares: 5,
-    liked: true,
-    saved: false,
-    comments: [
-      {
-        user: "Jebisha",
-        text: "Your relational diagram looks solid. Check normalization on page 2.",
-        time: "1h",
-        replies: [{ user: "Salina", text: "Noted. I will revise that section.", time: "58m" }],
-      },
-    ],
-  },
-];
+const AVATAR_COLORS = ["#1e3a5f", "#1a3a2a", "#3a1a2a", "#1a1a3a", "#3a2a1a"];
 
 /* ─── Helpers ─── */
 const getInitials = (name) =>
-  name
+  (name || "?")
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
@@ -157,18 +51,43 @@ const getInitials = (name) =>
     .join("")
     .toUpperCase();
 
-const TYPE_META = {
-  resource: { label: "Resource", color: "#2563eb", bg: "#eff6ff" },
-  question: { label: "Question", color: "#d97706", bg: "#fffbeb" },
-  link: { label: "Link", color: "#059669", bg: "#ecfdf5" },
-  assignment: { label: "Assignment", color: "#7c3aed", bg: "#f5f3ff" },
-  group: { label: "Group", color: "#db2777", bg: "#fdf2f8" },
+const avatarColor = (name) =>
+  AVATAR_COLORS[(name || "?").charCodeAt(0) % AVATAR_COLORS.length];
+
+const getAuthorName = (author) => {
+  if (!author) return "Unknown";
+  return author.username || `${author.first_name || ""} ${author.last_name || ""}`.trim() || "Unknown";
 };
 
-const AVATAR_COLORS = [
-  "#1e3a5f", "#1a3a2a", "#3a1a2a", "#1a1a3a", "#3a2a1a",
-];
-const avatarColor = (name) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+// Adjust these two field names if your API uses different keys for the
+// author/owner id on posts and comments (e.g. post.author.id vs post.user_id).
+const isPostOwner = (post, currentUserId) =>
+  !!currentUserId && post.author?.user_id === currentUserId;
+
+const isCommentOwner = (comment, currentUserId) =>
+  !!currentUserId && comment.author?.user_id === currentUserId;
+
+const formatRelativeTime = (value) => {
+  if (!value) return "";
+  // If the backend sends a timestamp with no timezone info (no trailing Z,
+  // no +HH:MM/-HH:MM offset), JS's Date constructor assumes it's LOCAL time.
+  // If the backend actually meant UTC (very common), this silently shifts
+  // every timestamp by your local UTC offset - e.g. showing "6h ago" for
+  // something that just happened, for a user at UTC+5:45.
+  // Normalize: if there's no zone info, treat it as UTC explicitly.
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(value);
+  const date = new Date(hasZone ? value : `${value}Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+  return date.toLocaleDateString();
+};
 
 /* ─── Styles (scoped via className prefix "cm-") ─── */
 const injectStyles = () => {
@@ -195,13 +114,14 @@ const injectStyles = () => {
     }
     .cm-btn-dark { background: #0f172a; color: #fff; }
     .cm-btn-dark:hover { background: #1e293b; }
+    .cm-btn-dark:disabled { opacity: 0.5; cursor: not-allowed; }
     .cm-btn-ghost { background: transparent; color: #475569; border: 1px solid #e2e8f0; }
     .cm-btn-ghost:hover { background: #fff; }
-    .cm-btn-active { background: #0f172a; color: #fff; }
     .cm-reaction { display: inline-flex; align-items: center; gap: 6px;
       padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; cursor: pointer;
       border: 1px solid #e2e8f0; transition: all 0.15s ease; background: transparent; color: #475569; }
     .cm-reaction:hover { background: #fff; }
+    .cm-reaction:disabled { opacity: 0.6; cursor: not-allowed; }
     .cm-reaction-active-like { background: #fff1f2; color: #e11d48; border-color: #fecdd3; }
     .cm-reaction-active-save { background: #0f172a; color: #fff; border-color: #0f172a; }
     .cm-input {
@@ -210,7 +130,6 @@ const injectStyles = () => {
       outline: none; transition: border-color 0.15s ease; background: #fff; color: #0f172a;
     }
     .cm-input:focus { border-color: #94a3b8; }
-    .cm-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
     .cm-avatar {
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%; font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: 0.5px;
@@ -227,268 +146,315 @@ const injectStyles = () => {
   document.head.appendChild(el);
 };
 
-/* ─── Component ─── */
-const Communities = () => {
-  injectStyles();
+/* ══════════════════════════════════════════════════════════════
+   All of the components below are declared OUTSIDE Communities().
+   This is what actually fixes the "input loses focus / post
+   flickers on every keystroke" bug: if they were declared inside
+   Communities(), a new function identity was created for each of
+   them on every render, which made React unmount + remount the
+   whole subtree (including the <input>) instead of just updating
+   it. Because they're now stable top-level components, they take
+   everything they need as props instead of closing over state.
+   ══════════════════════════════════════════════════════════════ */
 
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [query, setQuery] = useState("");
-  const [posts, setPosts] = useState([]);
-  const [expandedPosts, setExpandedPosts] = useState([1, 2]);
+/* ── PostHeader ── */
+const PostHeader = ({ post, currentUserId, onDeletePost }) => {
+  const typeMeta = TYPE_META[post.post_type] || TYPE_META.resource;
+  const authorName = getAuthorName(post.author);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const canDelete = isPostOwner(post, currentUserId);
+  const menuRef = useRef(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setPosts(initialPosts), 120);
-    return () => clearTimeout(t);
-  }, []);
+    if (!menuOpen) return;
+    const onClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [menuOpen]);
 
-  const visiblePosts = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return posts.filter((post) => {
-      const matchFilter =
-        activeFilter === "All" || post.type === activeFilter.toLowerCase();
-      const text = [post.title, post.text, post.user, post.community, post.department]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return matchFilter && (!q || text.includes(q));
-    });
-  }, [activeFilter, posts, query]);
-
-  const toggleReaction = (postId, field) => {
-    setPosts((cur) =>
-      cur.map((p) => {
-        if (p.id !== postId) return p;
-        return {
-          ...p,
-          liked: field === "liked" ? !p.liked : p.liked,
-          saved: field === "saved" ? !p.saved : p.saved,
-          likes: field === "liked" ? p.likes + (p.liked ? -1 : 1) : p.likes,
-        };
-      })
-    );
-  };
-
-  const toggleDiscussion = (postId) => {
-    setExpandedPosts((cur) =>
-      cur.includes(postId) ? cur.filter((x) => x !== postId) : [...cur, postId]
-    );
-  };
-
-  /* ── PostHeader ── */
-  const PostHeader = ({ post }) => {
-    const typeMeta = TYPE_META[post.type] || TYPE_META.resource;
-    return (
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <div
-              className="cm-avatar"
-              style={{ width: 44, height: 44, fontSize: 13, background: avatarColor(post.user) }}
-            >
-              {post.avatar || getInitials(post.user)}
-            </div>
-            <span
-              style={{
-                position: "absolute", bottom: 0, right: 0,
-                width: 11, height: 11, borderRadius: "50%",
-                background: "#22c55e", border: "2px solid #fff",
-              }}
-            />
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div
+            className="cm-avatar"
+            style={{ width: 44, height: 44, fontSize: 13, background: avatarColor(authorName) }}
+          >
+            {getInitials(authorName)}
           </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
-              <span style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>{post.user}</span>
-              <span style={{ color: "#cbd5e1", fontSize: 13 }}>·</span>
-              <span style={{ fontSize: 13, color: "#64748b" }}>{post.department}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span style={{ fontSize: 12, color: "#94a3b8" }}>{post.time}</span>
-              <span
-                className="cm-pill"
-                style={{ background: typeMeta.bg, color: typeMeta.color, padding: "3px 10px", fontSize: 11 }}
-              >
-                {typeMeta.label}
-              </span>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
+            <span style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>{authorName}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{formatRelativeTime(post.created_at)}</span>
+            <span
+              className="cm-pill"
+              style={{ background: typeMeta.bg, color: typeMeta.color, padding: "3px 10px", fontSize: 11 }}
+            >
+              {typeMeta.label}
+            </span>
+            {post.community_name && (
               <span
                 className="cm-pill"
                 style={{ background: "#fff", color: "#64748b", border: "1px solid #e2e8f0", padding: "3px 10px", fontSize: 11 }}
               >
-                {post.community}
+                {post.community_name}
               </span>
-            </div>
+            )}
           </div>
         </div>
-        <button
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "#94a3b8", padding: 6, borderRadius: "50%",
-            transition: "background 0.15s",
-          }}
-        >
-          <EllipsisHorizontalIcon style={{ width: 20, height: 20 }} />
-        </button>
       </div>
-    );
-  };
 
-  /* ── ReactionBar ── */
-  const ReactionBar = ({ post }) => (
-    <div
-      style={{
-        display: "flex", flexWrap: "wrap", alignItems: "center",
-        justifyContent: "space-between", gap: 8, paddingTop: 16,
-        borderTop: "1px solid #f1f5f9", marginTop: 20,
-      }}
-    >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <button
-          onClick={() => toggleReaction(post.id, "liked")}
-          className={`cm-reaction ${post.liked ? "cm-reaction-active-like" : ""}`}
-        >
-          {post.liked
-            ? <HeartIconSolid style={{ width: 15, height: 15 }} />
-            : <HeartIcon style={{ width: 15, height: 15 }} />}
-          {post.type === "question" ? "Upvote" : "Like"}
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{post.likes}</span>
-        </button>
-        <button
-          onClick={() => toggleDiscussion(post.id)}
-          className="cm-reaction"
-        >
-          <ChatBubbleLeftRightIcon style={{ width: 15, height: 15 }} />
-          {post.type === "resource" ? "Discuss" : "Comment"}
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{post.discussionCount}</span>
-        </button>
-        <button className="cm-reaction">
-          <ShareIcon style={{ width: 15, height: 15 }} />
-          Share
-        </button>
-      </div>
-      <button
-        onClick={() => toggleReaction(post.id, "saved")}
-        className={`cm-reaction ${post.saved ? "cm-reaction-active-save" : ""}`}
-      >
-        {post.saved
-          ? <BookmarkIconSolid style={{ width: 15, height: 15 }} />
-          : <BookmarkIcon style={{ width: 15, height: 15 }} />}
-        Save
-        <span style={{ fontSize: 12, fontWeight: 600 }}>{post.saves}</span>
-      </button>
+      {canDelete && (
+        <div style={{ position: "relative" }} ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "#94a3b8", padding: 6, borderRadius: "50%",
+            }}
+          >
+            <EllipsisHorizontalIcon style={{ width: 20, height: 20 }} />
+          </button>
+          {menuOpen && (
+            <div
+              style={{
+                position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 10,
+                background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.1)", minWidth: 140, overflow: "hidden",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeletePost(post.id);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "10px 14px", background: "none", border: "none",
+                  cursor: "pointer", color: "#dc2626", fontSize: 13, fontWeight: 500,
+                }}
+              >
+                <TrashIcon style={{ width: 15, height: 15 }} />
+                Delete post
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
+};
 
-  /* ── DiscussionSection ── */
-  const DiscussionSection = ({ post }) => {
-    const isExpanded = expandedPosts.includes(post.id);
-    if (!post.comments?.length && !isExpanded) return null;
+/* ── ReactionBar ── */
+const ReactionBar = ({ post, onToggleReaction, onToggleDiscussion, onShare }) => (
+  <div
+    style={{
+      display: "flex", flexWrap: "wrap", alignItems: "center",
+      justifyContent: "space-between", gap: 8, paddingTop: 16,
+      borderTop: "1px solid #f1f5f9", marginTop: 20,
+    }}
+  >
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <button
+        onClick={() => onToggleReaction(post.id, "liked")}
+        className={`cm-reaction ${post.liked_by_me ? "cm-reaction-active-like" : ""}`}
+      >
+        {post.liked_by_me
+          ? <HeartIconSolid style={{ width: 15, height: 15 }} />
+          : <HeartIcon style={{ width: 15, height: 15 }} />}
+        {post.post_type === "question" ? "Upvote" : "Like"}
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{post.like_count}</span>
+      </button>
+      <button onClick={() => onToggleDiscussion(post.id)} className="cm-reaction">
+        <ChatBubbleLeftRightIcon style={{ width: 15, height: 15 }} />
+        {post.post_type === "resource" ? "Discuss" : "Comment"}
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{post.comment_count}</span>
+      </button>
+      <button className="cm-reaction" onClick={() => onShare(post.id)}>
+        <ShareIcon style={{ width: 15, height: 15 }} />
+        Share
+        {post.share_count > 0 && (
+          <span style={{ fontSize: 12, fontWeight: 600 }}>{post.share_count}</span>
+        )}
+      </button>
+    </div>
+    <button
+      onClick={() => onToggleReaction(post.id, "saved")}
+      className={`cm-reaction ${post.saved_by_me ? "cm-reaction-active-save" : ""}`}
+    >
+      {post.saved_by_me
+        ? <BookmarkIconSolid style={{ width: 15, height: 15 }} />
+        : <BookmarkIcon style={{ width: 15, height: 15 }} />}
+      Save
+      <span style={{ fontSize: 12, fontWeight: 600 }}>{post.save_count}</span>
+    </button>
+  </div>
+);
 
-    return (
-      <div style={{ marginTop: 16 }}>
-        <button
-          onClick={() => toggleDiscussion(post.id)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            width: "100%", background: "#fff", border: "1px solid #e2e8f0",
-            borderRadius: 14, padding: "10px 16px", cursor: "pointer",
-          }}
-        >
-          <div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Discussion
-            </span>
-            <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>
-              {post.comments.length} thread{post.comments.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          {isExpanded
-            ? <ChevronUpIcon style={{ width: 16, height: 16, color: "#94a3b8" }} />
-            : <ChevronDownIcon style={{ width: 16, height: 16, color: "#94a3b8" }} />}
-        </button>
-
-        <AnimatePresence>
-          {isExpanded && (
-            <MotionDiv
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                {post.comments.map((comment) => (
-                  <div
-                    key={`${post.id}-${comment.user}`}
-                    style={{
-                      background: "#fff", border: "1px solid #e2e8f0",
-                      borderRadius: 14, padding: 16,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <div
-                        className="cm-avatar"
-                        style={{ width: 34, height: 34, fontSize: 11, background: avatarColor(comment.user) }}
-                      >
-                        {getInitials(comment.user)}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{comment.user}</span>
-                          <span style={{ fontSize: 11, color: "#94a3b8" }}>{comment.time}</span>
-                        </div>
-                        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-                          {comment.text}
-                        </p>
-                      </div>
-                    </div>
-
-                    {comment.replies?.length > 0 && (
-                      <div style={{ marginTop: 10, paddingLeft: 16, borderLeft: "2px solid #f1f5f9", display: "flex", flexDirection: "column", gap: 8 }}>
-                        {comment.replies.map((reply) => (
-                          <div
-                            key={`${reply.user}-${reply.time}`}
-                            style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 12px" }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>{reply.user}</span>
-                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{reply.time}</span>
-                            </div>
-                            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>{reply.text}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                <div className="cm-thread-input-wrap">
-                  <div
-                    className="cm-avatar"
-                    style={{ width: 30, height: 30, fontSize: 10, background: "#1e293b" }}
-                  >
-                    You
-                  </div>
-                  <input className="cm-thread-input" placeholder="Add a reply…" />
-                  <button className="cm-btn cm-btn-dark" style={{ padding: "6px 14px" }}>
-                    <PaperAirplaneIcon style={{ width: 14, height: 14 }} />
-                    Reply
-                  </button>
-                </div>
-              </div>
-            </MotionDiv>
-          )}
-        </AnimatePresence>
+/* ── Comment (recursive, one level of replies from backend) ── */
+const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
+  <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+      <div
+        className="cm-avatar"
+        style={{ width: 34, height: 34, fontSize: 11, background: avatarColor(getAuthorName(comment.author)) }}
+      >
+        {getInitials(getAuthorName(comment.author))}
       </div>
-    );
-  };
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+              {getAuthorName(comment.author)}
+            </span>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatRelativeTime(comment.created_at)}</span>
+          </div>
+          {isCommentOwner(comment, currentUserId) && (
+            <button
+              onClick={() => onDeleteComment(comment.id)}
+              title="Delete comment"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#cbd5e1", padding: 4, borderRadius: 6, flexShrink: 0,
+                display: "flex", alignItems: "center",
+              }}
+            >
+              <TrashIcon style={{ width: 14, height: 14 }} />
+            </button>
+          )}
+        </div>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          {comment.text}
+        </p>
+      </div>
+    </div>
 
-  /* ── Post body renderers ── */
-  const renderResource = (post) => (
-    <div
+    {comment.replies?.length > 0 && (
+      <div style={{ marginTop: 10, paddingLeft: 16, borderLeft: "2px solid #f1f5f9", display: "flex", flexDirection: "column", gap: 8 }}>
+        {comment.replies.map((reply) => (
+          <div
+            key={reply.id}
+            style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 12px" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                {getAuthorName(reply.author)}
+              </span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatRelativeTime(reply.created_at)}</span>
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>{reply.text}</p>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+/* ── DiscussionSection ── */
+const DiscussionSection = ({
+  post,
+  isExpanded,
+  postComments,
+  isLoadingComments,
+  replyDraft,
+  isSendingReply,
+  currentUserId,
+  onToggleDiscussion,
+  onReplyChange,
+  onSendReply,
+  onDeleteComment,
+}) => (
+  <div style={{ marginTop: 16 }}>
+    <button
+      onClick={() => onToggleDiscussion(post.id)}
       style={{
-        marginTop: 16, display: "grid",
-        gridTemplateColumns: "140px 1fr", gap: 14,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        width: "100%", background: "#fff", border: "1px solid #e2e8f0",
+        borderRadius: 14, padding: "10px 16px", cursor: "pointer",
       }}
     >
+      <div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Discussion</span>
+        <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>
+          {post.comment_count} thread{post.comment_count !== 1 ? "s" : ""}
+        </span>
+      </div>
+      {isExpanded
+        ? <ChevronUpIcon style={{ width: 16, height: 16, color: "#94a3b8" }} />
+        : <ChevronDownIcon style={{ width: 16, height: 16, color: "#94a3b8" }} />}
+    </button>
+
+    <AnimatePresence>
+      {isExpanded && (
+        <MotionDiv
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          style={{ overflow: "hidden" }}
+        >
+          <div style={{ paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            {isLoadingComments ? (
+              <p style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>
+                Loading comments...
+              </p>
+            ) : postComments.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>
+                No comments yet. Be the first to reply.
+              </p>
+            ) : (
+              postComments.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  currentUserId={currentUserId}
+                  onDeleteComment={(commentId) => onDeleteComment(post.id, commentId)}
+                />
+              ))
+            )}
+
+            <div className="cm-thread-input-wrap">
+              <div className="cm-avatar" style={{ width: 30, height: 30, fontSize: 10, background: "#1e293b" }}>
+                You
+              </div>
+              <input
+                className="cm-thread-input"
+                placeholder="Add a reply…"
+                value={replyDraft}
+                onChange={(e) => onReplyChange(post.id, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSendReply(post.id, replyDraft);
+                }}
+              />
+              <button
+                className="cm-btn cm-btn-dark"
+                style={{ padding: "6px 14px" }}
+                onClick={() => onSendReply(post.id, replyDraft)}
+                disabled={isSendingReply || !replyDraft.trim()}
+              >
+                <PaperAirplaneIcon style={{ width: 14, height: 14 }} />
+                {isSendingReply ? "Sending..." : "Reply"}
+              </button>
+            </div>
+          </div>
+        </MotionDiv>
+      )}
+    </AnimatePresence>
+  </div>
+);
+
+/* ── Post body renderers ── */
+const ResourceBlock = ({ post, onToggleReaction }) => {
+  const resource = post.resource;
+  const fileLabel = resource?.resource_type?.toUpperCase() || "FILE";
+
+  return (
+    <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "140px 1fr", gap: 14 }}>
       <div
         style={{
           background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
@@ -497,30 +463,31 @@ const Communities = () => {
         }}
       >
         <DocumentTextIcon style={{ width: 36, height: 36, color: "rgba(255,255,255,0.9)" }} />
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em" }}>PDF</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{post.fileSize}</span>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em" }}>{fileLabel}</span>
       </div>
       <div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {[`${post.pages} pages`, `${post.fileSize}`, post.subject].map((tag) => (
-            <span
-              key={tag}
-              style={{
-                background: "#f1f5f9", color: "#475569", fontSize: 11,
-                fontWeight: 500, padding: "3px 10px", borderRadius: 999,
-              }}
-            >
-              {tag}
+          {resource?.total_pages && (
+            <span style={{ background: "#f1f5f9", color: "#475569", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999 }}>
+              {resource.total_pages} pages
             </span>
-          ))}
+          )}
+          {resource?.file_size && (
+            <span style={{ background: "#f1f5f9", color: "#475569", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999 }}>
+              {(resource.file_size / (1024 * 1024)).toFixed(1)} MB
+            </span>
+          )}
         </div>
         <p style={{ margin: "0 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button className="cm-btn cm-btn-dark">
+          <button
+            className="cm-btn cm-btn-dark"
+            onClick={() => resource?.url && window.open(resource.url, "_blank")}
+          >
             <ArrowDownTrayIcon style={{ width: 14, height: 14 }} />
-            Download
+            {resource ? "View Resource" : "Resource unavailable"}
           </button>
-          <button className="cm-btn cm-btn-ghost">
+          <button className="cm-btn cm-btn-ghost" onClick={() => onToggleReaction(post.id, "saved")}>
             <BookmarkIcon style={{ width: 14, height: 14 }} />
             Save
           </button>
@@ -528,52 +495,50 @@ const Communities = () => {
       </div>
     </div>
   );
+};
 
-  const renderQuestion = (post) => (
-    <div
-      style={{
-        marginTop: 16, background: "#fff",
-        border: "1px solid #e2e8f0", borderRadius: 14, padding: 16,
-      }}
-    >
+const QuestionBlock = ({ post, postComments, onToggleDiscussion, onToggleReaction }) => {
+  const previewAnswers = postComments.slice(0, 2);
+
+  return (
+    <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
       <span style={{ fontSize: 11, fontWeight: 600, color: "#d97706", letterSpacing: "0.08em", textTransform: "uppercase" }}>
         Question
       </span>
-      <p style={{ margin: "8px 0 12px", fontSize: 15, fontWeight: 600, color: "#0f172a" }}>{post.title}</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Top answers
-        </p>
-        {post.answersPreview.map((answer) => (
-          <div
-            key={answer.user}
-            style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 14px" }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>{answer.user} </span>
-            <span style={{ fontSize: 13, color: "#475569" }}>{answer.text}</span>
-          </div>
-        ))}
-      </div>
+      <p style={{ margin: "8px 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
+
+      {previewAnswers.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Top answers
+          </p>
+          {previewAnswers.map((answer) => (
+            <div key={answer.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 14px" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>{getAuthorName(answer.author)} </span>
+              <span style={{ fontSize: 13, color: "#475569" }}>{answer.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button className="cm-btn cm-btn-dark">
+        <button className="cm-btn cm-btn-dark" onClick={() => onToggleDiscussion(post.id)}>
           <ChatBubbleLeftRightIcon style={{ width: 14, height: 14 }} />
           Answer
         </button>
-        <button className="cm-btn cm-btn-ghost">
+        <button className="cm-btn cm-btn-ghost" onClick={() => onToggleReaction(post.id, "liked")}>
           <HeartIcon style={{ width: 14, height: 14 }} />
           Upvote
         </button>
       </div>
     </div>
   );
+};
 
-  const renderLink = (post) => (
-    <div
-      style={{
-        marginTop: 16, background: "#fff",
-        border: "1px solid #e2e8f0", borderRadius: 14, padding: 16,
-      }}
-    >
+const LinkBlock = ({ post, onToggleReaction }) => {
+  const data = post.type_data || {};
+  return (
+    <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
         <div
           style={{
@@ -584,126 +549,163 @@ const Communities = () => {
           <LinkIcon style={{ width: 20, height: 20, color: "#fff" }} />
         </div>
         <div>
-          <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{post.linkTitle}</p>
-          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#059669" }}>{post.linkUrl}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>{post.linkSnippet}</p>
+          <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{data.link_title}</p>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#059669" }}>{data.link_url}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>{data.link_snippet}</p>
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button className="cm-btn cm-btn-dark">Open Link</button>
-        <button className="cm-btn cm-btn-ghost">Save</button>
-      </div>
-    </div>
-  );
-
-  const renderAssignment = (post) => (
-    <div
-      style={{
-        marginTop: 16, background: "#fff",
-        border: "1px solid #e2e8f0", borderRadius: 14, padding: 16,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-        <div
-          style={{
-            width: 44, height: 44, borderRadius: 12, background: "#6d28d9",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        <button
+          className="cm-btn cm-btn-dark"
+          onClick={() => {
+            const url = data.link_url?.startsWith("http") ? data.link_url : `https://${data.link_url}`;
+            window.open(url, "_blank");
           }}
         >
-          <DocumentTextIcon style={{ width: 20, height: 20, color: "#fff" }} />
-        </div>
-        <div>
-          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{post.title}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#4c1d95", lineHeight: 1.6 }}>{post.text}</p>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button className="cm-btn cm-btn-dark">Comment</button>
-        <button className="cm-btn cm-btn-ghost">Suggest Edits</button>
+          Open Link
+        </button>
+        <button className="cm-btn cm-btn-ghost" onClick={() => onToggleReaction(post.id, "saved")}>
+          Save
+        </button>
       </div>
     </div>
   );
+};
 
-  /* ── PostCard ── */
-  const PostCard = ({ post }) => (
-    <MotionArticle
-      className="cm-card"
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.1 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-    >
-      <PostHeader post={post} />
-      <div style={{ marginTop: 16 }}>
-        <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>
-          {post.title}
-        </p>
-      </div>
-      {post.type === "resource" && renderResource(post)}
-      {post.type === "question" && renderQuestion(post)}
-      {post.type === "link" && renderLink(post)}
-      {post.type === "assignment" && renderAssignment(post)}
-      <ReactionBar post={post} />
-      <DiscussionSection post={post} />
-    </MotionArticle>
-  );
-
-  /* ── Sidebar ── */
-  const Sidebar = () => (
-    <aside
-      style={{
-        display: "flex", flexDirection: "column", gap: 16,
-        position: "sticky", top: 96,
-      }}
-    >
-      {/* Recent Uploads */}
+const AssignmentBlock = ({ post, onToggleDiscussion }) => (
+  <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
       <div
         style={{
-          background: "#fff", border: "1px solid #e8eaed",
-          borderRadius: 20, padding: 24, overflow: "hidden",
+          width: 44, height: 44, borderRadius: 12, background: "#6d28d9",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Recent Uploads
-          </span>
-          <DocumentTextIcon style={{ width: 16, height: 16, color: "#cbd5e1" }} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {recentUploads.map((item, i) => (
+        <DocumentTextIcon style={{ width: 20, height: 20, color: "#fff" }} />
+      </div>
+      <div>
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{post.title}</p>
+        <p style={{ margin: 0, fontSize: 13, color: "#4c1d95", lineHeight: 1.6 }}>{post.text}</p>
+      </div>
+    </div>
+    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <button className="cm-btn cm-btn-dark" onClick={() => onToggleDiscussion(post.id)}>
+        Comment
+      </button>
+    </div>
+  </div>
+);
+
+/* ── PostCard ── */
+const PostCard = ({
+  post,
+  isExpanded,
+  postComments,
+  isLoadingComments,
+  replyDraft,
+  isSendingReply,
+  currentUserId,
+  onToggleReaction,
+  onToggleDiscussion,
+  onShare,
+  onReplyChange,
+  onSendReply,
+  onDeletePost,
+  onDeleteComment,
+}) => (
+  <MotionArticle
+    className="cm-card"
+    initial={{ opacity: 0, y: 16 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.1 }}
+    transition={{ duration: 0.4, ease: "easeOut" }}
+  >
+    <PostHeader post={post} currentUserId={currentUserId} onDeletePost={onDeletePost} />
+    <div style={{ marginTop: 16 }}>
+      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>
+        {post.title}
+      </p>
+    </div>
+    {post.post_type === "resource" && (
+      <ResourceBlock post={post} onToggleReaction={onToggleReaction} />
+    )}
+    {post.post_type === "question" && (
+      <QuestionBlock
+        post={post}
+        postComments={postComments}
+        onToggleDiscussion={onToggleDiscussion}
+        onToggleReaction={onToggleReaction}
+      />
+    )}
+    {post.post_type === "link" && (
+      <LinkBlock post={post} onToggleReaction={onToggleReaction} />
+    )}
+    {post.post_type === "assignment" && (
+      <AssignmentBlock post={post} onToggleDiscussion={onToggleDiscussion} />
+    )}
+    <ReactionBar
+      post={post}
+      onToggleReaction={onToggleReaction}
+      onToggleDiscussion={onToggleDiscussion}
+      onShare={onShare}
+    />
+    <DiscussionSection
+      post={post}
+      isExpanded={isExpanded}
+      postComments={postComments}
+      isLoadingComments={isLoadingComments}
+      replyDraft={replyDraft}
+      isSendingReply={isSendingReply}
+      currentUserId={currentUserId}
+      onToggleDiscussion={onToggleDiscussion}
+      onReplyChange={onReplyChange}
+      onSendReply={onSendReply}
+      onDeleteComment={onDeleteComment}
+    />
+  </MotionArticle>
+);
+
+/* ── Sidebar ── */
+const Sidebar = ({ recentUploads, topContributors }) => (
+  <aside style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 96 }}>
+    <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 20, padding: 24, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Recent Uploads
+        </span>
+        <DocumentTextIcon style={{ width: 16, height: 16, color: "#cbd5e1" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {recentUploads.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#94a3b8" }}>No uploads yet.</p>
+        ) : (
+          recentUploads.map((item, i) => (
             <div
-              key={item.title}
-              style={{
-                padding: "12px 0",
-                borderBottom: i < recentUploads.length - 1 ? "1px solid #f1f5f9" : "none",
-              }}
+              key={item.post_id}
+              style={{ padding: "12px 0", borderBottom: i < recentUploads.length - 1 ? "1px solid #f1f5f9" : "none" }}
             >
-              <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
-                {item.title}
-              </p>
+              <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{item.title}</p>
               <p style={{ margin: 0, fontSize: 11, color: "#94a3b8" }}>{item.meta}</p>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
+    </div>
 
-      {/* Top Contributors */}
-      <div
-        style={{
-          background: "#fff", border: "1px solid #e8eaed",
-          borderRadius: 20, padding: 24,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Top Contributors
-          </span>
-          <UsersIcon style={{ width: 16, height: 16, color: "#cbd5e1" }} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {topContributors.map((c) => (
+    <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 20, padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Top Contributors
+        </span>
+        <UsersIcon style={{ width: 16, height: 16, color: "#cbd5e1" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {topContributors.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#94a3b8" }}>Not enough activity yet.</p>
+        ) : (
+          topContributors.map((c) => (
             <div
-              key={c.name}
+              key={c.user_id}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "10px 14px", borderRadius: 12,
@@ -713,58 +715,267 @@ const Communities = () => {
             >
               <div>
                 <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600, color: c.rank === 1 ? "#fff" : "#1e293b" }}>
-                  {c.name}
+                  {c.username}
                 </p>
                 <p style={{ margin: 0, fontSize: 11, color: c.rank === 1 ? "rgba(255,255,255,0.55)" : "#94a3b8" }}>
-                  {c.points}
+                  {c.contributions} contribution{c.contributions !== 1 ? "s" : ""}
                 </p>
               </div>
               <div
                 className="cm-avatar"
                 style={{
                   width: 34, height: 34, fontSize: 12,
-                  background: c.rank === 1 ? "rgba(255,255,255,0.15)" : avatarColor(c.name),
+                  background: c.rank === 1 ? "rgba(255,255,255,0.15)" : avatarColor(c.username),
                 }}
               >
-                {getInitials(c.name)}
+                {getInitials(c.username)}
               </div>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
-    </aside>
-  );
+    </div>
+  </aside>
+);
+
+/* ─── Component ─── */
+const Communities = () => {
+  injectStyles();
+  const { getToken } = useAuth();
+  const { user } = useUser();
+  const currentUserId = user?.id;
+  console.log("currentUserId:", currentUserId);
+
+  const [addPostModalOpen, setAddPostModalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [query, setQuery] = useState("");
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [expandedPosts, setExpandedPosts] = useState([]);
+  const [comments, setComments] = useState({}); // { [postId]: CommentResponse[] }
+  const [commentsLoading, setCommentsLoading] = useState({});
+  const [replyDrafts, setReplyDrafts] = useState({}); // { [postId]: string }
+  const [replySending, setReplySending] = useState({});
+
+  const [recentUploads, setRecentUploads] = useState([]);
+  const [topContributors, setTopContributors] = useState([]);
+
+  const reactionInFlight = useRef({}); // guards double-click spam per post/action
+
+  /* ── Discussion / comments (declared early so fetchPosts can use loadComments) ── */
+  const loadComments = useCallback(async (postId) => {
+    setCommentsLoading((cur) => ({ ...cur, [postId]: true }));
+    try {
+      const token = await getToken();
+      const data = await communityService.getComments(token, postId);
+      setComments((cur) => ({ ...cur, [postId]: Array.isArray(data) ? data : [] }));
+    } catch (err) {
+      console.error("Failed to load comments", err);
+      setComments((cur) => ({ ...cur, [postId]: [] }));
+    } finally {
+      setCommentsLoading((cur) => ({ ...cur, [postId]: false }));
+    }
+  }, [getToken]);
+
+  /* ── Fetch feed ── */
+  const fetchPosts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const token = await getToken();
+
+      const params = { skip: 0, limit: 50 };
+      if (activeFilter !== "All") params.postType = activeFilter.toLowerCase();
+      if (query.trim()) params.search = query.trim();
+
+      const data = await communityService.getPosts(token, params);
+      const fetchedPosts = Array.isArray(data?.posts) ? data.posts : [];
+      setPosts(fetchedPosts);
+      console.log("sample post:", JSON.stringify(fetchedPosts[0], null, 2));
+
+      // Eagerly load comments for question posts so answer previews show immediately
+      const questionPosts = fetchedPosts.filter((p) => p.post_type === "question");
+      questionPosts.forEach((p) => {
+        setComments((cur) => {
+          if (cur[p.id] === undefined) loadComments(p.id);
+          return cur;
+        });
+      });
+    } catch (err) {
+      setError(err.message || "Failed to load posts");
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeFilter, query, getToken, loadComments]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchPosts, 300);
+    return () => clearTimeout(timer);
+  }, [fetchPosts]);
+
+  /* ── Fetch sidebar data once ── */
+  useEffect(() => {
+    const loadSidebar = async () => {
+      try {
+        const token = await getToken();
+        const [uploads, contributors] = await Promise.all([
+          communityService.getRecentUploads(token, 5),
+          communityService.getTopContributors(token, 3),
+        ]);
+        setRecentUploads(Array.isArray(uploads) ? uploads : []);
+        setTopContributors(Array.isArray(contributors) ? contributors : []);
+      } catch (err) {
+        console.error("Failed to load sidebar data", err);
+      }
+    };
+    loadSidebar();
+  }, [getToken]);
+
+  const visiblePosts = posts; // filtering/search now happens server-side
+
+  /* ── Reactions ── */
+  const toggleReaction = useCallback(async (postId, field) => {
+    const flightKey = `${postId}-${field}`;
+    if (reactionInFlight.current[flightKey]) return;
+    reactionInFlight.current[flightKey] = true;
+
+    try {
+      const token = await getToken();
+      const action =
+        field === "liked" ? communityService.toggleLike : communityService.toggleSave;
+      const result = await action(token, postId);
+
+      setPosts((cur) =>
+        cur.map((p) => {
+          if (p.id !== postId) return p;
+          if (field === "liked") {
+            return { ...p, liked_by_me: result.active, like_count: result.like_count ?? p.like_count };
+          }
+          return { ...p, saved_by_me: result.active, save_count: result.save_count ?? p.save_count };
+        })
+      );
+    } catch (err) {
+      console.error(`Failed to toggle ${field}`, err);
+    } finally {
+      reactionInFlight.current[flightKey] = false;
+    }
+  }, [getToken]);
+
+  const handleShare = useCallback(async (postId) => {
+    try {
+      const token = await getToken();
+      const result = await communityService.sharePost(token, postId);
+      setPosts((cur) =>
+        cur.map((p) => (p.id === postId ? { ...p, share_count: result.share_count } : p))
+      );
+      if (result.share_url) {
+        navigator.clipboard.writeText(window.location.origin + result.share_url).catch(() => {});
+      }
+    } catch (err) {
+      console.error("Failed to share post", err);
+    }
+  }, [getToken]);
+
+  const toggleDiscussion = useCallback((postId) => {
+    setExpandedPosts((cur) => {
+      const isOpen = cur.includes(postId);
+      return isOpen ? cur.filter((x) => x !== postId) : [...cur, postId];
+    });
+    setComments((cur) => {
+      if (cur[postId] === undefined) loadComments(postId);
+      return cur;
+    });
+  }, [loadComments]);
+
+  const handleReplyChange = useCallback((postId, value) => {
+    setReplyDrafts((cur) => ({ ...cur, [postId]: value }));
+  }, []);
+
+  const handleSendReply = useCallback(async (postId, rawText) => {
+    const text = (rawText || "").trim();
+    if (!text) return;
+
+    // Guard against double-fires (e.g. Enter key + button click both firing
+    // for the same submission, or an in-flight request already running).
+    if (replySending[postId]) return;
+
+    setReplySending((s) => ({ ...s, [postId]: true }));
+    try {
+      const token = await getToken();
+      await communityService.addComment(token, postId, { text });
+      setReplyDrafts((d) => ({ ...d, [postId]: "" }));
+      await loadComments(postId);
+      setPosts((p) =>
+        p.map((post) => (post.id === postId ? { ...post, comment_count: post.comment_count + 1 } : post))
+      );
+    } catch (err) {
+      console.error("Failed to add comment", err);
+    } finally {
+      setReplySending((s) => ({ ...s, [postId]: false }));
+    }
+  }, [getToken, loadComments, replySending]);
+
+  /* ── Delete post / comment ──
+     Assumes communityService exposes deletePost(token, postId) and
+     deleteComment(token, postId, commentId). Adjust names/signatures to
+     match your actual service client if they differ. */
+  const handleDeletePost = useCallback(async (postId) => {
+    const confirmed = window.confirm("Delete this post? This can't be undone.");
+    if (!confirmed) return;
+
+    const previousPosts = posts;
+    setPosts((cur) => cur.filter((p) => p.id !== postId)); // optimistic removal
+
+    try {
+      const token = await getToken();
+      await communityService.deletePost(token, postId);
+    } catch (err) {
+      console.error("Failed to delete post", err);
+      setPosts(previousPosts); // roll back on failure
+    }
+  }, [getToken, posts]);
+
+  const handleDeleteComment = useCallback(async (postId, commentId) => {
+    const confirmed = window.confirm("Delete this comment? This can't be undone.");
+    if (!confirmed) return;
+
+    const previousComments = comments[postId] || [];
+    setComments((cur) => ({
+      ...cur,
+      [postId]: previousComments.filter((c) => c.id !== commentId),
+    }));
+    setPosts((cur) =>
+      cur.map((p) => (p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p))
+    );
+
+    try {
+      const token = await getToken();
+      await communityService.deleteComment(token, postId, commentId);
+    } catch (err) {
+      console.error("Failed to delete comment", err);
+      // roll back on failure
+      setComments((cur) => ({ ...cur, [postId]: previousComments }));
+      setPosts((cur) =>
+        cur.map((p) => (p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p))
+      );
+    }
+  }, [getToken, comments]);
 
   /* ── Page ── */
   return (
     <div style={{ minHeight: "100vh", background: "#fff" }}>
       <Navbar />
-      <main
-        style={{
-          maxWidth: 1200, margin: "0 auto",
-          padding: "112px 24px 80px",
-        }}
-      >
-        {/* Page header */}
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "112px 24px 80px" }}>
         <div style={{ marginBottom: 32 }}>
-          <p
-            style={{
-              margin: "0 0 8px", fontSize: 11, fontWeight: 700,
-              color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.15em",
-            }}
-          >
+          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.15em" }}>
             Communities
           </p>
-
         </div>
 
-        {/* Search + Create */}
-        <div
-          style={{
-            display: "grid", gridTemplateColumns: "1fr auto",
-            gap: 12, marginBottom: 20, alignItems: "center",
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, marginBottom: 20, alignItems: "center" }}>
           <div
             style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -778,19 +989,15 @@ const Communities = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search notes, questions, PDFs…"
-              style={{
-                border: "none", background: "transparent", flex: 1,
-                fontSize: 14, color: "#334155", outline: "none",
-              }}
+              style={{ border: "none", background: "transparent", flex: 1, fontSize: 14, color: "#334155", outline: "none" }}
             />
           </div>
-          <button className="cm-btn cm-btn-dark" style={{ padding: "10px 20px" }}>
+          <button className="cm-btn cm-btn-dark" style={{ padding: "10px 20px" }} onClick={() => setAddPostModalOpen(true)}>
             <PlusIcon style={{ width: 15, height: 15 }} />
             Create Post
           </button>
         </div>
 
-        {/* Filters */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28 }}>
           {communityFilters.map((f) => (
             <button
@@ -810,45 +1017,52 @@ const Communities = () => {
           ))}
         </div>
 
-        {/* Two-column layout */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0,1fr) 300px",
-            gap: 0,
-            alignItems: "start",
-          }}
-        >
-          {/* ── Feed column ── */}
-          <div
-            style={{
-              paddingRight: 32,
-              borderRight: "1px solid #e2e8f0",
-              display: "flex", flexDirection: "column", gap: 20,
-            }}
-          >
-            {visiblePosts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-            {visiblePosts.length === 0 && (
-              <div
-                style={{
-                  background: "#fff", border: "1px dashed #e2e8f0",
-                  borderRadius: 20, padding: 48, textAlign: "center",
-                }}
-              >
-                <p style={{ margin: 0, color: "#94a3b8", fontSize: 14 }}>
-                  No posts match your current filter.
-                </p>
+        {error && (
+          <div style={{ marginBottom: 20, padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, color: "#b91c1c", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 0, alignItems: "start" }}>
+          <div style={{ paddingRight: 32, borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 20 }}>
+            {loading ? (
+              <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8" }}>Loading posts...</div>
+            ) : visiblePosts.length === 0 ? (
+              <div style={{ background: "#fff", border: "1px dashed #e2e8f0", borderRadius: 20, padding: 48, textAlign: "center" }}>
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: 14 }}>No posts match your current filter.</p>
               </div>
+            ) : (
+              visiblePosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  isExpanded={expandedPosts.includes(post.id)}
+                  postComments={comments[post.id] || []}
+                  isLoadingComments={!!commentsLoading[post.id]}
+                  replyDraft={replyDrafts[post.id] || ""}
+                  isSendingReply={!!replySending[post.id]}
+                  currentUserId={currentUserId}
+                  onToggleReaction={toggleReaction}
+                  onToggleDiscussion={toggleDiscussion}
+                  onShare={handleShare}
+                  onReplyChange={handleReplyChange}
+                  onSendReply={handleSendReply}
+                  onDeletePost={handleDeletePost}
+                  onDeleteComment={handleDeleteComment}
+                />
+              ))
             )}
           </div>
 
-          {/* ── Sidebar column ── */}
           <div style={{ paddingLeft: 32 }}>
-            <Sidebar />
+            <Sidebar recentUploads={recentUploads} topContributors={topContributors} />
           </div>
         </div>
+        <AddPostModal
+          isOpen={addPostModalOpen}
+          onClose={() => setAddPostModalOpen(false)}
+          onCreated={(newPost) => setPosts((cur) => [newPost, ...cur])}
+        />
       </main>
     </div>
   );

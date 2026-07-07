@@ -38,14 +38,6 @@ const INITIAL_COLUMNS = {
         avatar: "https://i.pravatar.cc/32?img=3",
         hasAttachment: true,
       },
-      {
-        id: "t2",
-        title: "Setup Figma components",
-        priority: "DESIGN",
-        priorityColor: "bg-sky-100 text-sky-600",
-        avatar: "https://i.pravatar.cc/32?img=5",
-        hasAttachment: false,
-      },
     ],
   },
   inprogress: {
@@ -81,7 +73,7 @@ const INITIAL_COLUMNS = {
 function TaskCard({ task }) {
   if (task.done) {
     return (
-      <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+      <div className="bg-white border border-gray-100 rounded-xl px-4 w-64 h-40 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
         <p className="text-sm text-gray-400 line-through">{task.title}</p>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
@@ -98,8 +90,7 @@ function TaskCard({ task }) {
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col gap-3">
-      {/* Priority badge */}
+    <div className="bg-white border border-gray-100 rounded-xl p-4 w-64 h-40 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between">
       {task.priority && (
         <span className={`self-start text-[10px] font-bold px-2 py-0.5 rounded-md ${task.priorityColor}`}>
           {task.priority}
@@ -161,7 +152,7 @@ function Column({ column, onAddTask }) {
   const count = column.tasks.length;
 
   return (
-    <div className="flex flex-col gap-3 min-w-[240px] w-64">
+    <div className="flex flex-col gap-3 w-64 shrink-0">
       {/* Column header */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-gray-500 tracking-wide uppercase">
@@ -205,7 +196,6 @@ export default function ProjectBoard() {
   const navigate = useNavigate();
   const project = PROJECT_DATA[Number(projectId)] || PROJECT_DATA[2];
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("board");
   const [columns, setColumns] = useState(INITIAL_COLUMNS);
 
@@ -230,69 +220,55 @@ export default function ProjectBoard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-white font-sans">
       <Navbar />
 
       <ProjectSidebar
         project={project}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen((o) => !o)}
       />
 
-      {/* Main content — shifts right when sidebar is open */}
-      <main
-        className={`transition-all duration-300 pt-16 min-h-screen ${
-          sidebarOpen ? "ml-44" : "ml-0"
-        }`}
-      >
-        <div className="px-8 py-8">
-          {/* Page header */}
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Projects</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                Manage your academic collaborations and study goals.
-              </p>
-            </div>
+      <main className="ml-44 pt-24 min-h-screen">
+        {/* Compact breadcrumb + filter bar */}
+        <div className="flex items-center justify-between px-8 pr-40 h-12">
+          <div className="flex items-center gap-2 text-sm">
+            <button
+              onClick={() => navigate("/projects")}
+              className="text-gray-400 hover:text-gray-700 transition font-medium"
+            >
+              Projects
+            </button>
+            <span className="text-gray-300">/</span>
+            <span className="font-semibold text-gray-800 truncate max-w-xs">{project.name}</span>
           </div>
 
-          {/* Board content */}
-          {activeTab === "board" && (
-            <>
-              <div className="flex items-center justify-between mt-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-800">
-                  Project Tasks: {project.name.split(":")[0].trim() === "Thesis"
-                    ? "Alpha Dev"
-                    : project.name}
-                </h2>
-                <button className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="4" y1="6" x2="20" y2="6" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                    <line x1="11" y1="18" x2="13" y2="18" />
-                  </svg>
-                  Filter
-                </button>
-              </div>
+          <button className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+              <line x1="11" y1="18" x2="13" y2="18" />
+            </svg>
+            Filter
+          </button>
+        </div>
 
-              {/* Kanban columns */}
-              <div className="flex gap-5 overflow-x-auto pb-4">
-                {Object.values(columns).map((col) => (
-                  <Column
-                    key={col.id}
-                    column={col}
-                    onAddTask={handleAddTask}
-                  />
-                ))}
-              </div>
-            </>
+        {/* Board content */}
+        <div className="px-8 py-6">
+          {activeTab === "board" && (
+            <div className="flex gap-5 overflow-x-auto pb-4">
+              {Object.values(columns).map((col) => (
+                <Column
+                  key={col.id}
+                  column={col}
+                  onAddTask={handleAddTask}
+                />
+              ))}
+            </div>
           )}
 
-          {/* Placeholder tabs */}
           {activeTab !== "board" && (
-            <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
+            <div className="mt-24 flex flex-col items-center justify-center text-gray-400">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mb-3">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <line x1="3" y1="9" x2="21" y2="9" />

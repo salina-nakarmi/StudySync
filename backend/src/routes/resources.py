@@ -2,7 +2,11 @@ from fastapi import APIRouter,File, UploadFile, Form, Depends, HTTPException, st
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from sqlalchemy import select
-
+from ..services.upload_service import (
+    upload_file_to_cloudinary,
+    validate_file_size,
+    sanitize_filename
+)
 from ..database.database import get_db
 from ..database.models import Users, ResourceType, Resources, Groups, ResourceStatus
 from ..schemas.resources import (
@@ -13,6 +17,7 @@ from ..schemas.resources import (
     ShareResourceRequest,
     MoveResourceRequest,
     ResourceProgressUpdate,
+    PageProgressUpdate,
     ResourceProgressResponse)
 from ..dependencies import get_current_user
 from ..services import resources_service
@@ -550,7 +555,7 @@ async def move_resource(
 # ============================================================================
 # PROGRESS TRACKING ENDPOINTS - Pillar 2!
 # ============================================================================
-
+"""
 @router.post("/{resource_id}/progress", response_model=ResourceProgressResponse)
 async def update_resource_progress(
     resource_id: int,
@@ -558,7 +563,7 @@ async def update_resource_progress(
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
-    """
+    
     Update your progress on a resource
     
     ✨ THIS IS PILLAR 2! Manual progress tracking ✨
@@ -599,7 +604,7 @@ async def update_resource_progress(
     - Updates last_updated timestamp
     
     Note: You must have permission to VIEW the resource to track it
-    """
+    
     
     # Step 1: Check if user can view this resource
     if not await resources_service.can_user_view_resource(
@@ -630,6 +635,82 @@ async def update_resource_progress(
     )
     
     await db.commit()
+    
+    return ResourceProgressResponse(**progress.__dict__)
+"""
+@router.post("/{resource_id}/progress/page", response_model=ResourceProgressResponse)
+asfrom .routes.project import projects, team_members, tasks, time_logs, invitations
+ync def update_progress_by_page(
+    resource_id: int,
+    payload: PageProgressUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Update resource progress by current page
+    
+    Automatically calculates percentage: (current_page / total_pages) * 100
+    """
+    
+    # Check if user can view resource
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    # Update progress by page
+    progress = await resources_service.update_resource_progress_by_page(
+        session=db,
+        user_id=current_user.user_id,
+        resource_id=resource_id,
+        current_page=payload.current_page,
+        total_pages=payload.total_pages,
+        notes=payload.notes
+    )
+    
+    if not progress:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update progress"
+        )
+    
+    await db.commit()
+    
+    return ResourceProgressResponse(**progress.__dict__)
+
+
+@router.get("/{resource_id}/progress/page", response_model=ResourceProgressResponse)
+async def get_page_progress(
+    resource_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Get current page progress on a resource"""
+    
+    if not await resources_service.can_user_view_resource(
+        db, current_user.user_id, resource_id
+    ):
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    progress = await resources_service.get_resource_progress(
+        db, current_user.user_id, resource_id
+    )
+    
+    if not progress:
+        # Return default state
+        from datetime import datetime
+        return ResourceProgressResponse(
+            id=0,
+            user_id=current_user.user_id,
+            resource_id=resource_id,
+            current_page=0,
+            total_pages=None,
+            progress_percentage=0,
+            status="not_started",
+            notes=None,
+            started_at=None,
+            completed_at=None
+        )
     
     return ResourceProgressResponse(**progress.__dict__)
 
@@ -689,6 +770,8 @@ async def get_my_progress_on_resource(
             id=0,  # Not in DB yet
             user_id=current_user.user_id,
             resource_id=resource_id,
+            current_page=0,
+            total_pages=None,
             status="not_started",
             progress_percentage=0,
             notes=None,
@@ -968,12 +1051,7 @@ Your StudySync application is now feature-complete for all three tracking pillar
 """
 
 
-from fastapi import File, UploadFile
-from ..services.upload_service import (
-    upload_file_to_cloudinary,
-    validate_file_size,
-    sanitize_filename
-)
+
 
 # ============================================================================
 # ADD THIS ENDPOINT TO YOUR ROUTER
@@ -1067,6 +1145,8 @@ async def upload_file(
         resource_type = ResourceType.IMAGE
     elif content_type.startswith('video/'):
         resource_type = ResourceType.VIDEO
+    elif content_type.startswith('pdf/'):
+        resource_type = ResourceType.PDF
     else:
         resource_type = ResourceType.FILE
     
