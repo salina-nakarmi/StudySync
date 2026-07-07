@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react"; // Added useEffect and useRef
 import {
   ArrowPathIcon,
   CameraIcon,
@@ -31,6 +31,9 @@ import Navbar from "../components/Navbar";
 const PRIMARY_BLUE = "#2C76BA";
 const QUICK_REPLIES = ["I'm on it.", "Let's do a call.", "Sending the file now.", "Voice note coming up."];
 
+// Define your missing data arrays down here so the component can read them:
+const INITIAL_GROUPS = []; 
+const friends = []; // Added to satisfy the AddMember/CreateGroup modal props
 export default function Messages() {
   const { user } = useUser();
   const myUserId = user?.id || "";
@@ -231,35 +234,33 @@ export default function Messages() {
     setShowConversationMenu(false);
   };
 
-  const handleAddMember = (memberName) => {
-    if (isGroup) {
-      // Add to existing group
+const handleAddMember = (memberName) => {
+    // Fail-safe check if isGroup or selectedFriend metadata isn't set yet
+    if (typeof isGroup !== 'undefined' && isGroup) {
       setGroups((prev) =>
         prev.map((g) =>
-          g.id === selectedFriend.id && !g.members.includes(memberName)
+          g.id === selectedFriend?.id && !g.members.includes(memberName)
             ? { ...g, members: [...g.members, memberName] }
             : g
         )
       );
-      pushBanner(`${memberName} added to ${selectedFriend.name}.`);
-    } else {
-      // Convert DM into a group
+      pushBanner(`${memberName} added to ${selectedFriend?.username}.`);
+    } else if (selectedFriend) {
       const id = `group-${Date.now()}`;
       const newGroup = {
         id,
-        name: `${selectedFriend.name}, ${memberName}`,
+        name: `${selectedFriend.username}, ${memberName}`,
         type: "group",
-        members: [selectedFriend.name, memberName],
-        avatar: selectedFriend.avatar,
+        members: [selectedFriend.username, memberName],
+        avatar: selectedFriend.username.slice(0, 2).toUpperCase(),
         avatarColor: "bg-indigo-100 text-indigo-700",
         preview: "Group created",
         lastSeen: "Just now",
-        messages: chatMessagesByFriend[selectedFriend.id] || [],
+        messages: [],
       };
       setGroups((prev) => [...prev, newGroup]);
-      setChatMessagesByFriend((prev) => ({ ...prev, [id]: newGroup.messages }));
       setSelectedFriendId(id);
-      pushBanner(`Group created with ${selectedFriend.name} and ${memberName}.`);
+      pushBanner(`Group created with ${selectedFriend.username} and ${memberName}.`);
     }
     setShowAddMember(false);
   };

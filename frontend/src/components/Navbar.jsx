@@ -4,6 +4,7 @@ import {
   BellIcon,
   ChatBubbleLeftRightIcon,
   UserIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import NotificationPanel from "../pages/NotificationPanel"; // make sure this exists
 
@@ -14,18 +15,22 @@ const Navbar = () => {
     if (pathname === "/progress-tracking") return "Progress Tracking";
     if (pathname === "/dashboard") return "Dashboard";
     if (pathname === "/resources") return "Resources";
-    if (pathname === "/documents") return "Documents";
     if (pathname === "/groups") return "Groups";
     if (pathname === "/feed") return "Communities";
     if (pathname === "/projects") return "Projects";
+    if (pathname === "/friends") return "Friends"
     return "";
-    
   };
 
   const [activeTab, setActiveTab] = useState(() => getActiveTabFromPath(location.pathname));
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const navItems = ["Dashboard", "Resources", "Documents", "Progress Tracking", "Groups", "Communities", "Projects"];
+  // Pending friend-request count — replace with your real hook, e.g.:
+  // const { data: friendRequests } = useFriendRequests();
+  // const pendingRequestCount = friendRequests?.length || 0;
+  const [pendingRequestCount, setPendingRequestCount] = useState(3);
+
+  const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Communities", "Projects", "Friends"];
   const navigate = useNavigate();
   const isMessagesActive = location.pathname === "/messages";
 
@@ -39,24 +44,36 @@ const Navbar = () => {
     if (item === "Progress Tracking") navigate("/progress-tracking");
     else if (item === "Dashboard") navigate("/dashboard");
     else if (item === "Resources") navigate("/resources");
-    else if (item === "Documents") navigate("/documents");
     else if (item === "Groups") navigate("/groups");
     else if (item === "Communities") navigate("/feed");
     else if (item === "Projects") navigate("/projects");
+    else if (item === "Friends") navigate("/friends");
+  };
+
+  // Jumps straight to the Friend Requests tab on the Friends page
+  const goToFriendRequests = () => {
+    setActiveTab("Friends");
+    navigate("/friends", { state: { tab: "requests" } });
   };
 
   const NavButton = ({ item }) => {
     const isActive = activeTab === item;
+    const showBadge = item === "Friends" && pendingRequestCount > 0;
     return (
       <button
         onClick={() => handleNavClick(item)}
-        className={`px-4 py-2 rounded-full transition-all text-sm font-medium ${
+        className={`relative px-4 py-2 rounded-full transition-all text-sm font-medium ${
           isActive
             ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
             : "text-gray-700 hover:bg-gray-100"
         }`}
       >
         {item}
+        {showBadge && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold rounded-full border-2 border-white">
+            {pendingRequestCount > 9 ? "9+" : pendingRequestCount}
+          </span>
+        )}
       </button>
     );
   };
@@ -86,6 +103,21 @@ const Navbar = () => {
 
             {/* Icons */}
             <div className="flex items-center space-x-2 z-50 relative">
+              {/* Friend Requests Icon */}
+              <button
+                onClick={goToFriendRequests}
+                className="p-2 rounded-full transition-colors relative z-50 hover:bg-gray-100 border border-gray-200"
+                aria-label="Friend requests"
+                title="Friend requests"
+              >
+                <UserGroupIcon className="w-6 h-6 text-gray-700" />
+                {pendingRequestCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold rounded-full border-2 border-white">
+                    {pendingRequestCount > 9 ? "9+" : pendingRequestCount}
+                  </span>
+                )}
+              </button>
+
               {/* Bell Icon */}
               <button
                 onClick={() => setShowNotifications(true)}
@@ -150,11 +182,16 @@ const Navbar = () => {
             <button
               key={item}
               onClick={() => handleNavClick(item)}
-              className={`text-[12px] font-medium transition-all px-2 ${
+              className={`relative text-[12px] font-medium transition-all px-2 ${
                 activeTab === item ? "text-black scale-105" : "text-gray-400"
               }`}
             >
               {item}
+              {item === "Friends" && pendingRequestCount > 0 && (
+                <span className="absolute -top-2 -right-1 min-w-[15px] h-[15px] px-1 flex items-center justify-center bg-blue-600 text-white text-[9px] font-bold rounded-full border border-white">
+                  {pendingRequestCount > 9 ? "9+" : pendingRequestCount}
+                </span>
+              )}
             </button>
           ))}
         </div>

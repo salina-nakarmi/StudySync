@@ -91,6 +91,6 @@ class DeletingDirectMessageRequest(BaseModel):
 class GetDirectMessageRequest(BaseModel):
     message_id: int
     sender_id : str
-    receirver_id: str
+    receiver_id: str
     is_reply: bool
 
