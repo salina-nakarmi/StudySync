@@ -639,8 +639,7 @@ async def update_resource_progress(
     return ResourceProgressResponse(**progress.__dict__)
 """
 @router.post("/{resource_id}/progress/page", response_model=ResourceProgressResponse)
-asfrom .routes.project import projects, team_members, tasks, time_logs, invitations
-ync def update_progress_by_page(
+async def update_progress_by_page(
     resource_id: int,
     payload: PageProgressUpdate,
     db: AsyncSession = Depends(get_db),

@@ -179,11 +179,7 @@ function App() {
 
 
         <Route
-<<<<<<< HEAD
-          path="/documents"
-=======
           path="/docs"
->>>>>>> cbad5c1133e1c2b70224ae2138832950fb9088d8
           element={
             <>
               <SignedIn>

@@ -57,6 +57,8 @@ async def group_websocket_endpoint(
             data = await websocket.receive_json()
             action = data.get("action")
             payload = data.get("payload", {})
+            if isinstance(payload, dict):
+                payload.setdefault("sender_id", sender_id)
 
             if not action:
                 await websocket.send_json({"error": "No action specified"})
@@ -99,12 +101,14 @@ async def dm_websocket_endpoint(
 
     try:
         # Trigger an immediate history load right after connection finishes mounting
-        await handle_direct_messages_history({"receiver_id": receiver_id}, db, websocket, sender_id)
+        await handle_direct_messages_history({"receiver_id": receiver_id, "sender_id": sender_id}, db, websocket, sender_id)
 
         while True:
             data = await websocket.receive_json()
             action = data.get("action")
             payload = data.get("payload", {})
+            if isinstance(payload, dict):
+                payload.setdefault("sender_id", sender_id)
 
             if not action:
                 await websocket.send_json({"error": "No action specified"})
