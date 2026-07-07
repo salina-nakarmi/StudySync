@@ -56,7 +56,8 @@ export default function Groups() {
   const [directChatPanelOpen, setDirectChatPanelOpen] = useState(true);
   const [activeDirectChatId, setActiveDirectChatId] = useState(null);
   const [unreadByContact, setUnreadByContact] = useState({});
-  const [resourceProgressById, setResourceProgressById] = useState({});
+  const [resourceProgress, setResourceProgress] = useState({}); // { [resourceId]: { percent, status } }
+  const latestSeqRef = useRef(0);
   const [viewingResource, setViewingResource] = useState(null);
   const [formData, setFormData] = useState({
     group_name: "",
@@ -286,13 +287,88 @@ export default function Groups() {
   useEffect(() => {
     activeDirectChatIdRef.current = activeDirectChatId;
   }, [activeDirectChatId]);
+ 
+  //resource tracking realted
+  const progressTimeoutRef = useRef(null);
 
-  const handleResourceProgressChange = (resourceId, value) => {
-    setResourceProgressById((prev) => ({
-      ...prev,
-      [resourceId]: value,
-    }));
+  const viewingResourceRef = useRef(null);
+  useEffect(() => {
+    viewingResourceRef.current = viewingResource;
+  }, [viewingResource]);
+
+  const handleAutoProgressChange = useCallback(
+    (percent, page, seq, totalPages) => {
+      const resource = viewingResourceRef.current;
+      if (!resource) return;
+      if (seq < latestSeqRef.current) return;
+      latestSeqRef.current = seq;
+
+      setResourceProgress((prev) => ({
+        ...prev,
+        [resource.id]: { percent, status: getStatusForPercent(percent) },
+      }));
+
+      clearTimeout(progressTimeoutRef.current);
+      progressTimeoutRef.current = setTimeout(async () => {
+        try {
+          const token = await getToken();
+          const result = await resourceService.updateProgress(token, resource.id, {
+            current_page: page,
+            total_pages: totalPages,
+          });
+          setResourceProgress((prev) => ({
+            ...prev,
+            [resource.id]: { percent: result.progress_percentage, status: result.status },
+          }));
+        } catch (err) {
+          console.error("Failed to auto-update progress", err);
+        }
+      }, 800);
+    },
+    [getToken]
+  );
+
+  const getStatusForPercent = (percent) => {
+    if (percent >= 100) return "completed";
+    if (percent > 0) return "in_progress";
+    return "not_started";
   };
+
+  const getProgressLabel = (status) => {
+    if (status === "completed") return "Completed";
+    if (status === "in_progress") return "In Progress";
+    if (status === "paused") return "Paused";
+    return "Not Started";
+  };
+
+  useEffect(() => {
+    const loadAllProgress = async () => {
+      if (!resources.length) return;
+      try {
+        const token = await getToken();
+        const entries = await Promise.all(
+          resources.map(async (res) => {
+            try {
+              const progress = await resourceService.getMyProgress(token, res.id);
+              return [
+                res.id,
+                {
+                  percent: progress?.progress_percentage || 0,
+                  status: progress?.status || "not_started",
+                },
+              ];
+            } catch {
+              return [res.id, { percent: 0, status: "not_started" }];
+            }
+          })
+        );
+        setResourceProgress(Object.fromEntries(entries));
+      } catch (err) {
+        console.error("Failed to load resource progress", err);
+      }
+    };
+    loadAllProgress();
+  }, [resources, getToken]);
 
   if (loading) {
     return (
@@ -616,19 +692,15 @@ export default function Groups() {
                                   <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
                                   <div className="mt-3">
                                     <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
-                                      <span>Progress</span>
-                                      <span>{resourceProgressById[res.id] || 0}%</span>
+                                      <span>{getProgressLabel(resourceProgress[res.id]?.status)}</span>
+                                      <span>{resourceProgress[res.id]?.percent || 0}% Complete</span>
                                     </div>
-                                    <input
-                                      type="range"
-                                      min="0"
-                                      max="100"
-                                      step="1"
-                                      value={resourceProgressById[res.id] || 0}
-                                      onChange={(e) => handleResourceProgressChange(res.id, Number(e.target.value))}
-                                      className="w-62 accent-[#2C76BA]"
-                                      aria-label={`Progress for ${res.title || "resource"}`}
-                                    />
+                                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden w-62">
+                                      <div
+                                        className="h-full bg-[#2C76BA] transition-all"
+                                        style={{ width: `${resourceProgress[res.id]?.percent || 0}%` }}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -645,7 +717,7 @@ export default function Groups() {
                                   }}
                                   className="text-xs font-bold text-[#2C76BA] hover:underline"
                                 >
-                                  {isPdfResource(res) ? "View PDF" : "Open"}         // ✅ Shows "View PDF" for PDFs
+                                  {isPdfResource(res) ? "View PDF" : "Open"}        
                                 </button>
                                 <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
                                   <XMarkIcon className="w-4 h-4" />
@@ -781,28 +853,12 @@ export default function Groups() {
                 </button>
               </div>
               
-              {/* Progress Bar */}
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <div className="flex justify-between text-xs text-gray-600 mb-2">
-                  <span className="font-medium">Reading Progress</span>
-                  <span className="font-bold text-[#2C76BA]">
-                    {Math.round(resourceProgressById[viewingResource.id] || 0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-[#2C76BA] h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${resourceProgressById[viewingResource.id] || 0}%` }}
-                  />
-                </div>
-              </div>
+              
               
               {/* PDF Viewer Component */}
               <PDFViewerWithControls
                 resource={viewingResource}
-                onProgressChange={(progress) => {
-                  handleResourceProgressChange(viewingResource.id, progress);
-                }}
+                onProgressChange={handleAutoProgressChange}
               />
               
               {/* Footer */}
