@@ -490,6 +490,7 @@ async def update_resource_progress_by_page(
     user_id: str,
     resource_id: int,
     current_page: int,
+    total_pages: Optional[int] = None,
     notes: Optional[str] = None
 ) -> Optional[ResourceProgress]:
     """
@@ -501,6 +502,12 @@ async def update_resource_progress_by_page(
     resource = await get_resource_by_id(session, resource_id)
     if not resource:
         return None
+    
+    # Persist total_pages onto the resource the first time we learn it
+    if total_pages and not resource.total_pages:
+        resource.total_pages = total_pages
+
+    effective_total_pages = total_pages or resource.total_pages or 1
     
     # Get existing progress
     result = await session.execute(
@@ -516,13 +523,13 @@ async def update_resource_progress_by_page(
     now = datetime.utcnow()
     
     # Calculate percentage automatically
-    total_pages = resource.total_pages or 1
-    progress_percentage = int((current_page / total_pages) * 100) if total_pages > 0 else 0
+    progress_percentage = int((current_page / effective_total_pages) * 100) if effective_total_pages > 0 else 0
+
     
     # Determine status based on page progress
     if current_page == 0:
         status = ResourceStatus.NOT_STARTED
-    elif current_page >= total_pages:
+    elif current_page >= effective_total_pages:
         status = ResourceStatus.COMPLETED
         progress_percentage = 100
     else:
@@ -534,7 +541,7 @@ async def update_resource_progress_by_page(
             user_id=user_id,
             resource_id=resource_id,
             current_page=current_page,
-            total_pages=total_pages,
+            total_pages=effective_total_pages,
             progress_percentage=progress_percentage,
             status=status,
             notes=notes,
@@ -545,7 +552,7 @@ async def update_resource_progress_by_page(
     else:
         # Update existing progress
         progress.current_page = current_page
-        progress.total_pages = total_pages
+        progress.total_pages = effective_total_pages
         progress.progress_percentage = progress_percentage
         progress.status = status
         

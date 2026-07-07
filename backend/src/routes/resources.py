@@ -2,7 +2,11 @@ from fastapi import APIRouter,File, UploadFile, Form, Depends, HTTPException, st
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from sqlalchemy import select
-
+from ..services.upload_service import (
+    upload_file_to_cloudinary,
+    validate_file_size,
+    sanitize_filename
+)
 from ..database.database import get_db
 from ..database.models import Users, ResourceType, Resources, Groups, ResourceStatus
 from ..schemas.resources import (
@@ -659,6 +663,7 @@ async def update_progress_by_page(
         user_id=current_user.user_id,
         resource_id=resource_id,
         current_page=payload.current_page,
+        total_pages=payload.total_pages,
         notes=payload.notes
     )
     
@@ -707,6 +712,8 @@ async def get_page_progress(
         )
     
     return ResourceProgressResponse(**progress.__dict__)
+
+
 @router.get("/{resource_id}/progress/me", response_model=ResourceProgressResponse)
 async def get_my_progress_on_resource(
     resource_id: int,
@@ -762,6 +769,8 @@ async def get_my_progress_on_resource(
             id=0,  # Not in DB yet
             user_id=current_user.user_id,
             resource_id=resource_id,
+            current_page=0,
+            total_pages=None,
             status="not_started",
             progress_percentage=0,
             notes=None,
@@ -1041,12 +1050,7 @@ Your StudySync application is now feature-complete for all three tracking pillar
 """
 
 
-from fastapi import File, UploadFile
-from ..services.upload_service import (
-    upload_file_to_cloudinary,
-    validate_file_size,
-    sanitize_filename
-)
+
 
 # ============================================================================
 # ADD THIS ENDPOINT TO YOUR ROUTER
@@ -1140,6 +1144,8 @@ async def upload_file(
         resource_type = ResourceType.IMAGE
     elif content_type.startswith('video/'):
         resource_type = ResourceType.VIDEO
+    elif content_type.startswith('pdf/'):
+        resource_type = ResourceType.PDF
     else:
         resource_type = ResourceType.FILE
     

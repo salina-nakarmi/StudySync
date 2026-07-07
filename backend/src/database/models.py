@@ -1,9 +1,10 @@
 import enum
+import secrets
 import uuid
 from datetime import datetime, date
 from .database import Base
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy import ForeignKey, func, PrimaryKeyConstraint, Boolean, Enum, UniqueConstraint, Numeric, Text, Index
 
 class GroupRole(enum.Enum):
@@ -27,6 +28,7 @@ class InvitationStatus(enum.Enum):
 class ResourceType(enum.Enum):
     IMAGE="image"
     VIDEO="video"
+    PDF="pdf"
     FILE="file"
     FOLDER="folder"
     LINK ="link" # external URL
@@ -87,6 +89,7 @@ class Users(Base):
     # Denormalized field: Updated whenever a StudySession is created
     # Kept for performance (avoids SUM query on every dashboard load)
     total_study_time: Mapped[int] = mapped_column(default=0)  # Total seconds
+    # team_member = relationship("TeamMember", back_populates="user", uselist=False)
     preferences: Mapped[str | None]  # JSON string for settings
 
     created_at:Mapped[datetime] = mapped_column(default=func.now())
@@ -202,6 +205,7 @@ class Resources(Base):
     parent_folder_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
     
     file_size: Mapped[int | None]  # bytes
+    total_pages: Mapped[int | None]
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     
     created_at: Mapped[datetime] = mapped_column(default=func.now())
@@ -219,7 +223,8 @@ class ResourceProgress(Base):
     
     # Page-based tracking (replaces percentage)
     current_page: Mapped[int] = mapped_column(default=0)
-    
+    total_pages: Mapped[int | None] = mapped_column(default=None)
+
     # Auto-calculated percentage
     progress_percentage: Mapped[int] = mapped_column(default=0)  # Computed field
     
@@ -490,9 +495,6 @@ class Projects(Base):
 # ADD THIS TO models.py — ProjectInvitations table
 # ============================================================
 
-# Add this import at the top of models.py if not already there:
-# import secrets
-
 class ProjectInvitations(Base):
     __tablename__ = 'project_invitations'
 
@@ -537,9 +539,6 @@ class ProjectMembers(Base):
  
  
 class Tasks(Base):
-    """
-    A unit of work inside a project, optionally assigned to a team member.
-    """
     __tablename__ = 'tasks'
  
     task_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -561,12 +560,16 @@ class Tasks(Base):
         default=TaskStatus.TODO,
     )
  
+    # User-facing completion slider (0-100). Frontend derives `status`
+    # from this value on every update (0 -> Todo, 1-99 -> In Progress,
+    # 100 -> Done) and sends both fields together so they never drift.
+    progress_percentage: Mapped[int] = mapped_column(default=0)
+ 
     due_date: Mapped[date | None]
  
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
- 
- 
+
 class TimeLogs(Base):
     """
     Hours logged by a team member against a specific task.
@@ -623,3 +626,108 @@ class GithubCommits(Base):
  
     created_at: Mapped[datetime] = mapped_column(default=func.now())   # When we synced it
  
+
+ #Communities Related Schemas
+class PostType(enum.Enum):
+    RESOURCE = "resource"
+    QUESTION = "question"
+    LINK = "link"
+    ASSIGNMENT = "assignment"
+
+class Posts(Base):
+    """
+    Community feed posts. Reuses Groups as the "community" a post
+    belongs to (a post's `community` in the UI is just a Group).
+    Type-specific fields (link url, resource file info, etc.) are kept
+    in a JSON blob rather than one wide table with lots of nullable
+    columns — mirrors how `preferences` is stored on Users.
+    """
+    __tablename__ = 'posts'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id'), index=True)
+
+    post_type: Mapped[PostType] = mapped_column(Enum(PostType), index=True)
+
+    title: Mapped[str]
+    text: Mapped[str | None] = mapped_column(Text)
+
+    # Links a resource-type post back to an actual uploaded Resource
+    # instead of duplicating file_size/total_pages/etc. here.
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
+
+    # Type-specific extras that don't warrant their own columns/tables:
+    # link  -> {"link_title": ..., "link_url": ..., "link_snippet": ...}
+    # question -> {} (answers are just comments)
+    # assignment -> {} (for now)
+    # Stored as text (JSON string) to match the `preferences` pattern
+    # already used on Users; parse/serialize in the service layer.
+    type_data: Mapped[str | None] = mapped_column(Text)
+
+    # Denormalized counters (same rationale as Users.total_study_time —
+    # avoids COUNT() over post_likes/post_saves/post_comments on every
+    # feed render)
+    like_count: Mapped[int] = mapped_column(default=0)
+    save_count: Mapped[int] = mapped_column(default=0)
+    share_count: Mapped[int] = mapped_column(default=0)
+    comment_count: Mapped[int] = mapped_column(default=0)
+
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
+class PostLikes(Base):
+    """
+    Toggle table for likes/upvotes. One row = one user has liked/
+    upvoted a post. Presence of the row is the "liked" state.
+    """
+    __tablename__ = 'post_likes'
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'))
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'post_id'),
+    )
+
+
+class PostSaves(Base):
+    """Toggle table for saves/bookmarks — same pattern as PostLikes."""
+    __tablename__ = 'post_saves'
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'))
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'post_id'),
+    )
+
+class PostComments(Base):
+    """
+    Comments/replies on a post. `parent_comment_id` null = top-level
+    comment (or "answer", for question-type posts); non-null = a
+    reply to that comment. Matches the one-level-deep nesting already
+    used in the Communities UI.
+    """
+    __tablename__ = 'post_comments'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    post_id: Mapped[int] = mapped_column(ForeignKey('posts.id'), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    parent_comment_id: Mapped[int | None] = mapped_column(ForeignKey('post_comments.id'))
+
+    text: Mapped[str] = mapped_column(Text)
+
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())

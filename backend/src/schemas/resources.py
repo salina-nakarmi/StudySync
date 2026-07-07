@@ -146,6 +146,7 @@ class ResourceProgressResponse(BaseModel):
 class PageProgressUpdate(BaseModel):
     """Update progress by page number"""
     current_page: int
+    total_pages: Optional[int] = None
     notes: Optional[str] = None
 
 class ResourceWithProgress(ResourceResponse):
