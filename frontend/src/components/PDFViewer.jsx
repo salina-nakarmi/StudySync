@@ -15,7 +15,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 export default function PDFViewerWithControls({ resource, onProgressChange }) {
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(0.75);
 
   const containerRef = useRef(null);
   const pageRefs = useRef({});
@@ -201,13 +201,13 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
             <span className="ml-2 text-gray-400">({livePercent}%)</span>
           </span>
 
-          <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))} className="p-2 rounded hover:bg-gray-100">
+          <button onClick={() => setScale((s) => Math.max(0.5, s - 0.05))} className="p-2 rounded hover:bg-gray-100">
             <MagnifyingGlassMinusIcon className="w-6 h-6" />
           </button>
 
           <span className="font-medium w-12 text-center">{Math.round(scale * 100)}%</span>
 
-          <button onClick={() => setScale((s) => Math.min(3, s + 0.2))} className="p-2 rounded hover:bg-gray-100">
+          <button onClick={() => setScale((s) => Math.min(3, s + 0.05))} className="p-2 rounded hover:bg-gray-100">
             <MagnifyingGlassPlusIcon className="w-6 h-6" />
           </button>
 
