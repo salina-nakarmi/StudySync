@@ -30,6 +30,20 @@ from . import team_member_service, project_service
 INVITATION_EXPIRY_DAYS = 7
 
 
+def _utcnow() -> datetime:
+    """
+    Naive UTC 'now' — matches the TIMESTAMP WITHOUT TIME ZONE columns
+    (expires_at, created_at via func.now(), responded_at) in the DB.
+    asyncpg raises "can't subtract offset-naive and offset-aware datetimes"
+    if a tz-aware datetime.now(timezone.utc) is bound to one of these columns,
+    so every write/comparison against them must go through this helper.
+
+    If these columns are ever migrated to TIMESTAMPTZ, switch this back to
+    `datetime.now(timezone.utc)` and drop the .replace(tzinfo=None) below.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _generate_token() -> str:
     """URL-safe token for the /join?token=xxx link."""
     return secrets.token_urlsafe(32)
@@ -46,6 +60,8 @@ async def create_invitation(
     Creates the invitation row. Permission check (must be owner) happens
     in the route via project_service.require_owner() before this is called.
     """
+    invited_email = invited_email.lower()
+
     # Don't double-invite someone who already has a pending invite to this project
     existing = await db.execute(
         select(ProjectInvitations).where(
@@ -67,7 +83,7 @@ async def create_invitation(
         role=role,
         token=_generate_token(),
         status=InvitationStatus.PENDING,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=INVITATION_EXPIRY_DAYS),
+        expires_at=_utcnow() + timedelta(days=INVITATION_EXPIRY_DAYS),
     )
     db.add(invitation)
     await db.flush()
@@ -84,7 +100,7 @@ async def get_invitation_by_token_or_404(db: AsyncSession, token: str) -> Projec
 
 def _effective_status(invitation: ProjectInvitations) -> str:
     """Computes 'expired' on the fly rather than a background job flipping the DB row."""
-    if invitation.status == InvitationStatus.PENDING and invitation.expires_at < datetime.now(timezone.utc):
+    if invitation.status == InvitationStatus.PENDING and invitation.expires_at < _utcnow():
         return "expired"
     return invitation.status.value
 
@@ -150,7 +166,7 @@ async def accept_invitation(db: AsyncSession, token: str, current_user_id: str, 
     )
 
     invitation.status = InvitationStatus.ACCEPTED
-    invitation.responded_at = datetime.now(timezone.utc)
+    invitation.responded_at = _utcnow()
     await db.flush()
 
     project_result = await db.execute(select(Projects).where(Projects.project_id == invitation.project_id))
@@ -175,7 +191,7 @@ async def decline_invitation(db: AsyncSession, token: str, current_user_email: s
         )
 
     invitation.status = InvitationStatus.DECLINED
-    invitation.responded_at = datetime.now(timezone.utc)
+    invitation.responded_at = _utcnow()
     await db.flush()
 
 

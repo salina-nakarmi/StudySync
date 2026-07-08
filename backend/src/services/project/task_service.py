@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from ...database.models import Tasks, TimeLogs, TeamMembers, Users, TaskStatus
+from . import project_service
 
 
 def _coerce_task_status(value):
@@ -38,6 +39,19 @@ def _coerce_task_status(value):
     )
 
 
+async def _validate_assignee(db: AsyncSession, project_id: int, assigned_to: int | None) -> None:
+    """assigned_to must be an existing member of the *same* project — otherwise a task
+    could point at someone with no access to it (and the UI would have nothing to show)."""
+    if assigned_to is None:
+        return
+    membership = await project_service.get_membership(db, project_id, assigned_to)
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="assigned_to must be a member of this project.",
+        )
+
+
 async def get_task_or_404(db: AsyncSession, task_id: int) -> Tasks:
     result = await db.execute(select(Tasks).where(Tasks.task_id == task_id))
     task = result.scalar_one_or_none()
@@ -48,6 +62,7 @@ async def get_task_or_404(db: AsyncSession, task_id: int) -> Tasks:
 
 async def create_task(db: AsyncSession, project_id: int, data: dict) -> Tasks:
     db_status = _coerce_task_status(data.get("status"))
+    await _validate_assignee(db, project_id, data.get("assigned_to"))
 
     task = Tasks(
         project_id=project_id,
@@ -122,7 +137,16 @@ async def update_task(db: AsyncSession, task_id: int, data: dict) -> Tasks:
     if data.get("status") is not None:
         task.status = _coerce_task_status(data.get("status"))
 
-    for field in ("task_name", "description", "progress_percentage", "assigned_to", "due_date"):
+    if "assigned_to" in data:
+        # Explicit null is a valid, meaningful value here — it means "unassign".
+        await _validate_assignee(db, task.project_id, data["assigned_to"])
+        task.assigned_to = data["assigned_to"]
+
+    if "due_date" in data:
+        # Explicit null clears the due date.
+        task.due_date = data["due_date"]
+
+    for field in ("task_name", "description", "progress_percentage"):
         if field in data and data[field] is not None:
             setattr(task, field, data[field])
 

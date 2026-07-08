@@ -2,29 +2,10 @@
 import { useState } from "react";
 import { SlidersHorizontalIcon } from "lucide-react";
 import { useTasks } from "../../services/project_service";
+import { deriveStatus, groupTasksByColumn } from "./taskStatus";
 import KanbanColumn from "./KanbanColumn";
 import AddTaskModal from "./AddTaskModal";
 import EditTaskModal from "./EditTaskModal";
-
-function deriveColumn(progressPercentage) {
-  if (progressPercentage >= 100) return "DONE";
-  if (progressPercentage > 0) return "IN PROGRESS";
-  return "TO DO";
-}
-
-function deriveStatus(progressPercentage) {
-  if (progressPercentage >= 100) return "Done";
-  if (progressPercentage > 0) return "In Progress";
-  return "Todo";
-}
-
-function groupTasksByColumn(tasks) {
-  const columns = { "TO DO": [], "IN PROGRESS": [], DONE: [] };
-  for (const task of tasks) {
-    columns[deriveColumn(task.progress_percentage ?? 0)].push(task);
-  }
-  return columns;
-}
 
 export default function TasksView({ projectId, projectName }) {
   const { tasks, isLoading, updateTask, createTask, deleteTask } = useTasks(projectId);
@@ -40,12 +21,13 @@ export default function TasksView({ projectId, projectName }) {
     setAddingToColumn(columnTitle);
   };
 
-  const handleCreateConfirm = ({ task_name, description, due_date }) => {
+  const handleCreateConfirm = ({ task_name, description, due_date, assigned_to }) => {
     const startingProgress = addingToColumn === "IN PROGRESS" ? 1 : 0;
     createTask.mutate({
       task_name,
       description,
       due_date,
+      assigned_to,
       progress_percentage: startingProgress,
       status: deriveStatus(startingProgress),
     });
@@ -60,8 +42,8 @@ export default function TasksView({ projectId, projectName }) {
     });
   };
 
-  const handleEditSave = ({ taskId, task_name, description, due_date }) => {
-    updateTask.mutate({ taskId, task_name, description, due_date });
+  const handleEditSave = ({ taskId, task_name, description, due_date, assigned_to }) => {
+    updateTask.mutate({ taskId, task_name, description, due_date, assigned_to });
   };
 
   const handleDelete = (taskId) => {
@@ -107,6 +89,7 @@ export default function TasksView({ projectId, projectName }) {
       {/* Add task modal */}
       {addingToColumn && (
         <AddTaskModal
+          projectId={projectId}
           initialColumn={addingToColumn}
           onConfirm={handleCreateConfirm}
           onClose={() => setAddingToColumn(null)}
@@ -117,6 +100,7 @@ export default function TasksView({ projectId, projectName }) {
       {editingTask && (
         <EditTaskModal
           task={editingTask}
+          projectId={projectId}
           onSave={handleEditSave}
           onDelete={handleDelete}
           onClose={() => setEditingTask(null)}

@@ -328,18 +328,21 @@ export const useGithub = (projectId, options = {}) => {
       `projects/${projectId}/github/commits?skip=${skip}&limit=${PAGE_SIZE}`
     ),
     enabled: (options.enabled ?? true) && !!projectId,
-    onSuccess: (data) => {
-      if (skip === 0) {
-        // Fresh load or post-sync reset — replace everything
-        setAllCommits(data.commits || []);
-      } else {
-        // Load more — accumulate
-        setAllCommits((prev) => [...prev, ...(data.commits || [])]);
-      }
-      setHasMore(data.has_more || false);
-      setTotal(data.total || 0);
-    },
   });
+
+  // useEffect replaces the removed onSuccess — watches query data and
+  // accumulates commits across pages rather than replacing them.
+  useEffect(() => {
+    if (!getCommits.data) return;
+    const incoming = getCommits.data.commits || [];
+    if (skip === 0) {
+      setAllCommits(incoming);
+    } else {
+      setAllCommits((prev) => [...prev, ...incoming]);
+    }
+    setHasMore(getCommits.data.has_more || false);
+    setTotal(getCommits.data.total || 0);
+  }, [getCommits.data, skip]);
 
   // Manual trigger only — no scheduled/automatic sync, per design
   const syncCommits = useMutation({
@@ -347,7 +350,7 @@ export const useGithub = (projectId, options = {}) => {
       method: 'POST',
     }),
     onSuccess: () => {
-      // Reset to first page — onSuccess in getCommits will repopulate allCommits
+      // Reset to first page — useEffect will repopulate allCommits
       setSkip(0);
       setAllCommits([]);
       queryClient.invalidateQueries(['projects', projectId, 'github']);

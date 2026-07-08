@@ -211,21 +211,26 @@ class ProjectInvitationResponse(BaseModel):
 # TASKS
 # ============================================================
 
+
 class TaskCreate(BaseModel):
     """Request: create a task inside a project"""
     task_name: str = Field(..., min_length=1, max_length=300)
     description: Optional[str] = None
     status: TaskStatus = TaskStatus.TODO
+    progress_percentage: int = Field(default=0, ge=0, le=100)
     assigned_to: Optional[int] = None   # member_id
     due_date: Optional[date] = None
+
 
 class TaskUpdate(BaseModel):
     """Request: update task fields"""
     task_name: Optional[str] = Field(default=None, min_length=1, max_length=300)
     description: Optional[str] = None
     status: Optional[TaskStatus] = None
+    progress_percentage: Optional[int] = Field(default=None, ge=0, le=100)
     assigned_to: Optional[int] = None
     due_date: Optional[date] = None
+
 
 class TaskResponse(BaseModel):
     """Response: task details"""
@@ -234,6 +239,7 @@ class TaskResponse(BaseModel):
     task_name: str
     description: Optional[str]
     status: TaskStatus
+    progress_percentage: int = 0
     assigned_to: Optional[int]
     due_date: Optional[date]
     created_at: datetime
@@ -244,7 +250,6 @@ class TaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================
 # TIME LOGS

@@ -1,21 +1,24 @@
 // components/ProjectDetail/EditTaskModal.jsx
 import { useState } from "react";
 import { XIcon, TrashIcon } from "lucide-react";
+import AssigneeSelect from "./AssigneeSelect";
 
 const PRIMARY_BLUE = "#2C76BA";
 
-export default function EditTaskModal({ task, onSave, onDelete, onClose }) {
+export default function EditTaskModal({ task, projectId, onSave, onDelete, onClose }) {
   const [taskName, setTaskName] = useState(task.task_name || "");
   const [description, setDescription] = useState(task.description || "");
   const [dueDate, setDueDate] = useState(
     task.due_date ? task.due_date.slice(0, 10) : ""
   );
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isDirty =
     taskName !== (task.task_name || "") ||
     description !== (task.description || "") ||
-    dueDate !== (task.due_date ? task.due_date.slice(0, 10) : "");
+    dueDate !== (task.due_date ? task.due_date.slice(0, 10) : "") ||
+    assignedTo !== (task.assigned_to ?? null);
 
   const handleSave = () => {
     if (!taskName.trim()) return;
@@ -24,6 +27,7 @@ export default function EditTaskModal({ task, onSave, onDelete, onClose }) {
       task_name: taskName.trim(),
       description: description.trim() || null,
       due_date: dueDate || null,
+      assigned_to: assignedTo,
     });
     onClose();
   };
@@ -88,6 +92,12 @@ export default function EditTaskModal({ task, onSave, onDelete, onClose }) {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 outline-none focus:border-[#2C76BA] focus:ring-2 focus:ring-[#2C76BA]/10 transition"
             />
           </div>
+
+          <AssigneeSelect
+            projectId={projectId}
+            value={assignedTo}
+            onChange={setAssignedTo}
+          />
 
           {/* Progress display only — slider stays on the card itself */}
           <div className="flex items-center justify-between text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3">

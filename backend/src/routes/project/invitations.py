@@ -1,12 +1,13 @@
 # routes/invitations.py
 import os
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.database import get_db
 from ...dependencies import get_current_user
-from ...database.models import Users
-from ...services.project import team_member_service, project_service, invitation_service
+from ...database.models import Users, Projects
+from ...services.project import team_member_service, project_service, invitation_service, email_service
 from ...schemas.projects import InviteMemberRequest
 from ...schemas.projects import (
     InvitationPreviewResponse,
@@ -53,6 +54,22 @@ async def invite_member(
 
     invite_link = invitation_service.build_invite_link(invitation.token, FRONTEND_BASE_URL)
 
+    # Best-effort email send — a failure here (bad API key, Resend outage, etc.)
+    # must never fail the request, since the invitation row + link already exist.
+    project_result = await db.execute(select(Projects).where(Projects.project_id == project_id))
+    project = project_result.scalar_one()
+    inviter_name = (
+        f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+        or current_user.username
+    )
+    email_sent = await email_service.send_invitation_email(
+        to_email=invitation.invited_email,
+        project_name=project.project_name,
+        inviter_name=inviter_name,
+        role=invitation.role,
+        invite_link=invite_link,
+    )
+
     return {
         "id": invitation.id,
         "project_id": invitation.project_id,
@@ -62,6 +79,7 @@ async def invite_member(
         "expires_at": invitation.expires_at,
         "created_at": invitation.created_at,
         "invite_link": invite_link,
+        "email_sent": email_sent,
     }
 
 
