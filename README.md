@@ -54,7 +54,7 @@ cd auth
 
 6. Run the backend server:
    ```bash
-   uvicorn app:app --reload
+   uvicorn src.app:app --reload
    ```
    
    The backend should now be running at: `http://localhost:8000`

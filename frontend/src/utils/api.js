@@ -328,3 +328,75 @@ export const useDailyActivity = () => {
   });
 };
 
+// ============================================================================
+// FRIENDS
+// ============================================================================
+export const useFriends = () => {
+  const { makeRequest } = useApi();
+  const queryClient = useQueryClient();
+
+  const getMyFriends = useQuery({
+    queryKey: ['friends', 'my-friends'],
+    queryFn: () => makeRequest('friends/my-friends'),
+  });
+
+  const getReceivedRequests = useQuery({
+    queryKey: ['friends', 'requests', 'received'],
+    queryFn: () => makeRequest('friends/requests/received'),
+  });
+
+  const getSentRequests = useQuery({
+    queryKey: ['friends', 'requests', 'sent'],
+    queryFn: () => makeRequest('friends/requests/sent'),
+  });
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries(['friends']);
+  };
+
+  const sendRequest = useMutation({
+    mutationFn: (receiverId) => makeRequest('friends/request', {
+      method: 'POST',
+      body: JSON.stringify({ receiver_id: receiverId }),
+    }),
+    onSuccess: invalidateAll,
+  });
+
+  const acceptRequest = useMutation({
+    mutationFn: (requestId) => makeRequest(`friends/request/${requestId}/accept`, {
+      method: 'POST',
+    }),
+    onSuccess: invalidateAll,
+  });
+
+  const rejectRequest = useMutation({
+    mutationFn: (requestId) => makeRequest(`friends/request/${requestId}/reject`, {
+      method: 'POST',
+    }),
+    onSuccess: invalidateAll,
+  });
+
+  const removeFriend = useMutation({
+    mutationFn: (friendId) => makeRequest(`friends/${friendId}`, {
+      method: 'DELETE',
+    }),
+    onSuccess: invalidateAll,
+  });
+
+  return {
+    friends: getMyFriends.data || [],
+    receivedRequests: getReceivedRequests.data || [],
+    sentRequests: getSentRequests.data || [],
+    isLoading: getMyFriends.isLoading || getReceivedRequests.isLoading || getSentRequests.isLoading,
+    error: getMyFriends.error || getReceivedRequests.error || getSentRequests.error,
+    refetchAll: () => {
+      getMyFriends.refetch();
+      getReceivedRequests.refetch();
+      getSentRequests.refetch();
+    },
+    sendRequest,
+    acceptRequest,
+    rejectRequest,
+    removeFriend,
+  };
+};

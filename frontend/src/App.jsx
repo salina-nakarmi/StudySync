@@ -22,7 +22,7 @@ import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
 import JoinProject from "./pages/JoinProject.jsx";
-
+import Friends from "./pages/Friends.jsx";
 
 
 
@@ -63,16 +63,16 @@ function App() {
         />
 
         <Route 
-  path="/groups" 
-  element={
-    <>
-      <SignedIn>
-        <Groups />
-      </SignedIn>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-    </>
+           path="/groups" 
+           element={
+          <>
+          <SignedIn>
+            <Groups />
+          </SignedIn>
+          <SignedOut>
+            <RedirectToSignIn />
+          </SignedOut>
+        </>
   } 
 />
 
@@ -191,6 +191,23 @@ function App() {
             </>
           }
         />
+
+        <Route
+           path = "/friends"
+           element = {
+            <>
+              <SignedIn>
+                <Friends />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            
+            </>
+           }
+        
+        />
+          
 
         <Route path="/sign-in/*" element={<AuthenticationPage />} />
         <Route path="/sign-up/*" element={<AuthenticationPage />} />
