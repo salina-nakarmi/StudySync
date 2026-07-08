@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { useProjects } from "../services/project_service";
+import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
 import TeamView from "../components/ProjectDetail/TeamView";
@@ -11,15 +12,12 @@ import TrackingView from "../components/ProjectDetail/TrackingView";
 import RepositoryView from "../components/ProjectDetail/RepositoryView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
 import InviteMemberModal from "../components/ProjectDetail/InviteMemberModal";
+import Docs from "../pages/Docs";
 
 const TAB_VIEWS = {
   tasks: null, // rendered directly as <TasksView />
   "my-tasks": null, // also <TasksView onlyMine /> — see renderContent
-  docs: {
-    title: "Docs",
-    description: "Project documentation and notes will live here.",
-    icon: "📄",
-  },
+  docs: null, // rendered directly as <Docs embedded /> — see renderContent
   tracking: {
     title: "Tracking",
     description: "Time logs and GitHub commit activity.",
@@ -49,27 +47,34 @@ export default function ProjectDetail() {
 
   const [activeTab, setActiveTab] = useState("tasks");
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [isDocsMaximized, setIsDocsMaximized] = useState(false);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#f8f9fb]">
-        <p className="text-sm text-gray-400">Loading project...</p>
+      <div className="min-h-screen bg-[#f8f9fb]">
+        <Navbar />
+        <div className="flex items-center justify-center h-screen">
+          <p className="text-sm text-gray-400">Loading project...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !project) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fb] gap-3">
-        <p className="text-sm text-red-500">
-          Couldn't load this project{error ? `: ${error.message}` : "."}
-        </p>
-        <button
-          onClick={() => navigate("/projects")}
-          className="text-sm font-bold text-[#2C76BA] hover:underline"
-        >
-          Back to Projects
-        </button>
+      <div className="min-h-screen bg-[#f8f9fb]">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center h-screen gap-3">
+          <p className="text-sm text-red-500">
+            Couldn't load this project{error ? `: ${error.message}` : "."}
+          </p>
+          <button
+            onClick={() => navigate("/projects")}
+            className="text-sm font-bold text-[#2C76BA] hover:underline"
+          >
+            Back to Projects
+          </button>
+        </div>
       </div>
     );
   }
@@ -80,6 +85,17 @@ export default function ProjectDetail() {
     }
     if (activeTab === "my-tasks") {
       return <TasksView projectId={projectId} projectName={project.project_name} onlyMine />;
+    }
+    if (activeTab === "docs") {
+      return (
+        <Docs
+          embedded
+          isMaximized={isDocsMaximized}
+          onMaximize={() => setIsDocsMaximized(true)}
+          onMinimize={() => setIsDocsMaximized(false)}
+          onClose={() => { setIsDocsMaximized(false); setActiveTab("tasks"); }}
+        />
+      );
     }
     if (activeTab === "team") {
       return <TeamView projectId={projectId} project={project} />;
@@ -100,6 +116,7 @@ export default function ProjectDetail() {
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] overflow-hidden">
+      <Navbar />
       <ProjectSidebar
         project={{
           name: project.project_name,
@@ -122,7 +139,18 @@ export default function ProjectDetail() {
           </button>
         </header>
 
-        <div className="flex-1 overflow-auto px-8 py-6">{renderContent()}</div>
+        <div
+          className={
+            activeTab === "docs"
+              // fixed positioning escapes the sidebar/header layout regardless of
+              // DOM nesting, and keeps this the *same* element across the toggle
+              // (no unmount) so in-progress document edits survive maximizing.
+              ? isDocsMaximized ? "fixed inset-0 z-100 bg-white" : "flex-1 min-h-0 overflow-hidden"
+              : "flex-1 overflow-auto px-8 py-6"
+          }
+        >
+          {renderContent()}
+        </div>
       </main>
 
       {showInviteModal && (

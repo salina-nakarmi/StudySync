@@ -107,8 +107,8 @@ const LargeBtn = ({ icon: Icon, glyph, label, hasDropdown = true, onClick, w = 5
 /* Small single-line text command, used for secondary items stacked inside a group
    (e.g. Blank Page / Page Break under Cover Page). Label truncates with an ellipsis
    rather than overflowing its box, so it can never visually overlap a neighboring group. */
-const TextRowBtn = ({ icon: Icon, label, extra = '' }) => (
-  <button className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap shrink-0">
+const TextRowBtn = ({ icon: Icon, label, extra = '', onClick }) => (
+  <button onClick={onClick} className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-gray-100 text-xs text-gray-700 whitespace-nowrap shrink-0">
     {Icon && <Icon size={12} className="text-gray-500 shrink-0" />}
     <span>{label}</span>
     {extra && <span className="text-gray-400 text-[11px] ml-1">{extra}</span>}
@@ -214,17 +214,90 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
   const [spacingBefore, setSpacingBefore]   = useState(0);
   const [spacingAfter, setSpacingAfter]     = useState(8);
 
-  const editorRef    = useRef(null);
+  const [showTableDrop, setShowTableDrop]   = useState(false);
+  const [tableHover, setTableHover]         = useState({ r: -1, c: -1 });
+
+  /* ── Multi-page document model ───────────────────────────────────
+     Word documents are a stack of real, separate sheets, not one long
+     scrolling column — so each page gets its own contentEditable DOM
+     node (tracked in pageRefs, keyed by a stable id) and its own paper
+     background. pageIds holds the display order; ids never get reused,
+     so React keys stay stable even when pages are spliced in anywhere
+     in the middle of the stack. */
+  const [pageIds, setPageIds]               = useState([0]);
+  const [currentPageDisplay, setCurrentPageDisplay] = useState(1);
+  const nextPageIdRef = useRef(1);
+  const pageRefs      = useRef(new Map());
+  const activePageIdRef = useRef(0);
+  const pendingPageWorkRef = useRef(null);
+
   const titleRef     = useRef(null);
   const fontFamilyBtnRef = useRef(null);
   const fontSizeBtnRef   = useRef(null);
   const marginsBtnRef    = useRef(null);
   const spacingBtnRef    = useRef(null);
+  const tableBtnRef      = useRef(null);
   const savedSelectionRef = useRef(null);
+
+  const registerPageRef = (id, el) => {
+    if (el) pageRefs.current.set(id, el);
+  };
+
+  const getActiveEditor = () =>
+    pageRefs.current.get(activePageIdRef.current) || pageRefs.current.get(pageIds[0]);
+
+  const setActivePage = (id) => {
+    activePageIdRef.current = id;
+    const idx = pageIds.indexOf(id);
+    if (idx !== -1) setCurrentPageDisplay(idx + 1);
+  };
+
+  const placeCaretAtStart = (el) => {
+    el.focus();
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  };
+
+  const recomputeWordCount = () => {
+    let total = 0;
+    pageRefs.current.forEach(el => {
+      const text = el?.innerText ?? '';
+      total += text.trim().split(/\s+/).filter(Boolean).length;
+    });
+    setWordCount(total);
+  };
+
+  /* After a page is spliced into pageIds, React mounts its (empty) contentEditable
+     on the next commit — only then does the DOM node exist in pageRefs, so the
+     actual HTML/caret placement has to happen in an effect keyed off pageIds
+     rather than inline where the page was requested. */
+  useEffect(() => {
+    const pending = pendingPageWorkRef.current;
+    if (!pending) return;
+    pendingPageWorkRef.current = null;
+    if (pending.multi) {
+      pending.multi.forEach(({ id, html }) => {
+        const el = pageRefs.current.get(id);
+        if (el) el.innerHTML = html;
+      });
+      const focusEl = pageRefs.current.get(pending.focusId);
+      if (focusEl) { placeCaretAtStart(focusEl); setActivePage(pending.focusId); }
+    } else {
+      const el = pageRefs.current.get(pending.id);
+      if (el) el.innerHTML = pending.html;
+      if (pending.focus !== false && el) { placeCaretAtStart(el); setActivePage(pending.id); }
+    }
+    recomputeWordCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageIds]);
 
   const exec = (cmd, val = null) => {
     document.execCommand(cmd, false, val);
-    editorRef.current?.focus();
+    getActiveEditor()?.focus();
     syncState();
   };
 
@@ -235,20 +308,17 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
      moves) and restore it right before applying a command. */
   const saveEditorSelection = () => {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && editorRef.current && editorRef.current.contains(sel.anchorNode)) {
+    const editor = getActiveEditor();
+    if (sel && sel.rangeCount > 0 && editor && editor.contains(sel.anchorNode)) {
       savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
     }
   };
 
   const restoreEditorSelection = () => {
     const sel = window.getSelection();
-    // A non-collapsed selection still anchored in the editor means nothing
-    // hijacked it (e.g. a plain toolbar button was clicked) — leave it alone.
-    // Focusing the editor after an <input> held focus collapses whatever
-    // selection existed, even though anchorNode stays "inside" the editor,
-    // so collapsed doesn't count as valid here.
+    const editor = getActiveEditor();
     const liveSelectionValid = sel && sel.rangeCount > 0 && !sel.isCollapsed &&
-      editorRef.current && editorRef.current.contains(sel.anchorNode);
+      editor && editor.contains(sel.anchorNode);
     if (liveSelectionValid) return;
     const range = savedSelectionRef.current;
     if (!range) return;
@@ -263,19 +333,153 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
     setIsStrike(document.queryCommandState('strikeThrough'));
   };
 
-  const handleEditorInput = () => {
-    const text = editorRef.current?.innerText ?? '';
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    setWordCount(words.length);
+  const handleEditorInput = (id) => {
+    if (id !== undefined) activePageIdRef.current = id;
+    recomputeWordCount();
     syncState();
+  };
+
+  /* Ensures the caret/selection is actually inside the given editor before we
+     run an insertion command from a plain toolbar button. Buttons don't steal
+     the browser selection the way a real <input> does, but if the editor has
+     never been focused yet there may be no range at all — in that case we
+     place the caret at the end of that page so insertions have somewhere to
+     land. */
+  const ensureEditorSelection = (editor) => {
+    if (!editor) return;
+    const sel = window.getSelection();
+    const validRange = sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode);
+    if (validRange) return;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  };
+
+  /* Inserts a raw HTML fragment at the current cursor position inside the
+     active page — used for Table insertion from the Insert tab, mirroring the
+     same execCommand pattern used elsewhere. */
+  const insertHTMLAtCursor = (html) => {
+    const editor = getActiveEditor();
+    if (!editor) return;
+    editor.focus();
+    ensureEditorSelection(editor);
+    document.execCommand('insertHTML', false, html);
+    handleEditorInput(activePageIdRef.current);
+  };
+
+  /* Splits the active page at the cursor: everything after the caret is
+     lifted out into a brand-new page inserted immediately after it, exactly
+     like Word's own page break — the new page is a real sheet, not a marker
+     drawn inside the same sheet. Returns the extracted "remainder" HTML so
+     insertBlankPage can reuse the same split. */
+  const splitActivePageAtCursor = () => {
+    const id = activePageIdRef.current;
+    const editor = pageRefs.current.get(id);
+    if (!editor) return null;
+    editor.focus();
+    ensureEditorSelection(editor);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return { id, remainderHTML: '<p><br></p>' };
+    const range = sel.getRangeAt(0);
+    let remainderHTML = '<p><br></p>';
+    try {
+      const extractRange = document.createRange();
+      extractRange.setStart(range.endContainer, range.endOffset);
+      extractRange.setEnd(editor, editor.childNodes.length);
+      const frag = extractRange.extractContents();
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(frag);
+      const extracted = wrapper.innerHTML.trim();
+      if (extracted) remainderHTML = extracted;
+    } catch (e) { /* selection spanned an unexpected node; keep default */ }
+    if (!editor.innerHTML.trim()) editor.innerHTML = '<p><br></p>';
+    return { id, remainderHTML };
+  };
+
+  const insertPageAfter = (afterId, html, focus = true) => {
+    setPageIds(ids => {
+      const idx = ids.indexOf(afterId);
+      const newId = nextPageIdRef.current++;
+      const next = [...ids];
+      next.splice(idx + 1, 0, newId);
+      pendingPageWorkRef.current = { id: newId, html, focus };
+      return next;
+    });
+  };
+
+  const insertPageBreak = () => {
+    const split = splitActivePageAtCursor();
+    if (!split) return;
+    insertPageAfter(split.id, split.remainderHTML, true);
+    handleEditorInput(split.id);
+  };
+
+  /* A "blank page" in Word splits the document at the cursor just like a page
+     break, but drops an empty page in between so the split halves never look
+     like a single continued page. */
+  const insertBlankPage = () => {
+    const split = splitActivePageAtCursor();
+    if (!split) return;
+    setPageIds(ids => {
+      const idx = ids.indexOf(split.id);
+      const blankId = nextPageIdRef.current++;
+      const contId = nextPageIdRef.current++;
+      const next = [...ids];
+      next.splice(idx + 1, 0, blankId, contId);
+      pendingPageWorkRef.current = {
+        multi: [
+          { id: blankId, html: '<p><br></p>' },
+          { id: contId, html: split.remainderHTML },
+        ],
+        focusId: blankId,
+      };
+      return next;
+    });
+    handleEditorInput(split.id);
+  };
+
+  /* Cover page is inserted as a brand-new sheet at the very front of the
+     document, pushing everything else down — just like Word's gallery
+     covers. Title/subtitle/date are normal editable text so the person can
+     click in and replace the placeholders. */
+  const insertCoverPage = () => {
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const html =
+      '<div style="padding:110px 0 50px;text-align:center;">' +
+        '<div style="font-size:34px;font-weight:600;color:#1F3864;letter-spacing:0.3px;margin-bottom:14px;">Document Title</div>' +
+        '<div style="font-size:16px;color:#595959;margin-bottom:70px;">Subtitle goes here</div>' +
+        `<div style="font-size:12px;color:#595959;">${today}</div>` +
+      '</div>';
+    setPageIds(ids => {
+      const coverId = nextPageIdRef.current++;
+      pendingPageWorkRef.current = { id: coverId, html, focus: false };
+      return [coverId, ...ids];
+    });
+  };
+
+  const insertTableGrid = (rows, cols) => {
+    setShowTableDrop(false);
+    setTableHover({ r: -1, c: -1 });
+    let rowsHtml = '';
+    for (let r = 0; r < rows; r++) {
+      let cellsHtml = '';
+      for (let c = 0; c < cols; c++) {
+        cellsHtml += '<td style="border:1px solid #999;padding:6px 8px;min-width:56px;height:24px;vertical-align:top;"><br></td>';
+      }
+      rowsHtml += `<tr>${cellsHtml}</tr>`;
+    }
+    const html = `<table style="border-collapse:collapse;width:100%;margin:10px 0;">${rowsHtml}</table><p><br></p>`;
+    insertHTMLAtCursor(html);
   };
 
   /* Finds the block-level element (paragraph/list-item/heading) that the current
      selection sits in, so spacing/indent tweaks apply to that paragraph rather
-     than the whole document. Falls back to the editor root when the caret is
+     than the whole page. Falls back to the active page's root when the caret is
      sitting directly inside it (e.g. before any block wrapper exists). */
   const getSelectedBlock = () => {
-    const editor = editorRef.current;
+    const editor = getActiveEditor();
     if (!editor) return null;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return editor;
@@ -296,7 +500,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
     setFontSize(size);
     setFontSizeDraft(size);
     setShowSizeDrop(false);
-    const editor = editorRef.current;
+    const editor = getActiveEditor();
     if (!editor) return;
     editor.focus();
     restoreEditorSelection();
@@ -328,7 +532,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
     setShowSpacingDrop(false);
     const block = getSelectedBlock();
     if (block) block.style.lineHeight = value;
-    editorRef.current?.focus();
+    getActiveEditor()?.focus();
   };
 
   const setParaSpacing = (which, value) => {
@@ -341,7 +545,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       setSpacingAfter(next);
       if (block) block.style.marginBottom = `${next}pt`;
     }
-    editorRef.current?.focus();
+    getActiveEditor()?.focus();
   };
 
   const adjustParaSpacing = (which, delta) => {
@@ -359,7 +563,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       setIndentRight(next);
       if (block) block.style.marginRight = `${next}in`;
     }
-    editorRef.current?.focus();
+    getActiveEditor()?.focus();
   };
 
   const applyMarginPreset = (values) => {
@@ -748,9 +952,9 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       {/* Pages */}
       <RibbonGroup label="Pages">
         <div className="flex flex-col gap-0.5 justify-center">
-          <TextRowBtn icon={BookOpen} label="Cover Page" extra="▾" />
-          <TextRowBtn icon={FileText} label="Blank Page" />
-          <TextRowBtn icon={LayoutGrid} label="Page Break" />
+          <TextRowBtn icon={BookOpen} label="Cover Page" extra="▾" onClick={insertCoverPage} />
+          <TextRowBtn icon={FileText} label="Blank Page" onClick={insertBlankPage} />
+          <TextRowBtn icon={LayoutGrid} label="Page Break" onClick={insertPageBreak} />
         </div>
       </RibbonGroup>
 
@@ -758,7 +962,44 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
 
       {/* Tables */}
       <RibbonGroup label="Tables">
-        <LargeBtn icon={LayoutGrid} label="Table" w={48} />
+        <div>
+          <button
+            ref={tableBtnRef}
+            onClick={() => setShowTableDrop(p => !p)}
+            className="flex flex-col items-center justify-center rounded px-1 py-1 hover:bg-gray-100 border border-transparent gap-0.5 text-center shrink-0"
+            style={{ height: '60px', width: '48px' }}
+          >
+            <LayoutGrid size={22} className="text-gray-700" />
+            <span className="text-[11px] text-gray-700 leading-tight flex items-center gap-0.5 justify-center">
+              <span>Table</span><ChevronDown size={8} className="shrink-0" />
+            </span>
+          </button>
+          <DropdownPanel open={showTableDrop} anchorRef={tableBtnRef} onClose={() => { setShowTableDrop(false); setTableHover({ r: -1, c: -1 }); }} width={228}>
+            <div className="p-2">
+              <div
+                className="grid grid-cols-10 gap-0.5 w-fit"
+                onMouseLeave={() => setTableHover({ r: -1, c: -1 })}
+              >
+                {Array.from({ length: 80 }).map((_, i) => {
+                  const r = Math.floor(i / 10);
+                  const c = i % 10;
+                  const active = r <= tableHover.r && c <= tableHover.c;
+                  return (
+                    <div
+                      key={i}
+                      onMouseEnter={() => setTableHover({ r, c })}
+                      onClick={() => insertTableGrid(r + 1, c + 1)}
+                      className={`w-4 h-4 border cursor-pointer ${active ? 'bg-blue-500 border-blue-700' : 'bg-white border-gray-300'}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="text-xs text-gray-600 text-center mt-1.5">
+                {tableHover.r >= 0 ? `${tableHover.r + 1} x ${tableHover.c + 1} Table` : 'Insert Table'}
+              </div>
+            </div>
+          </DropdownPanel>
+        </div>
       </RibbonGroup>
 
       <GroupDivider />
@@ -1011,7 +1252,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
           <LargeBtn icon={FileText} label="Size" w={46} />
           <LargeBtn icon={LayoutGrid} label="Columns" w={52} />
           <div className="flex items-center gap-0.5">
-            <TextRowBtn icon={Scissors} label="Breaks" extra="▾" />
+            <TextRowBtn icon={Scissors} label="Breaks" extra="▾" onClick={insertPageBreak} />
             <TextRowBtn icon={ListOrdered} label="Line Numbers" extra="▾" />
             <TextRowBtn icon={Type} label="Hyphenation" extra="▾" />
           </div>
@@ -1446,13 +1687,6 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
         ))}
       </div>
     );
-    /* Call these as plain functions rather than JSX (<HomeRibbon />) — they're
-       closures defined inside Docs, so a new function identity is created on
-       every render. Using them as JSX component tags would make React treat
-       each render as a brand new component type and remount the whole ribbon
-       subtree (destroying focus/selection in any input inside it, e.g. while
-       typing in the font size box). Calling them inlines their JSX with no
-       separate component boundary, so reconciliation just diffs normally. */
     if (activeTab === 'Home')       return HomeRibbon();
     if (activeTab === 'Insert')     return InsertRibbon();
     if (activeTab === 'Design')     return DesignRibbon();
@@ -1643,54 +1877,68 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
         className="flex-1 overflow-auto flex flex-col items-center py-6"
         style={{ background: '#e0e0e0' }}
       >
-        {/* Outer wrapper reserves the scaled space so scrolling works correctly */}
-        <div style={{
-          width: `${PAPER_W * zoom / 100}px`,
-          minHeight: `${PAPER_H * zoom / 100}px`,
-          position: 'relative',
-          flexShrink: 0,
-        }}>
-          {/* Paper — only this element scales with zoom */}
-          <div
-            style={{
-              width: `${PAPER_W}px`,
-              minHeight: `${PAPER_H}px`,
-              padding: `${pageMargins.top}in ${pageMargins.right}in ${pageMargins.bottom}in ${pageMargins.left}in`,
-              background: 'white',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
-              transformOrigin: 'top left',
-              transform: `scale(${zoom / 100})`,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-            }}
-          >
+        {/* Pages stack vertically, each a genuinely separate sheet with its own
+            shadow and gap — this is what makes Page Break / Blank Page / Cover
+            Page actually add a new page, instead of drawing a divider inside
+            one long scrolling column. */}
+        <div className="flex flex-col items-center" style={{ gap: `${24 * zoom / 100}px` }}>
+          {pageIds.map((id, idx) => (
+            /* Outer wrapper reserves the scaled space so scrolling/stacking works correctly */
             <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={handleEditorInput}
-              onKeyUp={syncState}
-              onMouseUp={syncState}
-              className="outline-none w-full"
+              key={id}
               style={{
-                fontFamily,
-                fontSize: `${parseInt(fontSize)}px`,
-                lineHeight: lineSpacing,
-                color: '#000',
-                minHeight: `${PAPER_H - (pageMargins.top + pageMargins.bottom) * 96}px`,
+                width: `${PAPER_W * zoom / 100}px`,
+                height: `${PAPER_H * zoom / 100}px`,
+                position: 'relative',
+                flexShrink: 0,
               }}
-              data-placeholder="Start typing your document..."
-            />
-            <style>{`
-              [contenteditable]:empty:before {
-                content: attr(data-placeholder);
-                color: #bbb;
-                pointer-events: none;
-              }
-            `}</style>
-          </div>
+            >
+              {/* Paper — only this element scales with zoom */}
+              <div
+                style={{
+                  width: `${PAPER_W}px`,
+                  height: `${PAPER_H}px`,
+                  padding: `${pageMargins.top}in ${pageMargins.right}in ${pageMargins.bottom}in ${pageMargins.left}in`,
+                  background: 'white',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                  transformOrigin: 'top left',
+                  transform: `scale(${zoom / 100})`,
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  boxSizing: 'border-box',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  ref={el => registerPageRef(id, el)}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => handleEditorInput(id)}
+                  onFocus={() => setActivePage(id)}
+                  onKeyUp={syncState}
+                  onMouseUp={syncState}
+                  className="outline-none w-full"
+                  style={{
+                    fontFamily,
+                    fontSize: `${parseInt(fontSize)}px`,
+                    lineHeight: lineSpacing,
+                    color: '#000',
+                    minHeight: `${PAPER_H - (pageMargins.top + pageMargins.bottom) * 96}px`,
+                  }}
+                  data-placeholder={idx === 0 ? 'Start typing your document...' : ''}
+                />
+              </div>
+            </div>
+          ))}
         </div>
+        <style>{`
+          [contenteditable]:empty:before {
+            content: attr(data-placeholder);
+            color: #bbb;
+            pointer-events: none;
+          }
+        `}</style>
       </div>
 
       {/* ── Status bar ─────────────────────────────────────────── */}
@@ -1700,7 +1948,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       >
         {/* Left info */}
         <div className="flex items-center gap-4">
-          <span>Page 1 of 1</span>
+          <span>Page {currentPageDisplay} of {pageIds.length}</span>
           <span className="opacity-60">|</span>
           <span>{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
           <span className="opacity-60">|</span>
