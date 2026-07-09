@@ -321,7 +321,7 @@ export const useGithub = (projectId, options = {}) => {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 20;
-
+ 
   const getCommits = useQuery({
     queryKey: ['projects', projectId, 'github', 'commits', skip],
     queryFn: () => makeRequest(
@@ -329,7 +329,7 @@ export const useGithub = (projectId, options = {}) => {
     ),
     enabled: (options.enabled ?? true) && !!projectId,
   });
-
+ 
   // useEffect replaces the removed onSuccess — watches query data and
   // accumulates commits across pages rather than replacing them.
   useEffect(() => {
@@ -343,7 +343,7 @@ export const useGithub = (projectId, options = {}) => {
     setHasMore(getCommits.data.has_more || false);
     setTotal(getCommits.data.total || 0);
   }, [getCommits.data, skip]);
-
+ 
   // Manual trigger only — no scheduled/automatic sync, per design
   const syncCommits = useMutation({
     mutationFn: () => makeRequest(`projects/${projectId}/github/sync`, {
@@ -357,7 +357,7 @@ export const useGithub = (projectId, options = {}) => {
       queryClient.invalidateQueries(['projects', projectId, 'tracking']);
     },
   });
-
+ 
   return {
     commits: allCommits,
     total,
@@ -369,6 +369,7 @@ export const useGithub = (projectId, options = {}) => {
     syncCommits,
   };
 };
+ 
 
 
 // ============================================================================
