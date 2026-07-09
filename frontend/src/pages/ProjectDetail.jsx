@@ -4,20 +4,23 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { useProjects } from "../services/project_service";
-import Navbar from "../components/Navbar";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
+import MyTasksView from "../components/ProjectDetail/MyTasksView";
 import TeamView from "../components/ProjectDetail/TeamView";
 import TrackingView from "../components/ProjectDetail/TrackingView";
 import RepositoryView from "../components/ProjectDetail/RepositoryView";
 import PlaceholderView from "../components/ProjectDetail/PlaceholderView";
 import InviteMemberModal from "../components/ProjectDetail/InviteMemberModal";
-import Docs from "../pages/Docs";
 
 const TAB_VIEWS = {
   tasks: null, // rendered directly as <TasksView />
-  "my-tasks": null, // also <TasksView onlyMine /> — see renderContent
-  docs: null, // rendered directly as <Docs embedded /> — see renderContent
+  "my-tasks": null, // rendered directly as <MyTasksView />
+  docs: {
+    title: "Docs",
+    description: "Project documentation and notes will live here.",
+    icon: "📄",
+  },
   tracking: {
     title: "Tracking",
     description: "Time logs and GitHub commit activity.",
@@ -47,55 +50,37 @@ export default function ProjectDetail() {
 
   const [activeTab, setActiveTab] = useState("tasks");
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [isDocsMaximized, setIsDocsMaximized] = useState(false);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fb]">
-        <Navbar />
-        <div className="flex items-center justify-center h-screen">
-          <p className="text-sm text-gray-400">Loading project...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen bg-[#f8f9fb]">
+        <p className="text-sm text-gray-400">Loading project...</p>
       </div>
     );
   }
 
   if (error || !project) {
     return (
-      <div className="min-h-screen bg-[#f8f9fb]">
-        <Navbar />
-        <div className="flex flex-col items-center justify-center h-screen gap-3">
-          <p className="text-sm text-red-500">
-            Couldn't load this project{error ? `: ${error.message}` : "."}
-          </p>
-          <button
-            onClick={() => navigate("/projects")}
-            className="text-sm font-bold text-[#2C76BA] hover:underline"
-          >
-            Back to Projects
-          </button>
-        </div>
+      <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fb] gap-3">
+        <p className="text-sm text-red-500">
+          Couldn't load this project{error ? `: ${error.message}` : "."}
+        </p>
+        <button
+          onClick={() => navigate("/projects")}
+          className="text-sm font-bold text-[#2C76BA] hover:underline"
+        >
+          Back to Projects
+        </button>
       </div>
     );
   }
 
   function renderContent() {
     if (activeTab === "tasks") {
-      return <TasksView projectId={projectId} projectName={project.project_name} onlyMine={false} />;
+      return <TasksView projectId={projectId} projectName={project.project_name} />;
     }
     if (activeTab === "my-tasks") {
-      return <TasksView projectId={projectId} projectName={project.project_name} onlyMine />;
-    }
-    if (activeTab === "docs") {
-      return (
-        <Docs
-          embedded
-          isMaximized={isDocsMaximized}
-          onMaximize={() => setIsDocsMaximized(true)}
-          onMinimize={() => setIsDocsMaximized(false)}
-          onClose={() => { setIsDocsMaximized(false); setActiveTab("tasks"); }}
-        />
-      );
+      return <MyTasksView projectId={projectId} />;
     }
     if (activeTab === "team") {
       return <TeamView projectId={projectId} project={project} />;
@@ -116,12 +101,12 @@ export default function ProjectDetail() {
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] overflow-hidden">
-      <Navbar />
       <ProjectSidebar
         project={{
           name: project.project_name,
           subtitle: project.description,
           icon: project.project_name?.[0]?.toUpperCase(),
+          is_github_integrated: project.is_github_integrated,
         }}
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -139,18 +124,7 @@ export default function ProjectDetail() {
           </button>
         </header>
 
-        <div
-          className={
-            activeTab === "docs"
-              // fixed positioning escapes the sidebar/header layout regardless of
-              // DOM nesting, and keeps this the *same* element across the toggle
-              // (no unmount) so in-progress document edits survive maximizing.
-              ? isDocsMaximized ? "fixed inset-0 z-100 bg-white" : "flex-1 min-h-0 overflow-hidden"
-              : "flex-1 overflow-auto px-8 py-6"
-          }
-        >
-          {renderContent()}
-        </div>
+        <div className="flex-1 overflow-auto px-8 py-6">{renderContent()}</div>
       </main>
 
       {showInviteModal && (

@@ -1,7 +1,7 @@
 // components/ProjectDetail/MyTasksView.jsx
 import { useState } from "react";
 import { CalendarIcon, ClockIcon, CheckCircle2Icon, CircleIcon } from "lucide-react";
-import { useTasks } from "../../services/project_service";
+import { useTasks, useTeamMember } from "../../services/project_service";
 import { deriveColumn, deriveStatus, STATUS_DOT, STATUS_LABEL, formatDueDate } from "./taskStatus";
 import EditTaskModal from "./EditTaskModal";
 
@@ -91,10 +91,15 @@ function TaskRow({ task, onToggle, onClick }) {
 }
 
 export default function MyTasksView({ projectId }) {
+  const { profile, isLoading: isLoadingProfile } = useTeamMember();
   const { myTasks, isLoadingMine, updateTask, deleteTask } = useTasks(projectId);
   const [editingTask, setEditingTask] = useState(null);
 
-  const tasks = myTasks || [];
+  // The API already scopes this list server-side (?only_mine=true -> assigned_to
+  // = current member), but we filter again here so this view can never show a
+  // task assigned to someone else, even if a stale cache or a future change to
+  // the endpoint were to leak one in.
+  const tasks = (myTasks || []).filter((t) => t.assigned_to === profile?.member_id);
   const pending = tasks.filter((t) => (t.progress_percentage ?? 0) < 100);
   const done = tasks.filter((t) => (t.progress_percentage ?? 0) >= 100);
 
@@ -118,7 +123,7 @@ export default function MyTasksView({ projectId }) {
     deleteTask.mutate(taskId);
   };
 
-  if (isLoadingMine) {
+  if (isLoadingMine || isLoadingProfile) {
     return <div className="text-sm text-gray-400 py-12 text-center">Loading your tasks...</div>;
   }
 

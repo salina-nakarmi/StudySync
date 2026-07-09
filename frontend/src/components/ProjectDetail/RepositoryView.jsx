@@ -21,7 +21,7 @@ function formatDateTime(value) {
 }
 
 export default function RepositoryView({ projectId, project }) {
-    const { commits, total, hasMore, isLoading, isFetchingMore, error, loadMore, syncCommits } = useGithub(projectId, {
+    const { commits, total, hasMore, isLoading, isFetchingMore, loadMore, error, syncCommits } = useGithub(projectId, {
         enabled: Boolean(project?.is_github_integrated),
     });
 
@@ -59,27 +59,6 @@ export default function RepositoryView({ projectId, project }) {
                     <p className="mt-3 text-sm font-semibold text-gray-900">No GitHub repository linked</p>
                     <p className="mt-1 text-sm text-gray-500">
                         Enable GitHub integration and set the repository owner/name in the backend project settings.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    // GitHub integration is enabled but repo owner/name haven't been set yet
-    if (!project?.github_repo_owner || !project?.github_repo_name) {
-        return (
-            <div className="flex flex-col gap-5">
-                <div>
-                    <h2 className="text-lg font-bold text-gray-900">Repository</h2>
-                    <p className="text-sm text-gray-500">GitHub integration is enabled but no repository has been linked yet.</p>
-                </div>
-                <div className="rounded-2xl border border-dashed border-yellow-200 bg-yellow-50 p-8 text-center">
-                    <CodeIcon className="mx-auto h-8 w-8 text-yellow-400" />
-                    <p className="mt-3 text-sm font-semibold text-gray-900">Repository not configured</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                        Use <span className="font-mono text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5">PATCH /api/projects/{projectId}</span> to set{" "}
-                        <span className="font-mono text-xs">github_repo_owner</span> and{" "}
-                        <span className="font-mono text-xs">github_repo_name</span>.
                     </p>
                 </div>
             </div>
@@ -152,7 +131,7 @@ export default function RepositoryView({ projectId, project }) {
                     )}
                 </div>
                 <div className="divide-y divide-gray-100">
-                    {(commits || []).map((commit) => (
+                    {commits.map((commit) => (
                         <div key={commit.commit_id} className="flex items-start gap-3 px-5 py-4">
                             <div className="mt-0.5 rounded-full bg-blue-50 p-2 text-[#2C76BA]">
                                 <GitCommitHorizontalIcon className="h-4 w-4" />
@@ -170,13 +149,16 @@ export default function RepositoryView({ projectId, project }) {
                             </div>
                         </div>
                     ))}
-                    {(commits || []).length === 0 && (
+                    {commits.length === 0 && !isLoading && (
                         <div className="px-5 py-10 text-center text-sm text-gray-400">
-                            No commits have been synced for this project yet.
+                            No commits have been synced yet. Click "Sync commits" to fetch from GitHub.
                         </div>
                     )}
-
-                    {/* Load more button — only shown when more commits exist in DB */}
+                    {isLoading && commits.length === 0 && (
+                        <div className="px-5 py-10 text-center text-sm text-gray-400">
+                            Loading commits...
+                        </div>
+                    )}
                     {hasMore && (
                         <div className="px-5 py-4 border-t border-gray-100">
                             <button
@@ -184,9 +166,7 @@ export default function RepositoryView({ projectId, project }) {
                                 disabled={isFetchingMore}
                                 className="w-full py-2.5 text-sm font-bold text-[#2C76BA] rounded-xl border border-[#2C76BA]/20 hover:bg-blue-50 transition disabled:opacity-50"
                             >
-                                {isFetchingMore
-                                    ? "Loading..."
-                                    : `Load more (${total - commits.length} remaining)`}
+                                {isFetchingMore ? "Loading..." : `Load more (${total - commits.length} remaining)`}
                             </button>
                         </div>
                     )}

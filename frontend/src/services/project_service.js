@@ -125,7 +125,6 @@ export const useProjects = (options = {}) => {
   };
 };
 
-
 // ============================================================================
 // PROJECT MEMBERS
 // ============================================================================
@@ -309,63 +308,57 @@ export const useProjectTracking = (projectId) => {
   });
 };
 
-
 // ============================================================================
 // GITHUB SYNC
 // ============================================================================
 export const useGithub = (projectId, options = {}) => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
-  const [allCommits, setAllCommits] = useState([]);
-  const [skip, setSkip] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
-  const PAGE_SIZE = 20;
+  const [limit, setLimit] = useState(20);
+  const [syncedOnce, setSyncedOnce] = useState(false);
+ 
+  // Query is enabled if caller says so (project.is_github_integrated) OR
+  // if we've just synced — so the UI updates immediately after first sync
+  // even before the project record's is_github_integrated flag refreshes.
+  const isEnabled = ((options.enabled ?? true) || syncedOnce) && !!projectId;
  
   const getCommits = useQuery({
-    queryKey: ['projects', projectId, 'github', 'commits', skip],
+    queryKey: ['projects', projectId, 'github', 'commits', limit],
     queryFn: () => makeRequest(
-      `projects/${projectId}/github/commits?skip=${skip}&limit=${PAGE_SIZE}`
+      `projects/${projectId}/github/commits?skip=0&limit=${limit}`
     ),
-    enabled: (options.enabled ?? true) && !!projectId,
+    enabled: isEnabled,
   });
  
-  // useEffect replaces the removed onSuccess — watches query data and
-  // accumulates commits across pages rather than replacing them.
-  useEffect(() => {
-    if (!getCommits.data) return;
-    const incoming = getCommits.data.commits || [];
-    if (skip === 0) {
-      setAllCommits(incoming);
-    } else {
-      setAllCommits((prev) => [...prev, ...incoming]);
-    }
-    setHasMore(getCommits.data.has_more || false);
-    setTotal(getCommits.data.total || 0);
-  }, [getCommits.data, skip]);
+  const data = getCommits.data;
+  const commits = data?.commits || [];
+  const total = data?.total || 0;
+  const hasMore = data?.has_more || false;
  
-  // Manual trigger only — no scheduled/automatic sync, per design
   const syncCommits = useMutation({
     mutationFn: () => makeRequest(`projects/${projectId}/github/sync`, {
       method: 'POST',
     }),
     onSuccess: () => {
-      // Reset to first page — useEffect will repopulate allCommits
-      setSkip(0);
-      setAllCommits([]);
+      setSyncedOnce(true); // unlock the query if it was gated
+      setLimit(20);
+      // Invalidate AND explicitly refetch — invalidation alone can miss
+      // if the component remounts with a fresh query instance.
       queryClient.invalidateQueries(['projects', projectId, 'github']);
       queryClient.invalidateQueries(['projects', projectId, 'tracking']);
+      queryClient.invalidateQueries(['projects', projectId]);
+      queryClient.refetchQueries(['projects', projectId, 'github']);
     },
   });
  
   return {
-    commits: allCommits,
+    commits,
     total,
     hasMore,
-    isLoading: getCommits.isLoading && skip === 0,
-    isFetchingMore: getCommits.isFetching && skip > 0,
+    isLoading: getCommits.isLoading,
+    isFetchingMore: getCommits.isFetching && !getCommits.isLoading,
     error: getCommits.error,
-    loadMore: () => setSkip((s) => s + PAGE_SIZE),
+    loadMore: () => setLimit((l) => l + 20),
     syncCommits,
   };
 };

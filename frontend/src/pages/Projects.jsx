@@ -2,19 +2,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { useProjects, useTeamMember } from "../services/project_service";
+import {
+  useProjects,
+  useTeamMember,
+} from "../services/project_service";
 import OnboardingPrompt from "../components/Projects/OnboardingPrompt";
 import GitHubRepoSearch from "../components/Projects/GitHubRepoSearch";
 import {
   PlusIcon,
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
-  ArchiveBoxIcon,
-  ChevronRightIcon,
   RocketLaunchIcon,
-  ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  TrashIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 
 const PRIMARY_BLUE = "#2C76BA";
@@ -88,6 +90,25 @@ function InlineProjectCard({ project, onClick }) {
   // Health overrides the badge color only if it signals risk (Yellow/Red)
   const badgeStyle = HEALTH_OVERRIDE[project.health] || cfg;
 
+  const { deleteProject } = useProjects();
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+
+    const confirmed = window.confirm(
+      `Delete "${project.name}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteProject.mutateAsync(project.id);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete project.");
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -109,12 +130,24 @@ function InlineProjectCard({ project, onClick }) {
           </div>
         </div>
 
-        <span
-          className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-full px-2.5 py-1 ${badgeStyle.badge}`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${badgeStyle.dot}`} />
-          {cfg.label}
-        </span>
+        <div className="flex items-center gap-2">
+
+  <button
+    onClick={handleDelete}
+    className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
+    title="Delete Project"
+  >
+    <TrashIcon className="h-4 w-4" />
+  </button>
+
+  <span
+    className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-full px-2.5 py-1 ${badgeStyle.badge}`}
+  >
+    <span className={`w-1.5 h-1.5 rounded-full ${badgeStyle.dot}`} />
+    {cfg.label}
+  </span>
+
+</div>
       </div>
 
       <div>
