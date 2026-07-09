@@ -6,7 +6,7 @@ import { useApi } from '../utils/api';
 // ============================================================================
 // TEAM MEMBER ONBOARDING
 // ============================================================================
-export const useTeamMember = () => {
+export const useTeamMember = ({ fetchProfile = true } = {}) => {
   const { makeRequest } = useApi();
   const queryClient = useQueryClient();
 
@@ -15,6 +15,7 @@ export const useTeamMember = () => {
     queryKey: ['team-members', 'me'],
     queryFn: () => makeRequest('team-members/me'),
     retry: false, // don't retry a 404 — it just means "not onboarded", not a transient failure
+    enabled: fetchProfile, // callers that only need `onboard`/`updateProfile` (e.g. OnboardingPrompt) can skip this fetch
   });
 
   const onboard = useMutation({
