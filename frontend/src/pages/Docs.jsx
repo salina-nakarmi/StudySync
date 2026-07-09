@@ -49,6 +49,18 @@ const marginPresets = [
 
 const lineSpacingOptions = ['1.0', '1.15', '1.5', '2.0', '2.5', '3.0'];
 
+const fontColors = [
+  '#000000', '#434343', '#666666', '#999999', '#B7B7B7', '#CCCCCC', '#D9D9D9', '#FFFFFF',
+  '#980000', '#FF0000', '#FF9900', '#FFFF00', '#00FF00', '#00FFFF', '#4A86E8', '#0000FF',
+  '#9900FF', '#FF00FF', '#E06666', '#F6B26B', '#93C47D', '#76A5AF', '#6D9EEB', '#8E7CC3',
+];
+
+const highlightColors = [
+  '#FFFF00', '#00FF00', '#00FFFF', '#FF00FF', '#0000FF', '#FF0000',
+  '#000080', '#008080', '#808000', '#808080', '#C0C0C0', '#FFFFFF',
+];
+
+
 const SmallBtn = ({ icon: Icon, label, onClick, active = false, children }) => (
   <button
     onClick={onClick}
@@ -216,6 +228,13 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
 
   const [showTableDrop, setShowTableDrop]   = useState(false);
   const [tableHover, setTableHover]         = useState({ r: -1, c: -1 });
+
+  const [fontColor, setFontColor]           = useState('#FF0000');
+  const [highlightColor, setHighlightColor] = useState('#FFFF00');
+  const [showFontColorDrop, setShowFontColorDrop] = useState(false);
+  const [showHighlightDrop, setShowHighlightDrop] = useState(false);
+  const fontColorBtnRef = useRef(null);
+  const highlightBtnRef = useRef(null);
 
   /* ── Multi-page document model ───────────────────────────────────
      Word documents are a stack of real, separate sheets, not one long
@@ -457,6 +476,58 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
       pendingPageWorkRef.current = { id: coverId, html, focus: false };
       return [coverId, ...ids];
     });
+  };
+
+  const applyFontColor = (color) => {
+    setFontColor(color);
+    setShowFontColorDrop(false);
+    const editor = getActiveEditor();
+    if (!editor) return;
+    editor.focus();
+    restoreEditorSelection();
+    document.execCommand('foreColor', false, color);
+    handleEditorInput(activePageIdRef.current);
+  };
+
+  const applyHighlight = (color) => {
+    setHighlightColor(color);
+    setShowHighlightDrop(false);
+    const editor = getActiveEditor();
+    if (!editor) return;
+    editor.focus();
+    restoreEditorSelection();
+    // hiliteColor is the standards-track name; some engines only recognize the
+    // older backColor alias, so try both for broadest browser support.
+    if (!document.execCommand('hiliteColor', false, color)) {
+      document.execCommand('backColor', false, color);
+    }
+    handleEditorInput(activePageIdRef.current);
+  };
+
+  /* Applies a named Word style (Normal, Heading 1-3, Title, Subtitle, No
+     Spacing) to the paragraph the cursor is in — changes the block tag via
+     formatBlock, then layers on the weight/size/color from wordStyles so it
+     visually matches the gallery preview regardless of the browser's own
+     default heading styling. */
+  const applyStyle = (styleName) => {
+    setActiveStyle(styleName);
+    const style = wordStyles.find(s => s.name === styleName);
+    if (!style) return;
+    const editor = getActiveEditor();
+    if (!editor) return;
+    editor.focus();
+    const headingMatch = styleName.match(/^Heading (\d)$/);
+    const tag = headingMatch ? `h${headingMatch[1]}` : 'p';
+    document.execCommand('formatBlock', false, `<${tag}>`);
+    const block = getSelectedBlock();
+    if (block) {
+      block.style.fontWeight = style.weight;
+      block.style.fontSize = style.size;
+      block.style.color = style.color;
+      block.style.marginTop = styleName === 'No Spacing' ? '0' : '';
+      block.style.marginBottom = styleName === 'No Spacing' ? '0' : '';
+    }
+    handleEditorInput(activePageIdRef.current);
   };
 
   const insertTableGrid = (rows, cols) => {
@@ -719,18 +790,74 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
             <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
             {/* Text highlight */}
-            <button title="Text Highlight Color" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
-              <Highlighter size={13} className="text-gray-700" />
-              <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: '#FFFF00' }} />
-            </button>
-            <ChevronDown size={9} className="text-gray-500 -ml-1" />
+            <div ref={highlightBtnRef}>
+              <button
+                title="Text Highlight Color"
+                onClick={() => { setShowHighlightDrop(p => !p); setShowFontColorDrop(false); }}
+                className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer"
+              >
+                <Highlighter size={13} className="text-gray-700" />
+                <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: highlightColor }} />
+              </button>
+              <DropdownPanel open={showHighlightDrop} anchorRef={highlightBtnRef} onClose={() => setShowHighlightDrop(false)} width={180}>
+                <div className="p-2">
+                  <button
+                    onClick={() => applyHighlight('transparent')}
+                    className="w-full text-left px-2 py-1 text-xs hover:bg-blue-50 rounded flex items-center gap-2 mb-1"
+                  >
+                    <X size={12} className="text-gray-500" /> No Color
+                  </button>
+                  <div className="grid grid-cols-6 gap-1">
+                    {highlightColors.map(c => (
+                      <button
+                        key={c}
+                        title={c}
+                        onClick={() => applyHighlight(c)}
+                        className="w-6 h-6 rounded-sm border border-gray-300 hover:scale-110 transition-transform"
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </DropdownPanel>
+            </div>
 
             {/* Font color */}
-            <button title="Font Color" className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer">
-              <span className="font-bold text-gray-800" style={{ fontSize: '13px', lineHeight: 1 }}>A</span>
-              <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: '#FF0000' }} />
-            </button>
-            <ChevronDown size={9} className="text-gray-500 -ml-1" />
+            <div ref={fontColorBtnRef}>
+              <button
+                title="Font Color"
+                onClick={() => { setShowFontColorDrop(p => !p); setShowHighlightDrop(false); }}
+                className="flex flex-col items-center justify-center w-7 h-7 rounded hover:bg-gray-300 border border-transparent cursor-pointer"
+              >
+                <span className="font-bold text-gray-800" style={{ fontSize: '13px', lineHeight: 1 }}>A</span>
+                <div className="w-4 h-1 rounded-sm mt-0.5" style={{ backgroundColor: fontColor }} />
+              </button>
+              <DropdownPanel open={showFontColorDrop} anchorRef={fontColorBtnRef} onClose={() => setShowFontColorDrop(false)} width={200}>
+                <div className="p-2">
+                  <div className="grid grid-cols-8 gap-1 mb-2">
+                    {fontColors.map(c => (
+                      <button
+                        key={c}
+                        title={c}
+                        onClick={() => applyFontColor(c)}
+                        className="w-5 h-5 rounded-sm border border-gray-300 hover:scale-110 transition-transform"
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-2 px-1 py-1 text-xs text-gray-700 hover:bg-gray-50 rounded cursor-pointer border-t border-gray-100 pt-2">
+                    <input
+                      type="color"
+                      value={fontColor}
+                      onMouseDown={saveEditorSelection}
+                      onChange={(e) => applyFontColor(e.target.value)}
+                      className="w-6 h-6 rounded cursor-pointer border border-gray-300"
+                    />
+                    <span>Custom Color…</span>
+                  </label>
+                </div>
+              </DropdownPanel>
+            </div>
           </div>
         </div>
       </RibbonGroup>
@@ -853,7 +980,7 @@ export default function Docs({ embedded = false, isMaximized = false, onMaximize
             {wordStyles.map(s => (
               <button
                 key={s.name}
-                onClick={() => setActiveStyle(s.name)}
+                onClick={() => applyStyle(s.name)}
                 className={`flex flex-col items-start px-2 py-1 rounded border shrink-0 w-[70px]
                   ${activeStyle === s.name
                     ? 'border-blue-400 bg-blue-50'
