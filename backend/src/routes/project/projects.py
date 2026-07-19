@@ -1,7 +1,7 @@
 # routes/project/projects.py
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+ 
 from ...database.database import get_db
 from ...dependencies import get_current_user
 from ...database.models import Users
@@ -11,7 +11,7 @@ from ...schemas.projects import (
     UpdateMemberRoleRequest, ProjectMemberSummary,
     GithubSyncResponse, GithubCommitResponse, ProjectTrackingResponse,
 )
-
+ 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
@@ -150,6 +150,50 @@ async def remove_member(
 # ============================================================
 # GITHUB SYNC
 # ============================================================
+@router.get("/github/search-repos")
+async def search_github_repos(
+    q: str = Query(..., min_length=2, description="Search query"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Proxy to GitHub's /search/repositories API — keeps GITHUB_ACCESS_TOKEN
+    server-side and avoids CORS issues with direct browser→GitHub calls.
+    Returns lightweight results (name, owner, description, stars, url).
+   """
+    import httpx, os
+    token = os.environ.get("GITHUB_ACCESS_TOKEN")
+    headers = {"Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+ 
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(
+            "https://api.github.com/search/repositories",
+            headers=headers,
+            params={"q": q, "per_page": 8, "sort": "stars", "order": "desc"},
+        )
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="GitHub search failed. Try again shortly.",
+            )
+        data = response.json()
+ 
+    return [
+        {
+            "full_name": repo["full_name"],           # e.g. "facebook/react"
+            "owner": repo["owner"]["login"],           # e.g. "facebook"
+            "name": repo["name"],                      # e.g. "react"
+            "description": repo.get("description"),
+            "stars": repo["stargazers_count"],
+            "url": repo["html_url"],
+            "private": repo["private"],
+        }
+        for repo in data.get("items", [])
+        if not repo["private"]                        # only suggest public repos
+    ]
+ 
 
 @router.post("/{project_id}/github/sync", response_model=GithubSyncResponse)
 async def sync_github_commits(

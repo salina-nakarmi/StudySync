@@ -18,6 +18,8 @@ import Messages from "./pages/Messages.jsx";
 import Projects from "./pages/Projects.jsx";
 import ProjectDetail from "./pages/ProjectDetail.jsx";
 import Docs from "./pages/Docs.jsx";
+import ProjectDetail from "./pages/ProjectDetail.jsx";
+import Docs from "./pages/Docs.jsx";
 import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
@@ -212,6 +214,17 @@ function App() {
         <Route path="/sign-in/*" element={<AuthenticationPage />} />
         <Route path="/sign-up/*" element={<AuthenticationPage />} />
         <Route path="/verify-email" element={<EmailVerification />} />
+
+        {/* PUBLIC — deliberately NOT wrapped in <SignedIn>/<SignedOut>
+            like every other route in this file. JoinProject.jsx handles
+            its own auth branching internally: anonymous visitors see the
+            invite preview (GET /api/invitations/{token} is a public
+            backend endpoint, no Clerk token required), and clicking
+            Accept while logged out calls Clerk's redirectToSignUp with
+            redirectUrl set to this exact URL, so they land back here
+            with the same ?token=xxx after signing up/in. */}
+        <Route path="/join" element={<JoinProject />} />
+ 
 
         {/* PUBLIC — deliberately NOT wrapped in <SignedIn>/<SignedOut>
             like every other route in this file. JoinProject.jsx handles

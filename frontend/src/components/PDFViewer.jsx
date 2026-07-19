@@ -1,8 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-
-// Import the worker file cleanly as an absolute file URL path
-import workerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import {
   ChevronLeftIcon,
@@ -12,10 +10,8 @@ import {
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
-// Pass the URL string straight to the PDF library
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
-// ... Rest of your component code stays exactly the same
 export default function PDFViewerWithControls({ resource, onProgressChange }) {
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -27,29 +23,18 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
 
   const debounceTimer = useRef(null);
   const lastSentPercent = useRef(null);
-  const requestSeq = useRef(0);
-
-  // Sync volatile states into refs to completely avoid stale closures in effects
-  const latestPageNumber = useRef(pageNumber);
-  const latestNumPages = useRef(numPages);
-  const latestOnProgressChange = useRef(onProgressChange);
-
-  useEffect(() => {
-    latestPageNumber.current = pageNumber;
-  }, [pageNumber]);
-
-  useEffect(() => {
-    latestNumPages.current = numPages;
-  }, [numPages]);
-
-  useEffect(() => {
-    latestOnProgressChange.current = onProgressChange;
-  }, [onProgressChange]);
+  const requestSeq = useRef(0); // increments on every send, used to drop stale responses
 
   // Debounced + ordering-safe progress reporting.
+  // - Waits 600ms after the page stops changing before writing, so fast
+  //   scrolling doesn't fire dozens of API calls.
+  // - Tags each call with an incrementing sequence number so that if an
+  //   older request resolves after a newer one, it's ignored instead of
+  //   overwriting the backend with a stale (lower) percent.
   const reportProgress = useCallback(
     (page, total, { immediate = false } = {}) => {
-      if (!latestOnProgressChange.current || !total) return;
+      console.log("[PDFViewer] reportProgress called", { page, total, immediate, hasCallback: !!onProgressChange });
+      if (!onProgressChange || !total) return;
       const percent = Math.round((page / total) * 100);
 
       if (percent === lastSentPercent.current) return;
@@ -57,12 +42,13 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
       clearTimeout(debounceTimer.current);
 
       const send = () => {
-        const mySeq = ++requestSeq.current;
-        lastSentPercent.current = percent;
-        Promise.resolve(latestOnProgressChange.current(percent, page, mySeq, total)).catch((err) => {
-          console.error("[PDFViewer] onProgressChange threw", err);
-        });
-      };
+      console.log("[PDFViewer] sending progress update", { page, percent });
+      const mySeq = ++requestSeq.current;
+      lastSentPercent.current = percent;
+      Promise.resolve(onProgressChange(percent, page, mySeq, total)).catch((err) => {
+        console.error("[PDFViewer] onProgressChange threw", err);
+      });
+    };
 
       if (immediate) {
         send();
@@ -70,22 +56,22 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         debounceTimer.current = setTimeout(send, 600);
       }
     },
-    [] 
+    [onProgressChange]
   );
 
-  // Mark as opened cleanly exactly ONCE when the component mounts
+  // Mark as opened immediately so a quick open/close still registers.
   useEffect(() => {
-    if (latestOnProgressChange.current) {
+    if (onProgressChange) {
       lastSentPercent.current = 0;
       const mySeq = ++requestSeq.current;
-      Promise.resolve(latestOnProgressChange.current(0, 1, mySeq, 0)).catch(() => {});
+      Promise.resolve(onProgressChange(0, mySeq)).catch(() => {});
     }
-  }, []); 
+  }, [onProgressChange]);
 
-  function onLoadSuccess({ numPages: loadedNumPages }) {
-    setNumPages(loadedNumPages);
+  function onLoadSuccess({ numPages }) {
+    setNumPages(numPages);
     setPageNumber(1);
-    reportProgress(1, loadedNumPages, { immediate: true });
+    reportProgress(1, numPages, { immediate: true });
   }
 
   const setPageRef = useCallback((page) => (node) => {
@@ -114,7 +100,7 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
           if (visible) {
             const page = Number(visible.target.dataset.pageNumber);
             setPageNumber(page);
-            reportProgress(page, latestNumPages.current);
+            reportProgress(page, numPages);
           }
         },
         { root: node, threshold: 0.5 }
@@ -122,26 +108,25 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
 
       Object.values(pageRefs.current).forEach((el) => observerRef.current.observe(el));
     },
-    [reportProgress]
+    [numPages, reportProgress]
   );
 
-  // Flush the *current* page coordinates cleanly on absolute unmount
+  // Flush the *current* page as a final, immediate write on unmount
+  // (i.e. when the viewer closes), so the last position is always saved
+  // even if a debounce timer hadn't fired yet.
   useEffect(() => {
     return () => {
       clearTimeout(debounceTimer.current);
       observerRef.current?.disconnect();
-      
-      const total = latestNumPages.current;
-      const current = latestPageNumber.current;
-      
-      if (latestOnProgressChange.current && total) {
-        const percent = Math.round((current / total) * 100);
+      if (onProgressChange && numPages) {
+        const percent = Math.round((pageNumber / numPages) * 100);
         if (percent !== lastSentPercent.current) {
           const mySeq = ++requestSeq.current;
-          Promise.resolve(latestOnProgressChange.current(percent, current, mySeq, total)).catch(() => {});
+          Promise.resolve(onProgressChange(percent, mySeq)).catch(() => {});
         }
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function scrollToPage(page) {

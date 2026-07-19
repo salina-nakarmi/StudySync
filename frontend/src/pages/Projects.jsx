@@ -2,18 +2,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { useProjects, useTeamMember } from "../services/project_service";
+import {
+  useProjects,
+  useTeamMember,
+} from "../services/project_service";
 import OnboardingPrompt from "../components/Projects/OnboardingPrompt";
+import GitHubRepoSearch from "../components/Projects/GitHubRepoSearch";
 import {
   PlusIcon,
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
-  ArchiveBoxIcon,
-  ChevronRightIcon,
   RocketLaunchIcon,
-  ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  TrashIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 
 const PRIMARY_BLUE = "#2C76BA";
@@ -87,6 +90,25 @@ function InlineProjectCard({ project, onClick }) {
   // Health overrides the badge color only if it signals risk (Yellow/Red)
   const badgeStyle = HEALTH_OVERRIDE[project.health] || cfg;
 
+  const { deleteProject } = useProjects();
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+
+    const confirmed = window.confirm(
+      `Delete "${project.name}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteProject.mutateAsync(project.id);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete project.");
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -108,12 +130,24 @@ function InlineProjectCard({ project, onClick }) {
           </div>
         </div>
 
-        <span
-          className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-full px-2.5 py-1 ${badgeStyle.badge}`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${badgeStyle.dot}`} />
-          {cfg.label}
-        </span>
+        <div className="flex items-center gap-2">
+
+  <button
+    onClick={handleDelete}
+    className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
+    title="Delete Project"
+  >
+    <TrashIcon className="h-4 w-4" />
+  </button>
+
+  <span
+    className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-full px-2.5 py-1 ${badgeStyle.badge}`}
+  >
+    <span className={`w-1.5 h-1.5 rounded-full ${badgeStyle.dot}`} />
+    {cfg.label}
+  </span>
+
+</div>
       </div>
 
       <div>
@@ -184,20 +218,22 @@ function StartNewCard({ onClick }) {
 function InlineCreateModal({ onClose, onCreate, isSubmitting }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [githubEnabled, setGithubEnabled] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState(null); // { owner, name, full_name, description }
 
   const handleSubmit = () => {
     if (!name.trim()) return;
     onCreate({
       project_name: name.trim(),
       description: description.trim() || null,
-      is_github_integrated: githubEnabled,
+      is_github_integrated: !!selectedRepo,
+      github_repo_owner: selectedRepo?.owner ?? null,
+      github_repo_name: selectedRepo?.name ?? null,
     });
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-gray-900 mb-5">Create New Project</h2>
 
         <div className="space-y-4">
@@ -227,23 +263,20 @@ function InlineCreateModal({ onClose, onCreate, isSubmitting }) {
             />
           </div>
 
-          <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
-            <div>
-              <p className="text-sm font-bold text-gray-700">GitHub Integration</p>
-              <p className="text-xs text-gray-400">Link a repository to this project</p>
-            </div>
-            <button
-              onClick={() => setGithubEnabled((p) => !p)}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                githubEnabled ? "bg-[#2C76BA]" : "bg-gray-200"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                  githubEnabled ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
+          {/* GitHub repo search — selecting a repo auto-enables integration.
+              Clearing the selection disables it. No separate toggle needed. */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+              GitHub Repository (optional)
+            </label>
+            <GitHubRepoSearch
+              selected={selectedRepo}
+              onSelect={setSelectedRepo}
+              onClear={() => setSelectedRepo(null)}
+            />
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Linking a repo enables commit sync and the Repository tab.
+            </p>
           </div>
           {/* Note: invites happen after creation, from inside the project (owner-only),
               not at creation time — matches the backend's invite flow */}

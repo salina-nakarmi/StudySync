@@ -19,13 +19,13 @@ import {
   UserPlusIcon,
   UsersIcon,
   XMarkIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import {
   BookmarkIcon as BookmarkIconSolid,
   HeartIcon as HeartIconSolid,
 } from "@heroicons/react/24/solid";
 import { useAuth, useUser } from "@clerk/clerk-react";
-import { TrashIcon } from "@heroicons/react/24/outline";
 import Navbar from "../components/Navbar";
 import { communityService } from "../services/community_services";
 import { friendsService } from "../services/friends_service";
@@ -64,8 +64,6 @@ const getAuthorName = (author) => {
   return author.username || `${author.first_name || ""} ${author.last_name || ""}`.trim() || "Unknown";
 };
 
-// Adjust these two field names if your API uses different keys for the
-// author/owner id on posts and comments (e.g. post.author.id vs post.user_id).
 const isPostOwner = (post, currentUserId) =>
   !!currentUserId && post.author?.user_id === currentUserId;
 
@@ -74,12 +72,6 @@ const isCommentOwner = (comment, currentUserId) =>
 
 const formatRelativeTime = (value) => {
   if (!value) return "";
-  // If the backend sends a timestamp with no timezone info (no trailing Z,
-  // no +HH:MM/-HH:MM offset), JS's Date constructor assumes it's LOCAL time.
-  // If the backend actually meant UTC (very common), this silently shifts
-  // every timestamp by your local UTC offset - e.g. showing "6h ago" for
-  // something that just happened, for a user at UTC+5:45.
-  // Normalize: if there's no zone info, treat it as UTC explicitly.
   const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(value);
   const date = new Date(hasZone ? value : `${value}Z`);
   if (Number.isNaN(date.getTime())) return "";
@@ -186,17 +178,6 @@ const injectStyles = () => {
   `;
   document.head.appendChild(el);
 };
-
-/* ══════════════════════════════════════════════════════════════
-   All of the components below are declared OUTSIDE Communities().
-   This is what actually fixes the "input loses focus / post
-   flickers on every keystroke" bug: if they were declared inside
-   Communities(), a new function identity was created for each of
-   them on every render, which made React unmount + remount the
-   whole subtree (including the <input>) instead of just updating
-   it. Because they're now stable top-level components, they take
-   everything they need as props instead of closing over state.
-   ══════════════════════════════════════════════════════════════ */
 
 /* ── PostHeader ── */
 const PostHeader = ({ post, currentUserId, onDeletePost, onOpenProfile }) => {
@@ -344,7 +325,7 @@ const ReactionBar = ({ post, onToggleReaction, onToggleDiscussion, onShare }) =>
   </div>
 );
 
-/* ── Comment (recursive, one level of replies from backend) ── */
+/* ── CommentItem ── */
 const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
   <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 }}>
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -520,11 +501,6 @@ const ResourceBlock = ({ post, onToggleReaction }) => {
               {resource.total_pages} pages
             </span>
           )}
-          {resource?.file_size && (
-            <span style={{ background: "#f1f5f9", color: "#475569", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999 }}>
-              {(resource.file_size / (1024 * 1024)).toFixed(1)} MB
-            </span>
-          )}
         </div>
         <p style={{ margin: "0 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -556,7 +532,7 @@ const QuestionBlock = ({ post, postComments, onToggleDiscussion, onToggleReactio
       <p style={{ margin: "8px 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
 
       {previewAnswers.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Top answers
           </p>
@@ -569,7 +545,7 @@ const QuestionBlock = ({ post, postComments, onToggleDiscussion, onToggleReactio
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div style={{ display: "flex", gap: 8 }}>
         <button className="cm-btn cm-btn-dark" onClick={() => onToggleDiscussion(post.id)}>
           <ChatBubbleLeftRightIcon style={{ width: 14, height: 14 }} />
           Answer
@@ -792,7 +768,7 @@ const UserProfileDialog = ({
   isOpen,
   profile,
   isLoadingProfile,
-  friendStatus, // "none" | "friends" | "pending" | "self"
+  friendStatus,
   isSendingRequest,
   errorMessage,
   onClose,
@@ -893,13 +869,12 @@ const UserProfileDialog = ({
   );
 };
 
-/* ─── Component ─── */
+/* ─── Main Component ─── */
 const Communities = () => {
   injectStyles();
   const { getToken } = useAuth();
   const { user } = useUser();
   const currentUserId = user?.id;
-  console.log("currentUserId:", currentUserId);
 
   const [addPostModalOpen, setAddPostModalOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
@@ -909,29 +884,27 @@ const Communities = () => {
   const [error, setError] = useState("");
 
   const [expandedPosts, setExpandedPosts] = useState([]);
-  const [comments, setComments] = useState({}); // { [postId]: CommentResponse[] }
+  const [comments, setComments] = useState({});
   const [commentsLoading, setCommentsLoading] = useState({});
-  const [replyDrafts, setReplyDrafts] = useState({}); // { [postId]: string }
+  const [replyDrafts, setReplyDrafts] = useState({});
   const [replySending, setReplySending] = useState({});
 
   const [recentUploads, setRecentUploads] = useState([]);
   const [topContributors, setTopContributors] = useState([]);
 
-  const reactionInFlight = useRef({}); // guards double-click spam per post/action
+  const reactionInFlight = useRef({});
 
-  /* ── Friends / profile dialog ── */
   const [friendIds, setFriendIds] = useState(new Set());
   const [sentRequestIds, setSentRequestIds] = useState(new Set());
   const [profileDialog, setProfileDialog] = useState({
     open: false,
-    author: null,     // minimal author object from the post (used for instant render)
-    profile: null,     // full profile fetched from /users/{id}
+    author: null,
+    profile: null,
     loading: false,
     sending: false,
     error: "",
   });
 
-  /* ── Discussion / comments (declared early so fetchPosts can use loadComments) ── */
   const loadComments = useCallback(async (postId) => {
     setCommentsLoading((cur) => ({ ...cur, [postId]: true }));
     try {
@@ -946,7 +919,6 @@ const Communities = () => {
     }
   }, [getToken]);
 
-  /* ── Fetch feed ── */
   const fetchPosts = useCallback(async () => {
     try {
       setLoading(true);
@@ -960,9 +932,7 @@ const Communities = () => {
       const data = await communityService.getPosts(token, params);
       const fetchedPosts = Array.isArray(data?.posts) ? data.posts : [];
       setPosts(fetchedPosts);
-      console.log("sample post:", JSON.stringify(fetchedPosts[0], null, 2));
 
-      // Eagerly load comments for question posts so answer previews show immediately
       const questionPosts = fetchedPosts.filter((p) => p.post_type === "question");
       questionPosts.forEach((p) => {
         setComments((cur) => {
@@ -983,7 +953,6 @@ const Communities = () => {
     return () => clearTimeout(timer);
   }, [fetchPosts]);
 
-  /* ── Fetch sidebar data once ── */
   useEffect(() => {
     const loadSidebar = async () => {
       try {
@@ -1001,8 +970,6 @@ const Communities = () => {
     loadSidebar();
   }, [getToken]);
 
-  /* ── Fetch current friends + already-sent requests once, so the dialog
-     can instantly show the right state instead of guessing ── */
   useEffect(() => {
     const loadFriendData = async () => {
       try {
@@ -1026,14 +993,13 @@ const Communities = () => {
     loadFriendData();
   }, [getToken]);
 
-  /* ── Profile dialog: open + fetch full profile (for join date etc.) ── */
   const handleOpenProfile = useCallback(async (author) => {
     if (!author?.user_id) return;
 
     setProfileDialog({
       open: true,
       author,
-      profile: author, // show what we already have immediately
+      profile: author,
       loading: true,
       sending: false,
       error: "",
@@ -1066,12 +1032,10 @@ const Communities = () => {
     try {
       const token = await getToken();
       await friendsService.sendFriendRequest(token, receiverId);
-      // Tick the box: mark as sent both in the dialog and in the cached set
       setSentRequestIds((cur) => new Set(cur).add(receiverId));
       setProfileDialog((cur) => ({ ...cur, sending: false }));
     } catch (err) {
       const message = err.message || "Failed to send friend request";
-      // If it's already pending/friends, just reflect that instead of showing an error
       if (/already exists/i.test(message)) {
         setSentRequestIds((cur) => new Set(cur).add(receiverId));
         setProfileDialog((cur) => ({ ...cur, sending: false }));
@@ -1094,9 +1058,6 @@ const Communities = () => {
     return "none";
   })();
 
-  const visiblePosts = posts; // filtering/search now happens server-side
-
-  /* ── Reactions ── */
   const toggleReaction = useCallback(async (postId, field) => {
     const flightKey = `${postId}-${field}`;
     if (reactionInFlight.current[flightKey]) return;
@@ -1104,8 +1065,7 @@ const Communities = () => {
 
     try {
       const token = await getToken();
-      const action =
-        field === "liked" ? communityService.toggleLike : communityService.toggleSave;
+      const action = field === "liked" ? communityService.toggleLike : communityService.toggleSave;
       const result = await action(token, postId);
 
       setPosts((cur) =>
@@ -1156,11 +1116,7 @@ const Communities = () => {
 
   const handleSendReply = useCallback(async (postId, rawText) => {
     const text = (rawText || "").trim();
-    if (!text) return;
-
-    // Guard against double-fires (e.g. Enter key + button click both firing
-    // for the same submission, or an in-flight request already running).
-    if (replySending[postId]) return;
+    if (!text || replySending[postId]) return;
 
     setReplySending((s) => ({ ...s, [postId]: true }));
     try {
@@ -1178,23 +1134,19 @@ const Communities = () => {
     }
   }, [getToken, loadComments, replySending]);
 
-  /* ── Delete post / comment ──
-     Assumes communityService exposes deletePost(token, postId) and
-     deleteComment(token, postId, commentId). Adjust names/signatures to
-     match your actual service client if they differ. */
   const handleDeletePost = useCallback(async (postId) => {
     const confirmed = window.confirm("Delete this post? This can't be undone.");
     if (!confirmed) return;
 
     const previousPosts = posts;
-    setPosts((cur) => cur.filter((p) => p.id !== postId)); // optimistic removal
+    setPosts((cur) => cur.filter((p) => p.id !== postId));
 
     try {
       const token = await getToken();
       await communityService.deletePost(token, postId);
     } catch (err) {
       console.error("Failed to delete post", err);
-      setPosts(previousPosts); // roll back on failure
+      setPosts(previousPosts);
     }
   }, [getToken, posts]);
 
@@ -1216,7 +1168,6 @@ const Communities = () => {
       await communityService.deleteComment(token, postId, commentId);
     } catch (err) {
       console.error("Failed to delete comment", err);
-      // roll back on failure
       setComments((cur) => ({ ...cur, [postId]: previousComments }));
       setPosts((cur) =>
         cur.map((p) => (p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p))
@@ -1224,7 +1175,6 @@ const Communities = () => {
     }
   }, [getToken, comments]);
 
-  /* ── Page ── */
   return (
     <div style={{ minHeight: "100vh", background: "#fff" }}>
       <Navbar />
@@ -1287,12 +1237,12 @@ const Communities = () => {
           <div style={{ paddingRight: 32, borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 20 }}>
             {loading ? (
               <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8" }}>Loading posts...</div>
-            ) : visiblePosts.length === 0 ? (
+            ) : posts.length === 0 ? (
               <div style={{ background: "#fff", border: "1px dashed #e2e8f0", borderRadius: 20, padding: 48, textAlign: "center" }}>
                 <p style={{ margin: 0, color: "#94a3b8", fontSize: 14 }}>No posts match your current filter.</p>
               </div>
             ) : (
-              visiblePosts.map((post) => (
+              posts.map((post) => (
                 <PostCard
                   key={post.id}
                   post={post}
@@ -1319,6 +1269,7 @@ const Communities = () => {
             <Sidebar recentUploads={recentUploads} topContributors={topContributors} />
           </div>
         </div>
+
         <AddPostModal
           isOpen={addPostModalOpen}
           onClose={() => setAddPostModalOpen(false)}

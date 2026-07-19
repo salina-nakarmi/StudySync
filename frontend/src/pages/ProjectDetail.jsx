@@ -6,6 +6,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useProjects } from "../services/project_service";
 import ProjectSidebar from "../components/ProjectDetail/ProjectSidebar";
 import TasksView from "../components/ProjectDetail/TasksView";
+import MyTasksView from "../components/ProjectDetail/MyTasksView";
 import TeamView from "../components/ProjectDetail/TeamView";
 import TrackingView from "../components/ProjectDetail/TrackingView";
 import RepositoryView from "../components/ProjectDetail/RepositoryView";
@@ -14,7 +15,7 @@ import InviteMemberModal from "../components/ProjectDetail/InviteMemberModal";
 
 const TAB_VIEWS = {
   tasks: null, // rendered directly as <TasksView />
-  "my-tasks": null, // also <TasksView onlyMine /> — see renderContent
+  "my-tasks": null, // rendered directly as <MyTasksView />
   docs: {
     title: "Docs",
     description: "Project documentation and notes will live here.",
@@ -76,10 +77,10 @@ export default function ProjectDetail() {
 
   function renderContent() {
     if (activeTab === "tasks") {
-      return <TasksView projectId={projectId} projectName={project.project_name} onlyMine={false} />;
+      return <TasksView projectId={projectId} projectName={project.project_name} />;
     }
     if (activeTab === "my-tasks") {
-      return <TasksView projectId={projectId} projectName={project.project_name} onlyMine />;
+      return <MyTasksView projectId={projectId} />;
     }
     if (activeTab === "team") {
       return <TeamView projectId={projectId} project={project} />;
@@ -105,6 +106,7 @@ export default function ProjectDetail() {
           name: project.project_name,
           subtitle: project.description,
           icon: project.project_name?.[0]?.toUpperCase(),
+          is_github_integrated: project.is_github_integrated,
         }}
         activeTab={activeTab}
         onTabChange={setActiveTab}

@@ -20,6 +20,7 @@ const Navbar = () => {
     if (pathname === "/projects") return "Projects";
     if (pathname === "/friends") return "Friends"
     return "";
+    
   };
 
   const [activeTab, setActiveTab] = useState(() => getActiveTabFromPath(location.pathname));

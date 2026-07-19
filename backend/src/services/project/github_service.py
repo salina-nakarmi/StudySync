@@ -17,6 +17,7 @@ import os
 import httpx
 from datetime import datetime
 from sqlalchemy import select, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
@@ -130,43 +131,38 @@ async def sync_project_commits(db: AsyncSession, project_id: int) -> dict:
     )
     username_to_member = {username: member_id for username, member_id in members_result.all()}
 
-    # Existing SHAs already stored, to skip duplicates without relying solely on the DB constraint
-    existing_shas_result = await db.execute(
-        select(GithubCommits.sha).where(GithubCommits.project_id == project_id)
-    )
-    existing_shas = {row[0] for row in existing_shas_result.all()}
-
     new_commits_count = 0
     unresolved_authors: set[str] = set()
 
     for raw in raw_commits:
         sha = raw["sha"]
-        if sha in existing_shas:
-            continue
-
-        author_login = (raw.get("author") or {}).get("login")  # None if unlinked commit email
+        author_login = (raw.get("author") or {}).get("login")
         commit_data = raw["commit"]
-        author_github_username = author_login or commit_data["author"]["name"]  # fallback to git name
+        author_github_username = author_login or commit_data["author"]["name"]
 
         member_id = username_to_member.get(author_login) if author_login else None
         if member_id is None:
             unresolved_authors.add(author_github_username)
 
-        commit_row = GithubCommits(
+        # INSERT ... ON CONFLICT (sha) DO NOTHING — the sha column has a global
+        # unique constraint, so the manual existing_shas pre-filter wasn't enough
+        # when the same commit SHA already existed under a different project_id.
+        # This approach is safe regardless of prior sync state.
+        stmt = pg_insert(GithubCommits).values(
             project_id=project_id,
             sha=sha,
             author_github_username=author_github_username,
             member_id=member_id,
             commit_message=commit_data["message"],
             commit_url=raw["html_url"],
-            # Strip tzinfo before storing — the column is TIMESTAMP WITHOUT TIME ZONE.
-            # The value is always UTC from GitHub so no information is lost.
             committed_at=datetime.fromisoformat(
                 commit_data["author"]["date"].replace("Z", "+00:00")
             ).replace(tzinfo=None),
-        )
-        db.add(commit_row)
-        new_commits_count += 1
+        ).on_conflict_do_nothing(index_elements=["sha"])
+
+        result = await db.execute(stmt)
+        if result.rowcount > 0:
+            new_commits_count += 1
 
     await db.flush()
 

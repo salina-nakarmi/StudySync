@@ -1,29 +1,24 @@
 // components/ProjectDetail/AddTaskModal.jsx
 import { useState } from "react";
 import { XIcon } from "lucide-react";
+import AssigneeSelect from "./AssigneeSelect";
 
 const PRIMARY_BLUE = "#2C76BA";
 
-export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
+export default function AddTaskModal({ projectId, initialColumn, onConfirm, onClose }) {
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [assignedTo, setAssignedTo] = useState(null);
 
-  const handleSubmit = () => {
+  const handleCreate = () => {
     if (!taskName.trim()) return;
     onConfirm({
       task_name: taskName.trim(),
       description: description.trim() || null,
       due_date: dueDate || null,
+      assigned_to: assignedTo,
     });
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-    if (e.key === "Escape") onClose();
   };
 
   return (
@@ -31,10 +26,12 @@ export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New task</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Adding to <span className="font-semibold text-gray-600">{initialColumn}</span>
-            </p>
+            <h2 className="text-base font-bold text-gray-900">Add task</h2>
+            {initialColumn && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                Adding to <span className="font-semibold text-gray-500">{initialColumn}</span>
+              </p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -54,8 +51,7 @@ export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
               type="text"
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="e.g. Implement login flow"
+              placeholder="What needs to get done?"
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 outline-none focus:border-[#2C76BA] focus:ring-2 focus:ring-[#2C76BA]/10 transition"
             />
           </div>
@@ -67,8 +63,8 @@ export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What needs to be done?"
               rows={3}
+              placeholder="Add more context..."
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 outline-none resize-none focus:border-[#2C76BA] focus:ring-2 focus:ring-[#2C76BA]/10 transition"
             />
           </div>
@@ -84,6 +80,12 @@ export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 outline-none focus:border-[#2C76BA] focus:ring-2 focus:ring-[#2C76BA]/10 transition"
             />
           </div>
+
+          <AssigneeSelect
+            projectId={projectId}
+            value={assignedTo}
+            onChange={setAssignedTo}
+          />
         </div>
 
         <div className="flex gap-3 mt-6">
@@ -94,12 +96,12 @@ export default function AddTaskModal({ initialColumn, onConfirm, onClose }) {
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={handleCreate}
             disabled={!taskName.trim()}
             className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl hover:opacity-90 transition disabled:opacity-40"
             style={{ backgroundColor: PRIMARY_BLUE }}
           >
-            Create task
+            Add task
           </button>
         </div>
       </div>

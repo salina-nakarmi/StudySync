@@ -4,8 +4,28 @@ import { Search, UserPlus, UserCheck, UserX, MessageCircle, MoreHorizontal, Cloc
 import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
 import Navbar from "../components/Navbar";
+import { createGroupHandlers } from "../handlers/groupHandlers";
+import { useGroupChat } from "../hooks/UseGroupChat";
+import { groupService } from "../services/group_services";
+import { resourceService } from "../services/resource_services";
+import PDFViewerWithControls from "../components/PDFViewer";
 
-export default function Friends() {
+const PRIMARY_BLUE = "#2C76BA";
+
+const isPdfResource = (resource) => {
+  if (resource.resource_type === "file") {
+    if (resource.url?.toLowerCase().includes(".pdf")) {
+      return true;
+    }
+    if (resource.mime_type?.toLowerCase().includes("pdf")) {
+      return true;
+    }
+  }
+  return false;
+};
+
+export default function Groups() {
+  const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
@@ -17,32 +37,58 @@ export default function Friends() {
   const [requests, setRequests] = useState([]);
   const [sent, setSent] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+ const [resources, setResources] = useState([]); // Group resources
+  const [personalResources, setPersonalResources] = useState([]); // ADD THIS
+  const [resourceFilter, setResourceFilter] = useState("all"); // ADD THIS
+  const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [isJoinMode, setIsJoinMode] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [directChatPanelOpen, setDirectChatPanelOpen] = useState(true);
+  const [activeDirectChatId, setActiveDirectChatId] = useState(null);
+  const [unreadByContact, setUnreadByContact] = useState({});
+  const [resourceProgress, setResourceProgress] = useState({}); // { [resourceId]: { percent, status } }
+  const latestSeqRef = useRef(0);
+  const [viewingResource, setViewingResource] = useState(null);
+  const [formData, setFormData] = useState({
+    group_name: "",
+    description: "",
+    group_type: "community",
+    visibility: "public",
+    max_members: "",
+    invite_code: "",
+  });
 
-  // Setup Axios configurations with middleware compatibility headers
-  const apiOptions = useMemo(() => {
-    return {
-      headers: {
-        "user_id": user?.id || "",
-        "email": user?.primaryEmailAddress?.emailAddress || "",
-      }
-    };
-  }, [user]);
+  // Create handlers
+  const handlers = createGroupHandlers({
+    getToken,
+    navigate,
+    setGroups,
+    setActiveGroup,
+    setResources,
+    setLoading,
+    setError,
+    setModalOpen,
+    setFormData,
+    setSubmitting,
+    setIsJoinMode,
+    activeGroup,
+    formData,
+  });
 
-  // Fetch all categories from backend
-  const fetchAllFriendsData = async () => {
-    if (!user) return;
-    setLoading(true);
+  const loadGroups = useCallback(async () => {
     try {
-      const [friendsRes, receivedRes, sentRes] = await Promise.all([
-        axios.get("/api/friends/my-friends", apiOptions),
-        axios.get("/api/friends/requests/received", apiOptions),
-        axios.get("/api/friends/requests/sent", apiOptions)
-      ]);
-      setFriends(friendsRes.data);
-      setRequests(receivedRes.data);
-      setSent(sentRes.data);
-    } catch (error) {
-      console.error("Error retrieving friend contexts:", error);
+      setLoading(true);
+      setError(null);
+      const token = await getToken();
+      const data = await groupService.getMyGroups(token);
+      setGroups(data);
+    } catch (err) {
+      setError(err.message);
+      if (err.message.includes("Not authenticated") || err.message.includes("401")) {
+        navigate("/sign-in");
+      }
     } finally {
       setLoading(false);
     }
@@ -86,11 +132,113 @@ export default function Friends() {
     }
   };
 
-  // Safe shorthand helper for string initials
-  const getInitials = (name) => {
-    if (!name) return "??";
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  // Clear chat when switching groups
+  useEffect(() => {
+    if (activeGroupId) {
+      setChatMessages([]);
+      setUnreadByContact({});
+      setActiveDirectChatId(firstDirectChatMemberId);
+      setDirectChatPanelOpen(true);
+    }
+  }, [activeGroupId, firstDirectChatMemberId, user?.id]);
+
+  useEffect(() => {
+    directChatPanelOpenRef.current = directChatPanelOpen;
+  }, [directChatPanelOpen]);
+
+  useEffect(() => {
+    activeDirectChatIdRef.current = activeDirectChatId;
+  }, [activeDirectChatId]);
+ 
+  //resource tracking realted
+  const progressTimeoutRef = useRef(null);
+
+  const viewingResourceRef = useRef(null);
+  useEffect(() => {
+    viewingResourceRef.current = viewingResource;
+  }, [viewingResource]);
+
+  const handleAutoProgressChange = useCallback(
+    (percent, page, seq, totalPages) => {
+      const resource = viewingResourceRef.current;
+      if (!resource) return;
+      if (seq < latestSeqRef.current) return;
+      latestSeqRef.current = seq;
+
+      setResourceProgress((prev) => ({
+        ...prev,
+        [resource.id]: { percent, status: getStatusForPercent(percent) },
+      }));
+
+      clearTimeout(progressTimeoutRef.current);
+      progressTimeoutRef.current = setTimeout(async () => {
+        try {
+          const token = await getToken();
+          const result = await resourceService.updateProgress(token, resource.id, {
+            current_page: page,
+            total_pages: totalPages,
+          });
+          setResourceProgress((prev) => ({
+            ...prev,
+            [resource.id]: { percent: result.progress_percentage, status: result.status },
+          }));
+        } catch (err) {
+          console.error("Failed to auto-update progress", err);
+        }
+      }, 800);
+    },
+    [getToken]
+  );
+
+  const getStatusForPercent = (percent) => {
+    if (percent >= 100) return "completed";
+    if (percent > 0) return "in_progress";
+    return "not_started";
   };
+
+  const getProgressLabel = (status) => {
+    if (status === "completed") return "Completed";
+    if (status === "in_progress") return "In Progress";
+    if (status === "paused") return "Paused";
+    return "Not Started";
+  };
+
+  useEffect(() => {
+    const loadAllProgress = async () => {
+      if (!resources.length) return;
+      try {
+        const token = await getToken();
+        const entries = await Promise.all(
+          resources.map(async (res) => {
+            try {
+              const progress = await resourceService.getMyProgress(token, res.id);
+              return [
+                res.id,
+                {
+                  percent: progress?.progress_percentage || 0,
+                  status: progress?.status || "not_started",
+                },
+              ];
+            } catch {
+              return [res.id, { percent: 0, status: "not_started" }];
+            }
+          })
+        );
+        setResourceProgress(Object.fromEntries(entries));
+      } catch (err) {
+        console.error("Failed to load resource progress", err);
+      }
+    };
+    loadAllProgress();
+  }, [resources, getToken]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#2C76BA] mx-auto mb-4"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -209,36 +357,230 @@ export default function Friends() {
                     </div>
                   ))}
                 </div>
-              )
-            )}
+              </div>
 
-            {/* Sent Requests Tab */}
-            {tab === "sent" && (
-              sent.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">No sent requests pending.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sent.map((s) => (
-                    <div key={s.id} className="p-4 border rounded-xl flex items-center justify-between shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gray-400 rounded-full text-white flex items-center justify-center font-bold">
-                          {getInitials(s.receiver_name)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">{s.receiver_name}</p>
-                          <p className="text-xs text-gray-400 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Outgoing Request
-                          </p>
-                        </div>
-                      </div>
+              {/* Tab Content */}
+              <div className="min-h-100">
+                {activeTab === "Resources" && (
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-gray-900">Shared Materials</h3>
+                      <button
+                        onClick={() => setAddResourceModalOpen(true)}
+                        className="px-3 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-black transition"
+                      >
+                        <PlusIcon className="w-3 h-3" /> Add Resource
+                      </button>
                     </div>
-                  ))}
-                </div>
-              )
-            )}
-          </>
+                    
+                    {resources.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400 text-sm">No resources shared yet.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {resources.map((res) => {
+                          const type = res.resource_type.toLowerCase();
+                          let Icon = LinkIcon;
+                          if (type === "file") Icon = DocumentTextIcon;
+                          if (type === "video") Icon = VideoCameraIcon;
+
+                          return (
+                            <div key={res.id} className="group flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition">
+                              <div className="flex items-center gap-4">
+                                <div className="p-2 bg-gray-100 rounded-lg text-gray-600 group-hover:bg-white transition">
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-gray-900">{res.title || "Untitled"}</h4>
+                                  <p className="text-xs text-gray-500 truncate max-w-md">{res.description}</p>
+                                  <div className="mt-3">
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                      <span>{getProgressLabel(resourceProgress[res.id]?.status)}</span>
+                                      <span>{resourceProgress[res.id]?.percent || 0}% Complete</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden w-62">
+                                      <div
+                                        className="h-full bg-[#2C76BA] transition-all"
+                                        style={{ width: `${resourceProgress[res.id]?.percent || 0}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => {
+                                    if (isPdfResource(res)) {                        // ✅ Correct detection
+                                      console.log("📄 Opening PDF in internal viewer:", res.title);
+                                      setViewingResource(res);
+                                    } else {
+                                      console.log("🔗 Opening external resource:", res.title);
+                                      window.open(res.url, "_blank");
+                                    }
+                                  }}
+                                  className="text-xs font-bold text-[#2C76BA] hover:underline"
+                                >
+                                  {isPdfResource(res) ? "View PDF" : "Open"}        
+                                </button>
+                                <button onClick={() => handlers.handleDeleteResource(res.id)} className="p-1.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
+                                  <XMarkIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "Members" && (
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                    <h3 className="font-bold text-gray-900 mb-6">Group Members</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {activeGroup.members?.map((member) => (
+                        <div key={member.user_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white border border-gray-200 rounded-full flex items-center justify-center">
+                              <UserIcon className="w-4 h-4 text-gray-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{member.username}</p>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-tighter">{member.role}</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-gray-400">{new Date(member.joined_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "Leaderboard" && (
+                  <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-20 text-center">
+                    <p className="text-gray-400 font-medium">Leaderboard rankings are being calculated... 🏆</p>
+                  </div>
+                )}
+              </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* MODALS */}
+        <AddResourceModal
+          isOpen={addResourceModalOpen}
+          onClose={() => setAddResourceModalOpen(false)}
+          onSubmit={resourceData => handlers.handleAddResource({ ...resourceData, groupId: activeGroup?.id })}
+          groupId={activeGroup?.id}
+        />
+
+        {modalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-100">
+            <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">{isJoinMode ? "Join a Community" : "Create a Group"}</h2>
+              
+              <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+                <button onClick={() => setIsJoinMode(false)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${!isJoinMode ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>Create</button>
+                <button onClick={() => setIsJoinMode(true)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${isJoinMode ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>Join</button>
+              </div>
+
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Group Name *"
+                  value={formData.group_name}
+                  onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2C76BA] outline-none text-sm transition"
+                />
+                {!isJoinMode ? (
+                  <>
+                    <textarea
+                      placeholder="Description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2C76BA] outline-none text-sm h-24 transition"
+                    />
+                    <select
+                      value={formData.group_type}
+                      onChange={(e) => setFormData({ ...formData, group_type: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2C76BA] outline-none text-sm transition"
+                    >
+                      <option value="community">Community (Public Management)</option>
+                      <option value="leader_controlled">Leader Controlled</option>
+                    </select>
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Invite Code (Required for private groups)"
+                    value={formData.invite_code}
+                    onChange={(e) => setFormData({ ...formData, invite_code: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2C76BA] outline-none text-sm transition"
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => setModalOpen(false)} 
+                  className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={isJoinMode ? handlers.handleJoinGroup : handlers.handleCreateGroup} 
+                  disabled={submitting}
+                  className="flex-1 py-3 text-sm font-bold bg-gray-800 text-white rounded-xl hover:bg-black transition disabled:opacity-50"
+                >
+                  {submitting ? "..." : isJoinMode ? "Join" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
-      </main>
-    </div>
+        {viewingResource && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 truncate">{viewingResource.title}</h3>
+                  <p className="text-xs text-gray-500 truncate">{viewingResource.description}</p>
+                </div>
+                <button
+                  onClick={() => setViewingResource(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0 ml-2"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              
+              
+              {/* PDF Viewer Component */}
+              <PDFViewerWithControls
+                resource={viewingResource}
+                onProgressChange={handleAutoProgressChange}
+              />
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 bg-white flex justify-between items-center">
+                <a                                                  // ✅ Proper opening tag
+                  href={viewingResource.url}
+                  download
+                  className="text-xs font-bold text-gray-600 hover:text-gray-900 hover:underline transition"
+                >
+                  Download PDF
+                </a>
+                <button onClick={() => setViewingResource(null)} className="px-4 py-2 text-sm font-bold text-white bg-gray-800 rounded-lg hover:bg-black transition">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </>
   );
 }

@@ -23,6 +23,10 @@ import {
   UserPlusIcon,
   PlusIcon,
   XMarkIcon,
+  UserGroupIcon,
+  UserPlusIcon,
+  PlusIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
@@ -287,10 +291,13 @@ const handleAddMember = (memberName) => {
 
   return (
     <div className="h-screen overflow-hidden bg-white">
+    <div className="h-screen overflow-hidden bg-white">
       <Navbar />
 
       <main className="h-[calc(100vh-64px)] mt-16 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+      <main className="h-[calc(100vh-64px)] mt-16 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
         {/* Page Header */}
+        <div className="flex justify-between items-center py-3 shrink-0">
         <div className="flex justify-between items-center py-3 shrink-0">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Messages</h1>
@@ -300,8 +307,10 @@ const handleAddMember = (memberName) => {
 
         {/* Layout */}
         <div className="flex-1 min-h-0 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] pb-4">
+        <div className="flex-1 min-h-0 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] pb-4">
 
           {/* Sidebar */}
+          <aside className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm min-h-0">
           <aside className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm min-h-0">
             {/* Search */}
             <div className="p-4 border-b border-gray-100">
@@ -309,6 +318,7 @@ const handleAddMember = (memberName) => {
                 <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 shrink-0" />
                 <input
                   type="text"
+                  placeholder="Search..."
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -714,6 +724,172 @@ function AddMemberModal({ friends, existingMembers, onAdd, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* Add Member Modal */}
+      {showAddMember && (
+        <AddMemberModal
+          friends={friends}
+          existingMembers={isGroup ? (selectedFriend.members || []) : [selectedFriend.name]}
+          onAdd={handleAddMember}
+          onClose={() => setShowAddMember(false)}
+        />
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroup && (
+        <CreateGroupModal
+          friends={friends}
+          onCreate={handleCreateGroup}
+          onClose={() => setShowCreateGroup(false)}
+        />
+      )}
     </div>
   );
 }
+
+function CreateGroupModal({ friends, onCreate, onClose }) {
+  const [groupName, setGroupName] = useState("");
+  const [selected, setSelected] = useState([]);
+
+  const toggle = (name) =>
+    setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
+
+  const handleSubmit = () => {
+    if (!groupName.trim()) return;
+    if (selected.length < 1) return;
+    onCreate(groupName.trim(), selected);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <UserGroupIcon className="h-5 w-5 text-gray-500" />
+            <h3 className="text-base font-bold text-gray-900">Create Group</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+            <XMarkIcon className="h-4 w-4 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4">
+          {/* Group name */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 mb-1.5 block">Group name</label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="e.g. CS Study Group"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#2C76BA] transition-colors"
+            />
+          </div>
+
+          {/* Member selection */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 mb-1.5 block">Add members</label>
+            <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {friends.map((f) => {
+                const checked = selected.includes(f.name);
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => toggle(f.name)}
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${
+                      checked ? "border-[#2C76BA] bg-blue-50/60" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-full ${f.avatarColor} flex items-center justify-center text-xs font-bold border border-gray-200 shrink-0`}>
+                      {f.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{f.name}</p>
+                      <p className="text-[11px] text-gray-400">{f.role}</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      checked ? "border-[#2C76BA] bg-[#2C76BA]" : "border-gray-300"
+                    }`}>
+                      {checked && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selected.length > 0 && (
+              <p className="text-[11px] text-gray-400 mt-1.5">{selected.length} member{selected.length > 1 ? "s" : ""} selected</p>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-100 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!groupName.trim() || selected.length === 0}
+            className="px-4 py-2 text-sm font-bold bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Create Group
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddMemberModal({ friends, existingMembers, onAdd, onClose }) {
+  const available = friends.filter((f) => !existingMembers.includes(f.name));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <UserPlusIcon className="h-5 w-5 text-gray-500" />
+            <h3 className="text-base font-bold text-gray-900">Add Member</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+            <XMarkIcon className="h-4 w-4 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          {available.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">All friends are already in this group.</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Select a friend to add</p>
+              {available.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => onAdd(f.name)}
+                  className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:border-[#2C76BA] hover:bg-blue-50/50 transition-all text-left"
+                >
+                  <div className={`h-9 w-9 rounded-full ${f.avatarColor} flex items-center justify-center text-xs font-bold border border-gray-200 shrink-0`}>
+                    {f.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">{f.name}</p>
+                    <p className="text-[11px] text-gray-400">{f.role}</p>
+                  </div>
+                  <PlusIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

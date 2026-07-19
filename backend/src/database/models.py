@@ -28,7 +28,6 @@ class InvitationStatus(enum.Enum):
 class ResourceType(enum.Enum):
     IMAGE="image"
     VIDEO="video"
-
     PDF="pdf"
     FILE="file"
     FOLDER="folder"
@@ -201,13 +200,12 @@ class Resources(Base):
     
     title: Mapped[str]  # Add title
     description: Mapped[str | None]
-    
+
     # Optional: folder organization
     parent_folder_id: Mapped[int | None] = mapped_column(ForeignKey('resources.id'))
     
     file_size: Mapped[int | None]  # bytes
     total_pages: Mapped[int | None]
-
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     
     created_at: Mapped[datetime] = mapped_column(default=func.now())
@@ -236,15 +234,12 @@ class ResourceProgress(Base):
         default=ResourceStatus.NOT_STARTED
     )
     
-    # Progress percentage (0-100)
-    progress_percentage: Mapped[int] = mapped_column(default=0)
-    
-    # User's notes on this resource
+    # User's notes
     notes: Mapped[str | None]
     
-    # Timestamps for tracking
-    started_at: Mapped[datetime | None]  # When they first marked as in_progress
-    completed_at: Mapped[datetime | None]  # When they marked as completed
+    # Timestamps
+    started_at: Mapped[datetime | None]
+    completed_at: Mapped[datetime | None]
     last_updated: Mapped[datetime] = mapped_column(
         default=func.now(), 
         onupdate=func.now()
