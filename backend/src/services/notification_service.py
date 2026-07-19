@@ -14,7 +14,8 @@ async def create_notification(data, db: AsyncSession):
     )
     db.add(notification)
     print(f"Notification added to database")
-    await db.commit()
+ # CHANGE THIS: Use flush instead of commit to protect the parent transaction
+    await db.flush() 
     await db.refresh(notification)
 
     # Prepare a payload compatible with frontend expectations

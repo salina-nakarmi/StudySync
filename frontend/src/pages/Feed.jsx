@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowDownTrayIcon,
   BookmarkIcon,
+  CalendarDaysIcon,
   ChatBubbleLeftRightIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   DocumentTextIcon,
@@ -14,7 +16,9 @@ import {
   PaperAirplaneIcon,
   PlusIcon,
   ShareIcon,
+  UserPlusIcon,
   UsersIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
   BookmarkIcon as BookmarkIconSolid,
@@ -24,6 +28,7 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 import { TrashIcon } from "@heroicons/react/24/outline";
 import Navbar from "../components/Navbar";
 import { communityService } from "../services/community_services";
+import { friendsService } from "../services/friends_service";
 import AddPostModal from "../components/AddPostModal";
 
 const MotionArticle = motion.article;
@@ -89,6 +94,14 @@ const formatRelativeTime = (value) => {
   return date.toLocaleDateString();
 };
 
+const formatJoinDate = (value) => {
+  if (!value) return "";
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(value);
+  const date = new Date(hasZone ? value : `${value}Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+};
+
 /* ─── Styles (scoped via className prefix "cm-") ─── */
 const injectStyles = () => {
   if (typeof document === "undefined" || document.getElementById("cm-styles")) return;
@@ -142,6 +155,34 @@ const injectStyles = () => {
       flex: 1; border: none; background: transparent; font-size: 13px;
       outline: none; color: #334155;
     }
+    .cm-author-trigger {
+      background: none; border: none; padding: 0; cursor: pointer;
+      font: inherit; text-align: left;
+    }
+    .cm-author-trigger:hover .cm-author-name { text-decoration: underline; }
+    .cm-dialog-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
+    }
+    .cm-dialog {
+      background: #fff; border-radius: 20px; padding: 32px;
+      width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .cm-friend-checkbox {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 11px 16px; border-radius: 12px; font-size: 14px;
+      font-weight: 600; cursor: pointer; border: 1.5px solid #0f172a;
+      background: #0f172a; color: #fff; transition: all 0.15s ease;
+    }
+    .cm-friend-checkbox:disabled { cursor: default; }
+    .cm-friend-checkbox-sent {
+      background: #f0fdf4; color: #15803d; border-color: #bbf7d0;
+    }
+    .cm-friend-checkbox-tick {
+      width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid currentColor;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
   `;
   document.head.appendChild(el);
 };
@@ -158,9 +199,10 @@ const injectStyles = () => {
    ══════════════════════════════════════════════════════════════ */
 
 /* ── PostHeader ── */
-const PostHeader = ({ post, currentUserId, onDeletePost }) => {
+const PostHeader = ({ post, currentUserId, onDeletePost, onOpenProfile }) => {
   const typeMeta = TYPE_META[post.post_type] || TYPE_META.resource;
   const authorName = getAuthorName(post.author);
+  const isSelf = !!currentUserId && post.author?.user_id === currentUserId;
   const [menuOpen, setMenuOpen] = useState(false);
   const canDelete = isPostOwner(post, currentUserId);
   const menuRef = useRef(null);
@@ -176,7 +218,13 @@ const PostHeader = ({ post, currentUserId, onDeletePost }) => {
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
+      <button
+        type="button"
+        className="cm-author-trigger"
+        onClick={() => onOpenProfile?.(post.author)}
+        disabled={!post.author?.user_id || isSelf}
+        style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, cursor: post.author?.user_id && !isSelf ? "pointer" : "default" }}
+      >
         <div style={{ position: "relative", flexShrink: 0 }}>
           <div
             className="cm-avatar"
@@ -187,7 +235,7 @@ const PostHeader = ({ post, currentUserId, onDeletePost }) => {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
-            <span style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>{authorName}</span>
+            <span className="cm-author-name" style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>{authorName}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "#94a3b8" }}>{formatRelativeTime(post.created_at)}</span>
@@ -207,7 +255,7 @@ const PostHeader = ({ post, currentUserId, onDeletePost }) => {
             )}
           </div>
         </div>
-      </div>
+      </button>
 
       {canDelete && (
         <div style={{ position: "relative" }} ref={menuRef}>
@@ -612,6 +660,7 @@ const PostCard = ({
   onSendReply,
   onDeletePost,
   onDeleteComment,
+  onOpenProfile,
 }) => (
   <MotionArticle
     className="cm-card"
@@ -620,7 +669,7 @@ const PostCard = ({
     viewport={{ once: true, amount: 0.1 }}
     transition={{ duration: 0.4, ease: "easeOut" }}
   >
-    <PostHeader post={post} currentUserId={currentUserId} onDeletePost={onDeletePost} />
+    <PostHeader post={post} currentUserId={currentUserId} onDeletePost={onDeletePost} onOpenProfile={onOpenProfile} />
     <div style={{ marginTop: 16 }}>
       <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>
         {post.title}
@@ -738,6 +787,112 @@ const Sidebar = ({ recentUploads, topContributors }) => (
   </aside>
 );
 
+/* ── UserProfileDialog ── */
+const UserProfileDialog = ({
+  isOpen,
+  profile,
+  isLoadingProfile,
+  friendStatus, // "none" | "friends" | "pending" | "self"
+  isSendingRequest,
+  errorMessage,
+  onClose,
+  onSendRequest,
+}) => {
+  if (!isOpen) return null;
+
+  const name = getAuthorName(profile);
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  let buttonLabel = "Add Friend";
+  let buttonDisabled = isSendingRequest;
+  let buttonClass = "cm-friend-checkbox";
+  let showTick = false;
+
+  if (friendStatus === "friends") {
+    buttonLabel = "Already Friends";
+    buttonDisabled = true;
+    buttonClass += " cm-friend-checkbox-sent";
+    showTick = true;
+  } else if (friendStatus === "pending") {
+    buttonLabel = "Request Sent";
+    buttonDisabled = true;
+    buttonClass += " cm-friend-checkbox-sent";
+    showTick = true;
+  } else if (isSendingRequest) {
+    buttonLabel = "Sending...";
+  }
+
+  return (
+    <div className="cm-dialog-overlay" onMouseDown={handleOverlayClick}>
+      <div className="cm-dialog">
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 4 }}
+          >
+            <XMarkIcon style={{ width: 20, height: 20 }} />
+          </button>
+        </div>
+
+        {isLoadingProfile ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: "#94a3b8", fontSize: 13 }}>
+            Loading profile...
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: -8 }}>
+              <div
+                className="cm-avatar"
+                style={{ width: 72, height: 72, fontSize: 22, background: avatarColor(name) }}
+              >
+                {getInitials(name)}
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{name}</p>
+                {profile?.username && (
+                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>@{profile.username}</p>
+                )}
+              </div>
+
+              {profile?.created_at && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, color: "#64748b", fontSize: 12 }}>
+                  <CalendarDaysIcon style={{ width: 14, height: 14 }} />
+                  Joined {formatJoinDate(profile.created_at)}
+                </div>
+              )}
+            </div>
+
+            {errorMessage && (
+              <div style={{ marginTop: 16, padding: 10, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, color: "#b91c1c", fontSize: 12, textAlign: "center" }}>
+                {errorMessage}
+              </div>
+            )}
+
+            {friendStatus !== "self" && (
+              <button
+                type="button"
+                className={buttonClass}
+                disabled={buttonDisabled}
+                onClick={onSendRequest}
+                style={{ marginTop: 22 }}
+              >
+                <span className="cm-friend-checkbox-tick">
+                  {showTick && <CheckIcon style={{ width: 13, height: 13 }} />}
+                </span>
+                {!showTick && !isSendingRequest && <UserPlusIcon style={{ width: 15, height: 15 }} />}
+                {buttonLabel}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 /* ─── Component ─── */
 const Communities = () => {
   injectStyles();
@@ -763,6 +918,18 @@ const Communities = () => {
   const [topContributors, setTopContributors] = useState([]);
 
   const reactionInFlight = useRef({}); // guards double-click spam per post/action
+
+  /* ── Friends / profile dialog ── */
+  const [friendIds, setFriendIds] = useState(new Set());
+  const [sentRequestIds, setSentRequestIds] = useState(new Set());
+  const [profileDialog, setProfileDialog] = useState({
+    open: false,
+    author: null,     // minimal author object from the post (used for instant render)
+    profile: null,     // full profile fetched from /users/{id}
+    loading: false,
+    sending: false,
+    error: "",
+  });
 
   /* ── Discussion / comments (declared early so fetchPosts can use loadComments) ── */
   const loadComments = useCallback(async (postId) => {
@@ -833,6 +1000,99 @@ const Communities = () => {
     };
     loadSidebar();
   }, [getToken]);
+
+  /* ── Fetch current friends + already-sent requests once, so the dialog
+     can instantly show the right state instead of guessing ── */
+  useEffect(() => {
+    const loadFriendData = async () => {
+      try {
+        const token = await getToken();
+        const [friends, sent] = await Promise.all([
+          friendsService.getMyFriends(token),
+          friendsService.getSentRequests(token),
+        ]);
+        setFriendIds(new Set((Array.isArray(friends) ? friends : []).map((f) => f.user_id)));
+        setSentRequestIds(
+          new Set(
+            (Array.isArray(sent) ? sent : [])
+              .filter((r) => r.status === "pending")
+              .map((r) => r.receiver_id)
+          )
+        );
+      } catch (err) {
+        console.error("Failed to load friend data", err);
+      }
+    };
+    loadFriendData();
+  }, [getToken]);
+
+  /* ── Profile dialog: open + fetch full profile (for join date etc.) ── */
+  const handleOpenProfile = useCallback(async (author) => {
+    if (!author?.user_id) return;
+
+    setProfileDialog({
+      open: true,
+      author,
+      profile: author, // show what we already have immediately
+      loading: true,
+      sending: false,
+      error: "",
+    });
+
+    try {
+      const token = await getToken();
+      const fullProfile = await friendsService.getUserProfile(token, author.user_id);
+      setProfileDialog((cur) =>
+        cur.author?.user_id === author.user_id ? { ...cur, profile: fullProfile, loading: false } : cur
+      );
+    } catch (err) {
+      console.error("Failed to load user profile", err);
+      setProfileDialog((cur) =>
+        cur.author?.user_id === author.user_id ? { ...cur, loading: false } : cur
+      );
+    }
+  }, [getToken]);
+
+  const handleCloseProfileDialog = useCallback(() => {
+    setProfileDialog((cur) => ({ ...cur, open: false }));
+  }, []);
+
+  const handleSendFriendRequest = useCallback(async () => {
+    const receiverId = profileDialog.author?.user_id;
+    if (!receiverId || profileDialog.sending) return;
+
+    setProfileDialog((cur) => ({ ...cur, sending: true, error: "" }));
+
+    try {
+      const token = await getToken();
+      await friendsService.sendFriendRequest(token, receiverId);
+      // Tick the box: mark as sent both in the dialog and in the cached set
+      setSentRequestIds((cur) => new Set(cur).add(receiverId));
+      setProfileDialog((cur) => ({ ...cur, sending: false }));
+    } catch (err) {
+      const message = err.message || "Failed to send friend request";
+      // If it's already pending/friends, just reflect that instead of showing an error
+      if (/already exists/i.test(message)) {
+        setSentRequestIds((cur) => new Set(cur).add(receiverId));
+        setProfileDialog((cur) => ({ ...cur, sending: false }));
+      } else if (/already friends/i.test(message)) {
+        setFriendIds((cur) => new Set(cur).add(receiverId));
+        setProfileDialog((cur) => ({ ...cur, sending: false }));
+      } else {
+        console.error("Failed to send friend request", err);
+        setProfileDialog((cur) => ({ ...cur, sending: false, error: message }));
+      }
+    }
+  }, [getToken, profileDialog.author, profileDialog.sending]);
+
+  const profileFriendStatus = (() => {
+    const authorId = profileDialog.author?.user_id;
+    if (!authorId) return "none";
+    if (authorId === currentUserId) return "self";
+    if (friendIds.has(authorId)) return "friends";
+    if (sentRequestIds.has(authorId)) return "pending";
+    return "none";
+  })();
 
   const visiblePosts = posts; // filtering/search now happens server-side
 
@@ -1049,6 +1309,7 @@ const Communities = () => {
                   onSendReply={handleSendReply}
                   onDeletePost={handleDeletePost}
                   onDeleteComment={handleDeleteComment}
+                  onOpenProfile={handleOpenProfile}
                 />
               ))
             )}
@@ -1062,6 +1323,17 @@ const Communities = () => {
           isOpen={addPostModalOpen}
           onClose={() => setAddPostModalOpen(false)}
           onCreated={(newPost) => setPosts((cur) => [newPost, ...cur])}
+        />
+
+        <UserProfileDialog
+          isOpen={profileDialog.open}
+          profile={profileDialog.profile}
+          isLoadingProfile={profileDialog.loading}
+          friendStatus={profileFriendStatus}
+          isSendingRequest={profileDialog.sending}
+          errorMessage={profileDialog.error}
+          onClose={handleCloseProfileDialog}
+          onSendRequest={handleSendFriendRequest}
         />
       </main>
     </div>
