@@ -1,4 +1,4 @@
-from fastapi import APIRouter,File, UploadFile, Form, Depends, HTTPException, status, Query
+from fastapi import APIRouter,File, UploadFile, Form, Depends, HTTPException, status, Query, HTTPException, Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from sqlalchemy import select
@@ -23,7 +23,15 @@ from ..dependencies import get_current_user
 from ..services import resources_service
 from ..services.user_service import get_user_by_id
 from ..database.models import Users
+from google import genai
+import os
+import httpx
+import pdfplumber
+from io import BytesIO
 
+client = genai.Client(
+    api_key=os.getenv("GOOGLE_GEMINI_API_KEY")
+)
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
 # ============================================================================
@@ -1289,3 +1297,93 @@ async def debug_upload(
         "description": description,
         "parent_folder_id": parent_folder_id
     }
+
+#summarizer
+@router.post("/summarize")
+async def summarize_pdf(
+    request: dict,
+    current_user = Depends(get_current_user),  # Your auth dependency
+    session = Depends(get_db),  # Your DB dependency
+):
+    """Free PDF summarizer using Google Gemini"""
+    try:
+        resource_url = request.get("resource_url")
+        resource_id = request.get("resource_id")
+        resource_title = request.get("resource_title", "PDF Document")
+
+        if not resource_url:
+            raise HTTPException(status_code=400, detail="resource_url is required")
+
+        print(f"📥 Summarizing: {resource_title}")
+
+        # Download PDF from Cloudinary
+        print("📥 Downloading PDF...")
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(resource_url, timeout=30.0)
+            if response.status_code != 200:
+                raise HTTPException(status_code=400, detail="Failed to download PDF")
+        pdf_content = response.content
+
+        # Extract text
+        print("🔍 Extracting text...")
+        pdf_file = BytesIO(pdf_content)
+        text = ""
+        
+        with pdfplumber.open(pdf_file) as pdf:
+            # Limit to first 10 pages for free tier
+            for page_num, page in enumerate(pdf.pages[:10], 1):
+                page_text = page.extract_text()
+                if page_text:
+                    text += f"\n--- Page {page_num} ---\n{page_text}"
+
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+
+        # Limit text size (Gemini free tier limit)
+        max_chars = 50000
+        if len(text) > max_chars:
+            text = text[:max_chars]
+            print(f"⚠️ Text truncated to {max_chars} chars")
+
+        print(f"📝 Text extracted: {len(text)} characters")
+
+        # Call Google Gemini (FREE)
+        print("🤖 Calling Google Gemini...")
+        
+        
+        prompt = f"""Please provide a concise summary of this PDF content.
+
+Summary should be:
+- 2-3 paragraphs
+- Clear and accessible
+- Include main points and key findings
+- Include important conclusions
+
+PDF Title: {resource_title}
+
+Content:
+{text}
+
+Summary:"""
+
+        response = client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=prompt,
+        )
+
+        summary = response.text
+
+        print("✅ Summary generated successfully")
+
+        return {
+            "success": True,
+            "summary": summary,
+            "resource_id": resource_id,
+            "model": "gemini-pro (FREE)",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Summarization failed: {str(e)}")

@@ -308,4 +308,29 @@ export const resourceService = {
 
     return response.json();
   },
+
+  summarizeResource: async (token, resource) => {
+      const response = await fetch(`${API_BASE}/resources/summarize`, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+              resource_id: resource.id,
+              resource_url: resource.url,
+              resource_title: resource.title,
+          }),
+      });
+
+      if (!response.ok) {
+          const error = await response.json().catch(() => ({
+              detail: "Failed to summarize",
+          }));
+          throw new Error(error.detail);
+      }
+
+      return response.json();
+  },
 };
+
