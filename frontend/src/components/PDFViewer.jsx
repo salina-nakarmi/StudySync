@@ -1,21 +1,30 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-
+import { useAuth } from "@clerk/clerk-react";
+import { resourceService } from "../services/resource_services";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   MagnifyingGlassPlusIcon,
   MagnifyingGlassMinusIcon,
   ArrowDownTrayIcon,
+  SparklesIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+const API_BASE = "http://localhost:8000/api";
 
 export default function PDFViewerWithControls({ resource, onProgressChange }) {
+  const { getToken } = useAuth();
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(0.75);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
 
   const containerRef = useRef(null);
   const pageRefs = useRef({});
@@ -23,14 +32,14 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
 
   const debounceTimer = useRef(null);
   const lastSentPercent = useRef(null);
-  const requestSeq = useRef(0); // increments on every send, used to drop stale responses
+  const requestSeq = useRef(0);
 
-  // Debounced + ordering-safe progress reporting.
-  // - Waits 600ms after the page stops changing before writing, so fast
-  //   scrolling doesn't fire dozens of API calls.
-  // - Tags each call with an incrementing sequence number so that if an
-  //   older request resolves after a newer one, it's ignored instead of
-  //   overwriting the backend with a stale (lower) percent.
+  // ✅ NEW: auto-hide/show footer controls
+  const [footerVisible, setFooterVisible] = useState(true);
+  const footerRef = useRef(null);
+  const footerHideTimer = useRef(null);
+  const isHoveringFooter = useRef(false);
+
   const reportProgress = useCallback(
     (page, total, { immediate = false } = {}) => {
       console.log("[PDFViewer] reportProgress called", { page, total, immediate, hasCallback: !!onProgressChange });
@@ -42,13 +51,13 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
       clearTimeout(debounceTimer.current);
 
       const send = () => {
-      console.log("[PDFViewer] sending progress update", { page, percent });
-      const mySeq = ++requestSeq.current;
-      lastSentPercent.current = percent;
-      Promise.resolve(onProgressChange(percent, page, mySeq, total)).catch((err) => {
-        console.error("[PDFViewer] onProgressChange threw", err);
-      });
-    };
+        console.log("[PDFViewer] sending progress update", { page, percent });
+        const mySeq = ++requestSeq.current;
+        lastSentPercent.current = percent;
+        Promise.resolve(onProgressChange(percent, page, mySeq, total)).catch((err) => {
+          console.error("[PDFViewer] onProgressChange threw", err);
+        });
+      };
 
       if (immediate) {
         send();
@@ -59,7 +68,6 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
     [onProgressChange]
   );
 
-  // Mark as opened immediately so a quick open/close still registers.
   useEffect(() => {
     if (onProgressChange) {
       lastSentPercent.current = 0;
@@ -111,9 +119,6 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
     [numPages, reportProgress]
   );
 
-  // Flush the *current* page as a final, immediate write on unmount
-  // (i.e. when the viewer closes), so the last position is always saved
-  // even if a debounce timer hadn't fired yet.
   useEffect(() => {
     return () => {
       clearTimeout(debounceTimer.current);
@@ -126,7 +131,6 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         }
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function scrollToPage(page) {
@@ -146,6 +150,108 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
     link.click();
     link.remove();
   }
+
+  // ✅ AI Summarizer Function
+  const handleSummarize = async () => {
+    try {
+      setSummaryLoading(true);
+      setSummaryError(null);
+      setSummary(null);
+      setSummaryOpen(true);
+
+      console.log("🤖 Requesting AI summary for:", resource.title);
+
+      const token = await getToken();
+
+      const data = await resourceService.summarizeResource(
+        token,
+        resource
+      );
+
+      console.log("Summary:", data);
+
+      setSummary(data.summary);
+    } catch (error) {
+      console.error(error);
+      setSummaryError(error.message || "Failed to generate summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  // ✅ NEW: dedicated close handler — this ONLY ever closes the summary
+  // panel. It's isolated with stopPropagation so a click here can never
+  // bubble up to any parent handler that closes the PDF viewer itself.
+  const handleCloseSummary = useCallback((e) => {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    setSummaryOpen(false);
+  }, []);
+
+  // Optional: let Escape close just the summary panel while it's open,
+  // without touching whatever key handling the PDF viewer/modal has.
+  useEffect(() => {
+    if (!summaryOpen) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        handleCloseSummary(e);
+      }
+    }
+    // capture phase so this fires before any parent Escape handler
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [summaryOpen, handleCloseSummary]);
+
+  // ✅ NEW: show the footer when the cursor/touch is near the bottom edge,
+  // and auto-hide it again a moment after the user moves away — unless
+  // they're actively hovering the footer itself (so it doesn't vanish
+  // out from under them while they're using it).
+  const scheduleFooterHide = useCallback((delay = 900) => {
+    clearTimeout(footerHideTimer.current);
+    footerHideTimer.current = setTimeout(() => {
+      if (!isHoveringFooter.current) setFooterVisible(false);
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    const REVEAL_ZONE_PX = 90; // distance from bottom edge that reveals the bar
+
+    function handlePointer(clientY) {
+      if (clientY == null) return;
+      const nearBottom = clientY >= window.innerHeight - REVEAL_ZONE_PX;
+      if (nearBottom) {
+        clearTimeout(footerHideTimer.current);
+        setFooterVisible(true);
+      } else {
+        scheduleFooterHide();
+      }
+    }
+
+    function onMouseMove(e) {
+      handlePointer(e.clientY);
+    }
+    function onTouchMove(e) {
+      handlePointer(e.touches?.[0]?.clientY);
+    }
+    function onTouchStart(e) {
+      handlePointer(e.touches?.[0]?.clientY);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+
+    // start hidden-after-a-beat so it doesn't sit on top of things forever
+    scheduleFooterHide(2500);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchstart", onTouchStart);
+      clearTimeout(footerHideTimer.current);
+    };
+  }, [scheduleFooterHide]);
 
   if (!resource?.url) {
     return <div className="flex items-center justify-center h-full">No PDF found.</div>;
@@ -185,7 +291,131 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         </Document>
       </div>
 
-      <div className="sticky bottom-0 z-50 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-between">
+      {/* Summary Panel — backdrop click closes ONLY the summary */}
+      {summaryOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/20 backdrop-blur-sm flex justify-end"
+          onClick={handleCloseSummary}
+        >
+          <div
+            className="bg-white w-full max-w-md h-screen shadow-2xl flex flex-col overflow-hidden"
+            // Stop clicks inside the panel from reaching the backdrop
+            // (and therefore from ever being mistaken for a "close PDF" click)
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#2C76BA] to-blue-600">
+              <div className="flex items-center gap-2">
+                <SparklesIcon className="w-5 h-5 text-white" />
+                <h2 className="text-white font-bold">AI Summary</h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseSummary}
+                aria-label="Close summary panel"
+                title="Close summary"
+                className="p-1 hover:bg-white/20 rounded-lg transition"
+              >
+                <XMarkIcon className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {summaryLoading ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <div className="animate-spin">
+                    <SparklesIcon className="w-8 h-8 text-[#2C76BA]" />
+                  </div>
+                  <p className="text-gray-600 text-sm font-medium">Generating summary...</p>
+                  <p className="text-gray-400 text-xs">This may take a moment</p>
+                </div>
+              ) : summaryError ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <p className="text-red-600 text-sm font-medium">❌ Error</p>
+                  <p className="text-gray-600 text-xs text-center">{summaryError}</p>
+                  <button
+                    onClick={handleSummarize}
+                    className="mt-4 px-4 py-2 text-sm font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700 transition"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              ) : summary ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs font-bold text-blue-900 mb-2">📄 Document: {resource.title || "PDF Document"}</p>
+                    <p className="text-xs text-blue-700">Pages: {numPages}</p>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-gray-900 text-sm">Summary</h3>
+                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-200 space-y-2">
+                    <button
+                      onClick={handleSummarize}
+                      className="w-full px-4 py-2 text-sm font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                    >
+                      <SparklesIcon className="w-4 h-4" />
+                      Regenerate Summary
+                    </button>
+                    <button
+                      onClick={() => {
+                        const element = document.createElement("a");
+                        element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(summary));
+                        element.setAttribute("download", `${resource.title || "summary"}.txt`);
+                        element.style.display = "none";
+                        document.body.appendChild(element);
+                        element.click();
+                        document.body.removeChild(element);
+                      }}
+                      className="w-full px-4 py-2 text-sm font-bold text-gray-700 rounded-lg hover:bg-gray-100 transition border border-gray-300"
+                    >
+                      Download Summary
+                    </button>
+                    {/* ✅ NEW: explicit "Close Summary" action, separate from
+                        any PDF close control, always visible at the bottom */}
+                    <button
+                      type="button"
+                      onClick={handleCloseSummary}
+                      className="w-full px-4 py-2 text-sm font-bold text-gray-500 rounded-lg hover:bg-gray-100 transition"
+                    >
+                      Close Summary
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NEW: small always-visible handle so users know a bar lives
+          at the bottom, even while it's hidden */}
+      <div
+        className={`fixed bottom-0 left-1/2 -translate-x-1/2 z-40 mb-1 w-16 h-1.5 rounded-full bg-gray-400/60 transition-opacity duration-200 ${
+          footerVisible ? "opacity-0" : "opacity-100"
+        }`}
+      />
+
+      {/* Bottom Controls — auto-hides, reappears near the bottom edge */}
+      <div
+        ref={footerRef}
+        onMouseEnter={() => {
+          isHoveringFooter.current = true;
+          clearTimeout(footerHideTimer.current);
+          setFooterVisible(true);
+        }}
+        onMouseLeave={() => {
+          isHoveringFooter.current = false;
+          scheduleFooterHide();
+        }}
+        className={`sticky bottom-0 z-40 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-between transition-transform duration-300 ease-out ${
+          footerVisible ? "translate-y-0" : "translate-y-full pointer-events-none"
+        }`}
+      >
         <button
           onClick={() => scrollToPage(pageNumber - 1)}
           disabled={pageNumber === 1}
@@ -201,17 +431,36 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
             <span className="ml-2 text-gray-400">({livePercent}%)</span>
           </span>
 
-          <button onClick={() => setScale((s) => Math.max(0.5, s - 0.05))} className="p-2 rounded hover:bg-gray-100">
+          <button 
+            onClick={() => setScale((s) => Math.max(0.5, s - 0.05))} 
+            className="p-2 rounded hover:bg-gray-100"
+          >
             <MagnifyingGlassMinusIcon className="w-6 h-6" />
           </button>
 
           <span className="font-medium w-12 text-center">{Math.round(scale * 100)}%</span>
 
-          <button onClick={() => setScale((s) => Math.min(3, s + 0.05))} className="p-2 rounded hover:bg-gray-100">
+          <button 
+            onClick={() => setScale((s) => Math.min(3, s + 0.05))} 
+            className="p-2 rounded hover:bg-gray-100"
+          >
             <MagnifyingGlassPlusIcon className="w-6 h-6" />
           </button>
 
-          <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-100">
+          {/* Summarize Button */}
+          <button 
+            onClick={handleSummarize}
+            disabled={summaryLoading}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-blue-50 border-blue-300 text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            <SparklesIcon className="w-5 h-5" />
+            {summaryLoading ? "Summarizing..." : "Summarize"}
+          </button>
+
+          <button 
+            onClick={handleDownload} 
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-100"
+          >
             <ArrowDownTrayIcon className="w-5 h-5" />
             Download
           </button>
