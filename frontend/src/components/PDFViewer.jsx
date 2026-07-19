@@ -34,6 +34,12 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
   const lastSentPercent = useRef(null);
   const requestSeq = useRef(0);
 
+  // ✅ NEW: auto-hide/show footer controls
+  const [footerVisible, setFooterVisible] = useState(true);
+  const footerRef = useRef(null);
+  const footerHideTimer = useRef(null);
+  const isHoveringFooter = useRef(false);
+
   const reportProgress = useCallback(
     (page, total, { immediate = false } = {}) => {
       console.log("[PDFViewer] reportProgress called", { page, total, immediate, hasCallback: !!onProgressChange });
@@ -145,7 +151,7 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
     link.remove();
   }
 
-  // ✅ NEW: AI Summarizer Function
+  // ✅ AI Summarizer Function
   const handleSummarize = async () => {
     try {
       setSummaryLoading(true);
@@ -172,6 +178,80 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
       setSummaryLoading(false);
     }
   };
+
+  // ✅ NEW: dedicated close handler — this ONLY ever closes the summary
+  // panel. It's isolated with stopPropagation so a click here can never
+  // bubble up to any parent handler that closes the PDF viewer itself.
+  const handleCloseSummary = useCallback((e) => {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    setSummaryOpen(false);
+  }, []);
+
+  // Optional: let Escape close just the summary panel while it's open,
+  // without touching whatever key handling the PDF viewer/modal has.
+  useEffect(() => {
+    if (!summaryOpen) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        handleCloseSummary(e);
+      }
+    }
+    // capture phase so this fires before any parent Escape handler
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [summaryOpen, handleCloseSummary]);
+
+  // ✅ NEW: show the footer when the cursor/touch is near the bottom edge,
+  // and auto-hide it again a moment after the user moves away — unless
+  // they're actively hovering the footer itself (so it doesn't vanish
+  // out from under them while they're using it).
+  const scheduleFooterHide = useCallback((delay = 900) => {
+    clearTimeout(footerHideTimer.current);
+    footerHideTimer.current = setTimeout(() => {
+      if (!isHoveringFooter.current) setFooterVisible(false);
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    const REVEAL_ZONE_PX = 90; // distance from bottom edge that reveals the bar
+
+    function handlePointer(clientY) {
+      if (clientY == null) return;
+      const nearBottom = clientY >= window.innerHeight - REVEAL_ZONE_PX;
+      if (nearBottom) {
+        clearTimeout(footerHideTimer.current);
+        setFooterVisible(true);
+      } else {
+        scheduleFooterHide();
+      }
+    }
+
+    function onMouseMove(e) {
+      handlePointer(e.clientY);
+    }
+    function onTouchMove(e) {
+      handlePointer(e.touches?.[0]?.clientY);
+    }
+    function onTouchStart(e) {
+      handlePointer(e.touches?.[0]?.clientY);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+
+    // start hidden-after-a-beat so it doesn't sit on top of things forever
+    scheduleFooterHide(2500);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchstart", onTouchStart);
+      clearTimeout(footerHideTimer.current);
+    };
+  }, [scheduleFooterHide]);
 
   if (!resource?.url) {
     return <div className="flex items-center justify-center h-full">No PDF found.</div>;
@@ -211,10 +291,18 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         </Document>
       </div>
 
-      {/* ✅ NEW: Summary Panel */}
+      {/* Summary Panel — backdrop click closes ONLY the summary */}
       {summaryOpen && (
-        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex justify-end">
-          <div className="bg-white w-full max-w-md h-screen shadow-2xl flex flex-col overflow-hidden">
+        <div
+          className="fixed inset-0 z-[60] bg-black/20 backdrop-blur-sm flex justify-end"
+          onClick={handleCloseSummary}
+        >
+          <div
+            className="bg-white w-full max-w-md h-screen shadow-2xl flex flex-col overflow-hidden"
+            // Stop clicks inside the panel from reaching the backdrop
+            // (and therefore from ever being mistaken for a "close PDF" click)
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#2C76BA] to-blue-600">
               <div className="flex items-center gap-2">
@@ -222,7 +310,10 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
                 <h2 className="text-white font-bold">AI Summary</h2>
               </div>
               <button
-                onClick={() => setSummaryOpen(false)}
+                type="button"
+                onClick={handleCloseSummary}
+                aria-label="Close summary panel"
+                title="Close summary"
                 className="p-1 hover:bg-white/20 rounded-lg transition"
               >
                 <XMarkIcon className="w-5 h-5 text-white" />
@@ -284,6 +375,15 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
                     >
                       Download Summary
                     </button>
+                    {/* ✅ NEW: explicit "Close Summary" action, separate from
+                        any PDF close control, always visible at the bottom */}
+                    <button
+                      type="button"
+                      onClick={handleCloseSummary}
+                      className="w-full px-4 py-2 text-sm font-bold text-gray-500 rounded-lg hover:bg-gray-100 transition"
+                    >
+                      Close Summary
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -292,8 +392,30 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
         </div>
       )}
 
-      {/* Bottom Controls */}
-      <div className="sticky bottom-0 z-50 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-between">
+      {/* ✅ NEW: small always-visible handle so users know a bar lives
+          at the bottom, even while it's hidden */}
+      <div
+        className={`fixed bottom-0 left-1/2 -translate-x-1/2 z-40 mb-1 w-16 h-1.5 rounded-full bg-gray-400/60 transition-opacity duration-200 ${
+          footerVisible ? "opacity-0" : "opacity-100"
+        }`}
+      />
+
+      {/* Bottom Controls — auto-hides, reappears near the bottom edge */}
+      <div
+        ref={footerRef}
+        onMouseEnter={() => {
+          isHoveringFooter.current = true;
+          clearTimeout(footerHideTimer.current);
+          setFooterVisible(true);
+        }}
+        onMouseLeave={() => {
+          isHoveringFooter.current = false;
+          scheduleFooterHide();
+        }}
+        className={`sticky bottom-0 z-40 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-between transition-transform duration-300 ease-out ${
+          footerVisible ? "translate-y-0" : "translate-y-full pointer-events-none"
+        }`}
+      >
         <button
           onClick={() => scrollToPage(pageNumber - 1)}
           disabled={pageNumber === 1}
@@ -325,7 +447,7 @@ export default function PDFViewerWithControls({ resource, onProgressChange }) {
             <MagnifyingGlassPlusIcon className="w-6 h-6" />
           </button>
 
-          {/* ✅ NEW: Summarize Button */}
+          {/* Summarize Button */}
           <button 
             onClick={handleSummarize}
             disabled={summaryLoading}
