@@ -16,10 +16,8 @@ import Groups from "./pages/Groups.jsx";
 import Feed from "./pages/Feed.jsx";
 import Messages from "./pages/Messages.jsx";
 import Projects from "./pages/Projects.jsx";
-import ProjectDetail from "./pages/ProjectDetail.jsx";
 import Docs from "./pages/Docs.jsx";
 import ProjectDetail from "./pages/ProjectDetail.jsx";
-import Docs from "./pages/Docs.jsx";
 import UnifiedStudyTimer from "./components/UnifiedStudyTimer.jsx";
 //Import Chatbot Widget for global access
 import ChatbotWidget from './components/Chatbot/ChatbotWidget';
