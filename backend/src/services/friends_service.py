@@ -7,6 +7,8 @@ from ..schemas.friends import (
     SentFriendRequests,
     ReceivedFriendRequests,
 )
+from ..schemas.notifications import CreateNotificationRequest
+from .notification_service import create_notification
 
 class FriendsService:
     """Service for managing friend requests and friendships"""
@@ -19,14 +21,16 @@ class FriendsService:
         receiver_id = request_data.receiver_id
 
         # Check if users exist
-        sender = await session.execute(
+        sender_result = await session.execute(
             select(Users).where(Users.user_id == sender_id)
         )
-        receiver = await session.execute(
+        receiver_result = await session.execute(
             select(Users).where(Users.user_id == receiver_id)
         )
+        sender_user = sender_result.scalar_one_or_none()
+        receiver_user = receiver_result.scalar_one_or_none()
 
-        if not sender.scalar_one_or_none() or not receiver.scalar_one_or_none():
+        if not sender_user or not receiver_user:
             raise ValueError("One or both users do not exist")
 
         # Check if already friends
@@ -58,6 +62,22 @@ class FriendsService:
         session.add(new_request)
         await session.commit()
         await session.refresh(new_request)
+
+        # Notify the receiver — flush()es here get picked up by the final
+        # commit() the get_db() dependency runs after this request completes.
+        sender_name = (
+            f"{sender_user.first_name or ''} {sender_user.last_name or ''}".strip()
+            or sender_user.username
+        )
+        await create_notification(
+            CreateNotificationRequest(
+                user_id=receiver_id,
+                title="New Friend Request",
+                message=f"{sender_name} sent you a friend request",
+                type="friend_request",
+            ),
+            session,
+        )
 
         return new_request
 
@@ -97,6 +117,25 @@ class FriendsService:
         await session.commit()
         await session.refresh(friend_request)
 
+        # Notify whoever originally sent the request that it was accepted
+        receiver_result = await session.execute(
+            select(Users).where(Users.user_id == friend_request.receiver_id)
+        )
+        receiver_user = receiver_result.scalar_one_or_none()
+        receiver_name = (
+            f"{receiver_user.first_name or ''} {receiver_user.last_name or ''}".strip()
+            or (receiver_user.username if receiver_user else "Someone")
+        )
+        await create_notification(
+            CreateNotificationRequest(
+                user_id=friend_request.sender_id,
+                title="Friend Request Accepted",
+                message=f"{receiver_name} accepted your friend request",
+                type="friend_request_accepted",
+            ),
+            session,
+        )
+
         return friend_request
 
     @staticmethod
@@ -129,7 +168,8 @@ class FriendsService:
             select(
                 Users.user_id,
                 Users.email,
-                Users.first_name + " " + Users.last_name,
+                Users.first_name,
+                Users.last_name,
                 Users.created_at,
             ).join(Friends, Friends.friend_id == Users.user_id).where(
                 Friends.user_id == user_id
@@ -140,8 +180,8 @@ class FriendsService:
             FriendListItem(
                 user_id=row[0],
                 email=row[1],
-                full_name=row[2],
-                profile_image=row[3],
+                full_name=f"{row[2] or ''} {row[3] or ''}".strip() or row[1],
+                profile_image=None,
                 created_at=row[4],
             )
             for row in result.all()
@@ -157,7 +197,8 @@ class FriendsService:
                 FriendRequest.id,
                 FriendRequest.receiver_id,
                 Users.email,
-                Users.first_name + " " + Users.last_name,
+                Users.first_name,
+                Users.last_name,
                 FriendRequest.status,
                 FriendRequest.created_at,
             )
@@ -170,9 +211,9 @@ class FriendsService:
                 id=row[0],
                 receiver_id=row[1],
                 receiver_email=row[2],
-                receiver_name=row[3],
-                status=row[4],
-                created_at=row[5],
+                receiver_name=f"{row[3] or ''} {row[4] or ''}".strip() or row[2],
+                status=row[5],
+                created_at=row[6],
             )
             for row in result.all()
         ]
@@ -187,7 +228,8 @@ class FriendsService:
                 FriendRequest.id,
                 FriendRequest.sender_id,
                 Users.email,
-                Users.first_name + " " + Users.last_name,
+                Users.first_name,
+                Users.last_name,
                 FriendRequest.status,
                 FriendRequest.created_at,
             )
@@ -201,9 +243,9 @@ class FriendsService:
                 id=row[0],
                 sender_id=row[1],
                 sender_email=row[2],
-                sender_name=row[3],
-                status=row[4],
-                created_at=row[5],
+                sender_name=f"{row[3] or ''} {row[4] or ''}".strip() or row[2],
+                status=row[5],
+                created_at=row[6],
             )
             for row in result.all()
         ]
