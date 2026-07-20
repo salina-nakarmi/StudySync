@@ -129,8 +129,7 @@ class FriendsService:
             select(
                 Users.user_id,
                 Users.email,
-                Users.full_name,
-                Users.profile_image,
+                Users.first_name + " " + Users.last_name,
                 Users.created_at,
             ).join(Friends, Friends.friend_id == Users.user_id).where(
                 Friends.user_id == user_id
@@ -158,7 +157,7 @@ class FriendsService:
                 FriendRequest.id,
                 FriendRequest.receiver_id,
                 Users.email,
-                Users.full_name,
+                Users.first_name + " " + Users.last_name,
                 FriendRequest.status,
                 FriendRequest.created_at,
             )
@@ -188,7 +187,7 @@ class FriendsService:
                 FriendRequest.id,
                 FriendRequest.sender_id,
                 Users.email,
-                Users.full_name,
+                Users.first_name + " " + Users.last_name,
                 FriendRequest.status,
                 FriendRequest.created_at,
             )
