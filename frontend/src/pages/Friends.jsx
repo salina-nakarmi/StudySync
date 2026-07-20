@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-// TODO: adjust this import path to wherever useDashboard/useResources/etc actually live
 import { useFriends } from "../utils/api";
 import { useLocation } from "react-router-dom";
 import { Search, UserPlus, UserCheck, UserX, MoreHorizontal, Clock, Loader2 } from "lucide-react";
@@ -12,7 +11,7 @@ function initialsFor(name = "") {
     .slice(0, 2)
     .map((p) => p[0].toUpperCase())
     .join("");
-}useFriends
+}
 
 const AVATAR_COLORS = ["bg-zinc-900", "bg-blue-600", "bg-blue-500", "bg-zinc-700"];
 

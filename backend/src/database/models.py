@@ -96,6 +96,51 @@ class Users(Base):
     updated_at:Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
 
+class FriendRequest(Base):
+    """
+    A single friend request from sender to receiver.
+    status is a plain string ("pending" | "accepted" | "rejected") rather
+    than an Enum column — FriendsService compares/sets it as a raw string
+    (e.g. `friend_request.status = "accepted"`), same pattern already used
+    for ProjectMembers.role.
+    """
+    __tablename__ = 'friend_requests'
+ 
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+ 
+    sender_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+    receiver_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'), index=True)
+ 
+    status: Mapped[str] = mapped_column(default='pending')  # 'pending' | 'accepted' | 'rejected'
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+ 
+    __table_args__ = (
+        # Prevents duplicate outstanding requests between the same pair in the same direction
+        UniqueConstraint('sender_id', 'receiver_id', name='uq_friend_request_sender_receiver'),
+    )
+ 
+ 
+class Friends(Base):
+    """
+    Accepted friendship, stored as two rows (one per direction) so a
+    friend's-list lookup is a single indexed query in either direction —
+    same toggle-table shape as PostLikes/PostSaves.
+    """
+    __tablename__ = 'friends'
+ 
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+    friend_id: Mapped[str] = mapped_column(ForeignKey('users.user_id'))
+ 
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+ 
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'friend_id'),
+    )
+ 
+
+
 class Groups(Base):
     """
     Enhanced Groups with support for:

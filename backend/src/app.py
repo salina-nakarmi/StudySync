@@ -1,7 +1,7 @@
 from fastapi import FastAPI,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import Dashboard, streaks, users, resources, groups, study_sessions, notifications, notifications_ws, messages, activity, communities, audio_video_call
-from .routes import chatbot, documents
+from .routes import chatbot, documents, friends
 from .routes.project import projects, team_members, tasks, time_logs, invitations
 import os
 from dotenv import load_dotenv
@@ -48,6 +48,7 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(time_logs.router, prefix="/api")
 app.include_router(invitations.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")
+app.include_router(friends.router, prefix="/api")
 
 
 

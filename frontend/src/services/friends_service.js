@@ -60,5 +60,5 @@ export const friendsService = {
     request(`/api/friends/${friendId}`, token, { method: "DELETE" }),
 
   // Public profile lookup — used to show join date etc. in the dialog.
-  getUserProfile: (token, userId) => request(`/users/${userId}`, token),
+  getUserProfile: (token, userId) => request(`api/users/${userId}`, token),
 };

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -11,14 +11,23 @@ from ..schemas.friends import (
     ReceivedFriendRequests,
     FriendRequestResponse
 )
+# Same Clerk-based auth every other route in this app uses (see utils.py).
+# Adjust this import path if your utils.py lives somewhere other than src/utils.py.
+from ..utils import authenticate_and_get_user_details
 
-router = APIRouter(prefix="/api/friends", tags=["Friends"])
+# NOTE: bare prefix here — app.py adds the "/api" prefix when it includes
+# this router, same as every other route module (Dashboard, users, groups, etc).
+# Previously this was prefix="/api/friends" AND app.py also passed prefix="/api"
+# when including it, which would have produced "/api/api/friends/..." (404).
+router = APIRouter(prefix="/friends", tags=["Friends"])
 
-# Helper to extract authenticated user_id from headers passed by middleware
-def get_current_user_id(x_user_id: str = Header(..., alias="user_id")) -> str:
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized: User ID missing")
-    return x_user_id
+# Extracts the authenticated user_id from the verified Clerk token, same as
+# every other route in the app. Previously this expected a literal "user_id"
+# header, which the frontend never sends (it only sends Authorization: Bearer
+# <token>) — that mismatch caused a 422 Unprocessable Entity on every request.
+def get_current_user_id(request: Request) -> str:
+    user_details = authenticate_and_get_user_details(request)
+    return user_details["user_id"]
 
 @router.post("/request", response_model=FriendRequestResponse)
 async def send_friend_request(
@@ -72,7 +81,6 @@ async def get_received_requests(
     db: AsyncSession = Depends(get_db)
 ):
     """List friend requests sent to you"""
-    # NOTE: was calling FriendsService.get_received_friend_requests (doesn't exist)
     return await FriendsService.get_received_requests(db, user_id=user_id)
 
 @router.get("/requests/sent", response_model=List[SentFriendRequests])
@@ -81,7 +89,6 @@ async def get_sent_requests(
     db: AsyncSession = Depends(get_db)
 ):
     """List pending requests you have initiated"""
-    # NOTE: was calling FriendsService.get_sent_friend_requests (doesn't exist)
     return await FriendsService.get_sent_requests(db, user_id=user_id)
 
 @router.delete("/{friend_id}")
