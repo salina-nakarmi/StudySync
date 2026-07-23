@@ -60,16 +60,16 @@ const Navbar = () => {
     navigate("/friends", { state: { tab: "requests" } });
   };
 
-  const NavButton = ({ item }) => {
+  const NavButton = ({ item, compact = false }) => {
     const isActive = activeTab === item;
     return (
       <button
         onClick={() => handleNavClick(item)}
-        className={`relative px-4 py-2 rounded-full transition-all text-sm font-medium ${
+        className={`relative rounded-full transition-all font-medium whitespace-nowrap ${
           isActive
             ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
             : "text-gray-700 hover:bg-gray-100"
-        }`}
+        } ${compact ? "px-2.5 py-1.5 text-[11px] lg:text-[13px]" : "px-4 py-2 text-sm"}`}
       >
         {item}
       </button>
@@ -83,15 +83,24 @@ const Navbar = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 shrink-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg sm:text-xl">S</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 tracking-tight">StudySync</span>
+              <span className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">StudySync</span>
+            </div>
+
+            {/* Tablet Nav */}
+            <div className="hidden md:flex lg:hidden flex-1 justify-center mx-4">
+              <div className="flex max-w-full overflow-x-auto no-scrollbar space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
+                {navItems.map((item) => (
+                  <NavButton key={item} item={item} compact />
+                ))}
+              </div>
             </div>
 
             {/* Desktop Nav */}
-            <div className="hidden md:flex flex-1 justify-center mx-10">
+            <div className="hidden lg:flex flex-1 justify-center mx-10">
               <div className="flex space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
                 {navItems.map((item) => (
                   <NavButton key={item} item={item} />
@@ -100,7 +109,7 @@ const Navbar = () => {
             </div>
 
             {/* Icons */}
-            <div className="flex items-center space-x-2 z-50 relative">
+            <div className="flex items-center space-x-1 sm:space-x-2 z-50 relative shrink-0">
               {/* Friends Icon — sole entry point into the Friends page
                   (list, requests, and sent tabs all live inside Friends.jsx) */}
               <button
@@ -162,8 +171,8 @@ const Navbar = () => {
       </nav>
 
       {/* FLOATING MOBILE BOTTOM NAV */}
-      <div className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-60 w-[90%] max-w-100">
-        <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-full px-4 py-3 flex items-center justify-around shadow-2xl">
+      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-60 w-[95%] max-w-[24rem]">
+        <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-full px-2.5 py-2.5 flex items-center justify-between gap-1 shadow-2xl">
           {/* Home Icon */}
           <button
             onClick={() => handleNavClick("Dashboard")}
@@ -185,11 +194,11 @@ const Navbar = () => {
             <button
               key={item}
               onClick={() => handleNavClick(item)}
-              className={`relative text-[12px] font-medium transition-all px-2 ${
+              className={`relative flex-1 min-w-0 text-[10px] leading-tight font-medium transition-all px-1 text-center ${
                 activeTab === item ? "text-black scale-105" : "text-gray-400"
               }`}
             >
-              {item}
+              <span className="block truncate">{item}</span>
             </button>
           ))}
 
