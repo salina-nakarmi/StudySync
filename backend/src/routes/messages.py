@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..services.messages_service import (
@@ -13,16 +13,19 @@ from ..services.messages_service import (
     handle_broadcast,
     handle_editing,
     handle_deleting,
-    handle_replying
+    handle_replying,
+    get_conversations
 )
 from ..database.database import get_db
 
+# WebSocket router
 router = APIRouter(prefix="/ws", tags=["WebSockets"])
+
+chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
 connection_manager = ConnectionManager()
 direct_connection_manager = DirectConnectionManager()
 
-# Group Routes
 ROUTES = {
     "load_history": handle_history,
     "send_message": handle_broadcast,
@@ -31,7 +34,6 @@ ROUTES = {
     "delete": handle_deleting
 }
 
-# Direct Message Routes (Mapped to standard client actions)
 DIRECT_ROUTES = {
     "load_history": handle_direct_messages_history,
     "send_message": handle_direct_message,
@@ -41,7 +43,17 @@ DIRECT_ROUTES = {
 }
 
 
-# --- 1. GROUP CHAT ENDPOINT ---
+# --- HTTP ENDPOINTS ---
+# Resolves to GET /api/chat/conversations
+@chat_router.get("/conversations")
+async def chat_conversations(
+    user_id: str = Query(...), 
+    db: AsyncSession = Depends(get_db)
+):
+    return await get_conversations(user_id, db)
+
+
+# --- 1. GROUP CHAT WEBSOCKET ENDPOINT ---
 @router.websocket("/group/{user_id}/{group_id}")
 async def group_websocket_endpoint(
     websocket: WebSocket,
@@ -58,7 +70,7 @@ async def group_websocket_endpoint(
             action = data.get("action")
             payload = data.get("payload", {})
             if isinstance(payload, dict):
-                payload.setdefault("sender_id", sender_id)
+                payload.setdefault("user_id", user_id)
 
             if not action:
                 await websocket.send_json({"error": "No action specified"})
@@ -84,23 +96,22 @@ async def group_websocket_endpoint(
         connection_manager.disconnect(websocket, group_id)
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
 
 
-# --- 2. DIRECT MESSAGES ENDPOINT ---
+# --- 2. DIRECT MESSAGES WEBSOCKET ENDPOINT ---
 @router.websocket("/dm/{sender_id}/{receiver_id}")
 async def dm_websocket_endpoint(
     websocket: WebSocket,
     sender_id: str,
-    receiver_id: int,
+    receiver_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     await direct_connection_manager.connect(websocket, sender_id)
     print(f"✅ User {sender_id} connected to DMs with {receiver_id}")
 
     try:
-        # Trigger an immediate history load right after connection finishes mounting
         await handle_direct_messages_history({"receiver_id": receiver_id, "sender_id": sender_id}, db, websocket, sender_id)
 
         while True:
@@ -117,7 +128,6 @@ async def dm_websocket_endpoint(
             if action in DIRECT_ROUTES:
                 handler = DIRECT_ROUTES[action]
                 if action == "send_message":
-                    # Pass the direct connection manager down to deliver the socket frame to both friends
                     await handler(payload, db, websocket, sender_id, direct_connection_manager)
                 else:
                     await handler(payload, db, websocket, sender_id)
@@ -128,12 +138,12 @@ async def dm_websocket_endpoint(
                 })
 
     except WebSocketDisconnect:
-        direct_connection_manager.disconnect(websocket, sender_id)
+        await direct_connection_manager.disconnect(websocket, sender_id)
         print(f"❌ User {sender_id} disconnected from DMs with {receiver_id}")
     except Exception as e:
         print(f"⚠️ WebSocket error for user {sender_id} with friend {receiver_id}: {e}")
-        direct_connection_manager.disconnect(websocket, sender_id)
+        await direct_connection_manager.disconnect(websocket, sender_id)
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass

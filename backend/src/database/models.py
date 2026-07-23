@@ -342,7 +342,7 @@ class Messages(Base):
     content:Mapped[str]
     message_type:Mapped[str]=mapped_column(Enum(MessageType, default=MessageType.TEXT))
     
-    is_reply:Mapped[bool] = mapped_column
+    is_reply:Mapped[bool] = mapped_column()
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     seen_no: Mapped[int] = mapped_column(default = 0)

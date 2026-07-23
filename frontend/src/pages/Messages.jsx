@@ -27,8 +27,7 @@ import Navbar from "../components/Navbar";
 
 const PRIMARY_BLUE = "#2C76BA";
 const QUICK_REPLIES = ["I'm on it.", "Let's do a call.", "Sending the file now.", "Voice note coming up."];
-const INITIAL_GROUPS = []; 
-const friends = []; 
+const INITIAL_GROUPS = [];
 
 export default function Messages() {
   const { user } = useUser();
@@ -36,13 +35,14 @@ export default function Messages() {
 
   // Dynamic State
   const [conversations, setConversations] = useState([]);
+  const [rawFriendsList, setRawFriendsList] = useState([]);
   const [selectedFriendId, setSelectedFriendId] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [draftMessage, setDraftMessage] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
   const [loadingConversations, setLoadingConversations] = useState(true);
-  
+
   // UI Interaction States
   const [selectedMessageMenuIndex, setSelectedMessageMenuIndex] = useState(null);
   const [showConversationMenu, setShowConversationMenu] = useState(false);
@@ -59,29 +59,68 @@ export default function Messages() {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // --- 1. FETCH CONVERSATIONS SIDEBAR ---
+  // --- 1. FETCH CONVERSATIONS & ALL FRIENDS ---
   useEffect(() => {
-    const fetchConversations = async () => {
+    const fetchChatData = async () => {
+      if (!myUserId) return;
+
       try {
         setLoadingConversations(true);
         const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-        const response = await axios.get(`${apiBase}/api/chat/conversations`);
-        setConversations(response.data);
-        
-        if (response.data.length > 0) {
-          setSelectedFriendId(response.data[0].friend_id);
+
+        const [conversationsRes, friendsRes] = await Promise.all([
+          axios.get(`${apiBase}/api/chat/conversations`, {
+            params: { user_id: myUserId },
+          }).catch(() => ({ data: [] })),
+          axios.get(`${apiBase}/api/friends/my-friends`, {
+            params: { user_id: myUserId },
+          }).catch(() => ({ data: [] })),
+        ]);
+
+        const activeConversations = conversationsRes.data || [];
+        const allFriends = friendsRes.data || [];
+
+        setRawFriendsList(allFriends);
+
+        const conversationMap = new Map();
+        activeConversations.forEach((conv) => {
+          conversationMap.set(conv.friend_id, conv);
+        });
+
+        const mergedList = [...activeConversations];
+
+        allFriends.forEach((friend) => {
+          const friendId = friend.friend_id || friend.user_id || friend.id;
+
+          if (!conversationMap.has(friendId)) {
+            mergedList.push({
+              friend_id: friendId,
+              username:
+                friend.username ||
+                `${friend.first_name || ""} ${friend.last_name || ""}`.trim() ||
+                friend.email ||
+                "Friend",
+              email: friend.email || "",
+              latest_message_preview: null,
+              latest_message_time: null,
+            });
+          }
+        });
+
+        setConversations(mergedList);
+
+        if (mergedList.length > 0 && !selectedFriendId) {
+          setSelectedFriendId(mergedList[0].friend_id);
         }
       } catch (error) {
-        console.error("Error fetching conversations:", error);
+        console.error("Error fetching chat data:", error);
         pushBanner("Failed to load friend list.");
-      } finally {
+      } finally{
         setLoadingConversations(false);
       }
     };
 
-    if (myUserId) {
-      fetchConversations();
-    }
+    fetchChatData();
   }, [myUserId]);
 
   // --- 2. WEBSOCKET MESSAGE SYNC PIPELINE ---
@@ -91,7 +130,7 @@ export default function Messages() {
     const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
     const wsBase = apiBase.replace(/^http/, "ws");
     const wsUrl = `${wsBase}/api/ws/dm/${myUserId}/${selectedFriendId}`;
-    
+
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
@@ -102,19 +141,21 @@ export default function Messages() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === "history") {
           setChatMessages(data.messages || []);
-        } 
-        else if (data.type === "message") {
+        } else if (data.type === "message") {
           setChatMessages((prev) => [...prev, data.message]);
-          
+
           setConversations((prevList) => {
             const index = prevList.findIndex((c) => c.friend_id === selectedFriendId);
             if (index === -1) return prevList;
             const updated = [...prevList];
-            updated[index].latest_message_preview = data.message.content;
-            updated[index].latest_message_time = data.message.created_at;
+            updated[index] = {
+              ...updated[index],
+              latest_message_preview: data.message.content,
+              latest_message_time: data.message.created_at || new Date().toISOString(),
+            };
             const [movedItem] = updated.splice(index, 1);
             return [movedItem, ...updated];
           });
@@ -147,24 +188,36 @@ export default function Messages() {
 
   const visibleFriends = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    
-    // Merge backend DMs with dynamic frontend testing groups
-    const localGroupItems = groups.map(g => ({
+
+    const localGroupItems = groups.map((g) => ({
       friend_id: g.id,
       username: g.name,
       latest_message_preview: g.preview,
-      latest_message_time: g.lastSeen
+      latest_message_time: g.lastSeen,
     }));
 
     const unifiedList = [...localGroupItems, ...conversations];
 
-    if (!q) return unifiedList;
-    return unifiedList.filter((f) =>
+    const sortedList = unifiedList.sort((a, b) => {
+      if (a.latest_message_time && b.latest_message_time) {
+        return new Date(b.latest_message_time) - new Date(a.latest_message_time);
+      }
+      if (a.latest_message_time) return -1;
+      if (b.latest_message_time) return 1;
+
+      return (a.username || "").localeCompare(b.username || "");
+    });
+
+    if (!q) return sortedList;
+
+    return sortedList.filter((f) =>
       [f.username, f.latest_message_preview].join(" ").toLowerCase().includes(q)
     );
   }, [searchQuery, conversations, groups]);
 
-  const isMuted = selectedFriend ? mutedConversations.includes(selectedFriend.friend_id || selectedFriend.id) : false;
+  const isMuted = selectedFriend
+    ? mutedConversations.includes(selectedFriend.friend_id || selectedFriend.id)
+    : false;
 
   // --- 5. ACTION HANDLERS ---
   const pushBanner = (msg) => {
@@ -179,12 +232,11 @@ export default function Messages() {
       return;
     }
 
-    // Direct mock behavior for custom dynamic group channels
     if (isGroup) {
       const localMsg = {
         sender_id: myUserId,
         content: text || `Shared file: ${uploadedFile?.name}`,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
       setChatMessages((prev) => [...prev, localMsg]);
       setDraftMessage("");
@@ -201,8 +253,8 @@ export default function Messages() {
       action: "send_message",
       payload: {
         receiver_id: selectedFriendId,
-        content: text || `Shared file: ${uploadedFile?.name}`
-      }
+        content: text || `Shared file: ${uploadedFile?.name}`,
+      },
     };
 
     socketRef.current.send(JSON.stringify(payload));
@@ -212,37 +264,42 @@ export default function Messages() {
   };
 
   const handleCallAction = (type) => pushBanner(`${type} coordination requires WebRTC integration layer.`);
-  
+
   const handleVoiceMessage = () => {
     if (isGroup) {
-      setChatMessages(prev => [...prev, { sender_id: myUserId, content: "🎙 Voice message", created_at: new Date().toISOString() }]);
+      setChatMessages((prev) => [
+        ...prev,
+        { sender_id: myUserId, content: "Voice message", created_at: new Date().toISOString() },
+      ]);
       return;
     }
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-    socketRef.current.send(JSON.stringify({
-      action: "send_message",
-      payload: { receiver_id: selectedFriendId, content: "🎙 Voice message" }
-    }));
+    socketRef.current.send(
+      JSON.stringify({
+        action: "send_message",
+        payload: { receiver_id: selectedFriendId, content: "Voice message" },
+      })
+    );
   };
 
-  const handleDeleteMessage = (idx) => {
-    pushBanner("Message mutation requires action event transmission via socket framework.");
+  const handleDeleteMessage = () => {
+    pushBanner("Message deletion requires backend socket action.");
     setSelectedMessageMenuIndex(null);
   };
 
   const handleCopyMessage = async (text) => {
-    try { 
-      await navigator.clipboard.writeText(text); 
-      pushBanner("Copied to clipboard."); 
-    } catch { 
-      pushBanner("Could not copy message."); 
-    } finally { 
-      setSelectedMessageMenuIndex(null); 
+    try {
+      await navigator.clipboard.writeText(text);
+      pushBanner("Copied to clipboard.");
+    } catch {
+      pushBanner("Could not copy message.");
+    } finally {
+      setSelectedMessageMenuIndex(null);
     }
   };
 
   const handleReplyToMessage = (text) => {
-    setDraftMessage(`↩ ${text} \n`);
+    setDraftMessage(`${text} \n`);
     pushBanner("Reply loaded into composer.");
     setSelectedMessageMenuIndex(null);
   };
@@ -251,8 +308,8 @@ export default function Messages() {
     if (!selectedFriend) return;
     const currentTargetId = selectedFriend.friend_id || selectedFriend.id;
     setMutedConversations((prev) =>
-      prev.includes(currentTargetId) 
-        ? prev.filter((id) => id !== currentTargetId) 
+      prev.includes(currentTargetId)
+        ? prev.filter((id) => id !== currentTargetId)
         : [...prev, currentTargetId]
     );
     pushBanner(isMuted ? "Conversation unmuted." : "Conversation muted.");
@@ -314,7 +371,6 @@ export default function Messages() {
       <Navbar />
 
       <main className="h-[calc(100vh-64px)] mt-16 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
-        {/* Page Header */}
         <div className="flex justify-between items-center py-3 shrink-0">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Messages</h1>
@@ -328,12 +384,8 @@ export default function Messages() {
           </button>
         </div>
 
-        {/* Layout Container */}
         <div className="flex-1 min-h-0 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] pb-4">
-          
-          {/* Sidebar */}
           <aside className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm min-h-0">
-            {/* Search Input */}
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
                 <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 shrink-0" />
@@ -347,7 +399,6 @@ export default function Messages() {
               </div>
             </div>
 
-            {/* Friend List View */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1">
               {loadingConversations ? (
                 <div className="flex items-center justify-center py-10">
@@ -355,7 +406,7 @@ export default function Messages() {
                 </div>
               ) : visibleFriends.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-400">
-                  No networks active matching filter.
+                  No active chats or friends found.
                 </div>
               ) : (
                 visibleFriends.map((friend) => {
@@ -365,7 +416,7 @@ export default function Messages() {
                       key={friend.friend_id}
                       onClick={() => {
                         setSelectedFriendId(friend.friend_id);
-                        setChatMessages([]); // Clean buffer space
+                        setChatMessages([]);
                       }}
                       className={`w-full text-left rounded-xl p-3 transition-all border ${
                         isActive
@@ -389,8 +440,8 @@ export default function Messages() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-600 truncate mt-0.5">
-                            {friend.latest_message_preview || "No messages exchanged yet."}
+                          <p className="text-xs text-gray-500 truncate mt-0.5">
+                            {friend.latest_message_preview || "Start a new conversation"}
                           </p>
                         </div>
                       </div>
@@ -401,11 +452,9 @@ export default function Messages() {
             </div>
           </aside>
 
-          {/* Chat Panel */}
           <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm">
             {selectedFriend ? (
               <>
-                {/* Chat Header */}
                 <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
                   <div className="flex items-center gap-3">
                     <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold border border-gray-200">
@@ -448,7 +497,6 @@ export default function Messages() {
                       <VideoCameraIcon className="h-3.5 w-3.5" /> Video
                     </button>
 
-                    {/* Context Menu Dropdown */}
                     <div className="relative">
                       <button
                         onClick={() => setShowConversationMenu((p) => !p)}
@@ -467,7 +515,6 @@ export default function Messages() {
                   </div>
                 </div>
 
-                {/* Toast Notification Banner */}
                 {actionBanner && (
                   <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-200 px-4 py-2.5 text-sm text-gray-600">
                     <CheckCircleIcon className="h-4 w-4 text-green-500 shrink-0" />
@@ -475,7 +522,6 @@ export default function Messages() {
                   </div>
                 )}
 
-                {/* Chat Bubbles Container */}
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                   {chatMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 py-16">
@@ -530,7 +576,6 @@ export default function Messages() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Composer Form Input */}
                 <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50/50">
                   <div className="flex flex-wrap gap-2">
                     {QUICK_REPLIES.map((reply) => (
@@ -567,7 +612,7 @@ export default function Messages() {
                           <CameraIcon className="h-3.5 w-3.5" /> Camera
                         </button>
                         {uploadedFile && (
-                          <span className="text-xs text-gray-500 truncate max-w-30">📎 {uploadedFile.name}</span>
+                          <span className="text-xs text-gray-500 truncate max-w-30">{uploadedFile.name}</span>
                         )}
                       </div>
                     </div>
@@ -585,27 +630,25 @@ export default function Messages() {
             ) : (
               <div className="flex flex-col items-center justify-center flex-1 text-gray-400">
                 <ChatBubbleLeftRightIcon className="h-12 w-12 mb-2 text-gray-200" />
-                <p className="text-sm">Select an active chat thread to start talking.</p>
+                <p className="text-sm">Select an active chat thread or friend to start talking.</p>
               </div>
             )}
           </section>
         </div>
       </main>
 
-      {/* Add Member Modal container */}
       {showAddMember && (
         <AddMemberModal
-          friends={friends}
+          friends={rawFriendsList}
           existingMembers={isGroup ? (selectedFriend?.members || []) : [selectedFriend?.username || ""]}
           onAdd={handleAddMember}
           onClose={() => setShowAddMember(false)}
         />
       )}
 
-      {/* Create Group Modal container */}
       {showCreateGroup && (
         <CreateGroupModal
-          friends={friends}
+          friends={rawFriendsList}
           onCreate={handleCreateGroup}
           onClose={() => setShowCreateGroup(false)}
         />
@@ -614,12 +657,13 @@ export default function Messages() {
   );
 }
 
+// --- CREATE GROUP MODAL ---
 function CreateGroupModal({ friends, onCreate, onClose }) {
   const [groupName, setGroupName] = useState("");
   const [selected, setSelected] = useState([]);
 
   const toggle = (name) =>
-    setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
+    setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
 
   const handleSubmit = () => {
     if (!groupName.trim() || selected.length < 1) return;
@@ -655,24 +699,29 @@ function CreateGroupModal({ friends, onCreate, onClose }) {
             <label className="text-xs font-bold text-gray-500 mb-1.5 block">Add members</label>
             <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto">
               {friends.map((f) => {
-                const checked = selected.includes(f.name);
+                const friendName = f.username || f.name || f.email;
+                const checked = selected.includes(friendName);
                 return (
                   <button
-                    key={f.id}
-                    onClick={() => toggle(f.name)}
+                    key={f.friend_id || f.user_id || f.id}
+                    onClick={() => toggle(friendName)}
                     className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${
-                      checked ? "border-[#2C76BA] bg-blue-50/60" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                      checked
+                        ? "border-[#2C76BA] bg-blue-50/60"
+                        : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
                     }`}
                   >
-                    <div className={`h-8 w-8 rounded-full ${f.avatarColor || 'bg-blue-100 text-blue-700'} flex items-center justify-center text-xs font-bold border shrink-0`}>
-                      {f.avatar || "?"}
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border shrink-0">
+                      {(friendName || "?").slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">{f.name}</p>
+                      <p className="text-sm font-semibold text-gray-800">{friendName}</p>
                     </div>
-                    <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-                      checked ? "border-[#2C76BA] bg-[#2C76BA]" : "border-gray-300"
-                    }`}>
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                        checked ? "border-[#2C76BA] bg-[#2C76BA]" : "border-gray-300"
+                      }`}
+                    >
                       {checked && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                     </div>
                   </button>
@@ -683,15 +732,18 @@ function CreateGroupModal({ friends, onCreate, onClose }) {
         </div>
 
         <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-100 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!groupName.trim() || selected.length === 0}
-            className="px-4 py-2 text-sm font-bold bg-gray-800 text-white rounded-xl hover:bg-gray-700"
+            disabled={!groupName.trim() || selected.length < 1}
+            className="px-4 py-2 text-sm font-bold bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-50 transition"
           >
-            Create Group
+            Create
           </button>
         </div>
       </div>
@@ -699,8 +751,14 @@ function CreateGroupModal({ friends, onCreate, onClose }) {
   );
 }
 
+// --- ADD MEMBER MODAL ---
 function AddMemberModal({ friends, existingMembers, onAdd, onClose }) {
-  const available = friends.filter((f) => !existingMembers.includes(f.name));
+  const [selected, setSelected] = useState("");
+
+  const availableFriends = friends.filter((f) => {
+    const friendName = f.username || f.name || f.email;
+    return !existingMembers.includes(friendName);
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -716,33 +774,48 @@ function AddMemberModal({ friends, existingMembers, onAdd, onClose }) {
         </div>
 
         <div className="px-5 py-4">
-          {available.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">All friends are already in this group.</p>
-          ) : (
-            <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Select a friend to add</p>
-              {available.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => onAdd(f.name)}
-                  className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:border-[#2C76BA] hover:bg-blue-50/50 transition-all text-left w-full"
-                >
-                  <div className={`h-9 w-9 rounded-full ${f.avatarColor || 'bg-gray-100 text-gray-700'} flex items-center justify-center text-xs font-bold border shrink-0`}>
-                    {f.avatar || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{f.name}</p>
-                  </div>
-                  <PlusIcon className="h-4 w-4 text-gray-400 shrink-0" />
-                </button>
-              ))}
-            </div>
-          )}
+          <label className="text-xs font-bold text-gray-500 mb-1.5 block">Select a friend</label>
+          <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+            {availableFriends.length === 0 ? (
+              <p className="text-xs text-gray-400 py-4 text-center">No available friends to add.</p>
+            ) : (
+              availableFriends.map((f) => {
+                const friendName = f.username || f.name || f.email;
+                const isSelected = selected === friendName;
+                return (
+                  <button
+                    key={f.friend_id || f.user_id || f.id}
+                    onClick={() => setSelected(friendName)}
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${
+                      isSelected
+                        ? "border-[#2C76BA] bg-blue-50/60"
+                        : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold border shrink-0">
+                      {(friendName || "?").slice(0, 2).toUpperCase()}
+                    </div>
+                    <p className="text-sm font-semibold text-gray-800 flex-1">{friendName}</p>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
-            Close
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-100 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => selected && onAdd(selected)}
+            disabled={!selected}
+            className="px-4 py-2 text-sm font-bold bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-50 transition"
+          >
+            Add
           </button>
         </div>
       </div>

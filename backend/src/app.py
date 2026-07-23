@@ -49,7 +49,7 @@ app.include_router(time_logs.router, prefix="/api")
 app.include_router(invitations.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")
 app.include_router(friends.router, prefix="/api")
-
+app.include_router(messages.chat_router, prefix = "/api")
 
 
 @app.get("/")

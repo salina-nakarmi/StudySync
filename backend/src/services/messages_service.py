@@ -1,12 +1,19 @@
 from typing import List, Dict
+from datetime import datetime
 from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, or_, and_, desc
 
 from .user_service import get_username_by_id
-
-from ..database.models import Messages, Replying, MessageType, DirectMessages, DirectMessagesReplying
-
+from ..database.models import (
+    Messages,
+    Replying,
+    MessageType,
+    DirectMessages,
+    DirectMessagesReplying,
+    Friends,
+    Users
+)
 from ..schemas.messages import (
     DirectMessageResponse,
     EditingDirectMessageRequest,
@@ -26,7 +33,7 @@ from ..schemas.notifications import CreateNotificationRequest
 
 
 # =========================
-# CONNECTION MANAGER
+# CONNECTION MANAGERS
 # =========================
 class ConnectionManager:
     def __init__(self):
@@ -41,10 +48,9 @@ class ConnectionManager:
             try:
                 self.active_connections[group_id].remove(websocket)
             except ValueError:
-                pass  # WebSocket already removed
+                pass
 
     async def broadcast(self, message: Messages, group_id: int):
-        """Broadcast message to all connected clients in the group"""
         payload = {
             "action": "new_message",
             "type": "message",
@@ -52,7 +58,7 @@ class ConnectionManager:
                 "sender_id": message.user_id,
                 "group_id": message.group_id,
                 "content": message.content,
-                "type": str(message.message_type),
+                "type": str(message.message_type.value if hasattr(message.message_type, "value") else message.message_type),
             }
         }
 
@@ -65,35 +71,31 @@ class ConnectionManager:
                     print(f"Error broadcasting to connection: {e}")
                     dead_connections.append(connection)
             
-            # Clean up dead connections
             for dead in dead_connections:
                 self.disconnect(dead, group_id)
 
 
 class DirectConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str,WebSocket] ={}
+        self.active_connections: Dict[str, WebSocket] = {}
     
-    async def connect(self, websocket:WebSocket, user_id:str):
+    async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
         self.active_connections[user_id] = websocket
 
-    async def disconnect(self, websocket: WebSocket, user_id:str):
+    async def disconnect(self, websocket: WebSocket, user_id: str):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
-
-    
-
 
     async def send_to_user(self, user_id: str, DM: DirectMessages):
         payload = {
             "action": "new_message",
             "type": "message",
             "message": {
-                "sender_id" : DM.sender_id,
+                "sender_id": DM.sender_id,
                 "receiver_id": DM.receiver_id,
                 "content": DM.content,
-                "type": str(DM.message_type)
+                "type": str(DM.message_type.value if hasattr(DM.message_type, "value") else DM.message_type)
             }  
         }
         if user_id in self.active_connections:
@@ -102,8 +104,9 @@ class DirectConnectionManager:
             except Exception as e:
                 print(f"Error sending message to user {user_id}: {e}")
 
+
 # =========================
-# GROUP MESSAGE
+# GROUP MESSAGES
 # =========================
 async def handle_broadcast(
     data: dict,
@@ -112,7 +115,6 @@ async def handle_broadcast(
     group_id: int,
     connection_manager: ConnectionManager
 ):
-    """Handle sending a new message to the group"""
     try:
         frontend_data = StoreMessageRequest(**data)
 
@@ -120,22 +122,21 @@ async def handle_broadcast(
             await websocket.send_json({"error": "Invalid group"})
             return
 
-        # Create new message
         message = Messages(
             user_id=frontend_data.user_id,
             group_id=frontend_data.group_id,
             content=frontend_data.content,
-            message_type=MessageType(frontend_data.type)
+            message_type=MessageType(frontend_data.type),
+            is_reply=False
         )
 
         session.add(message)
         await session.commit()
         await session.refresh(message)
 
-        # Broadcast to all connected clients
         await connection_manager.broadcast(message, group_id)
 
-        # 🔔 Notify other members
+        # Notify group members
         members = await get_group_members(group_id, session)
         for member in members:
             if member.user_id != frontend_data.user_id:
@@ -143,7 +144,7 @@ async def handle_broadcast(
                     await create_notification(
                         CreateNotificationRequest(
                             user_id=member.user_id,
-                            username=member.username,  # Fixed: was members.username
+                            username=member.username,
                             title="New Message",
                             message=f"New message in group {group_id}",
                             type="message"
@@ -153,21 +154,20 @@ async def handle_broadcast(
                 except Exception as e:
                     print(f"Error creating notification for user {member.user_id}: {e}")
 
+        # Commit all notifications
+        await session.commit()
+
     except Exception as e:
         print(f"Error in handle_broadcast: {e}")
         await websocket.send_json({"error": "Failed to send message"})
 
 
-# =========================
-# LOAD HISTORY
-# =========================
 async def handle_history(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
     group_id: int
 ):
-    """Load message history for the group"""
     try:
         frontend_data = LoadMessageRequest(**data)
 
@@ -186,7 +186,7 @@ async def handle_history(
                 sender_id=m.user_id,
                 group_id=m.group_id,
                 content=m.content,
-                type=m.message_type
+                type=str(m.message_type.value if hasattr(m.message_type, "value") else m.message_type)
             )
             for m in reversed(messages)
         ]
@@ -202,16 +202,12 @@ async def handle_history(
         await websocket.send_json({"error": "Failed to load history"})
 
 
-# =========================
-# EDIT MESSAGE
-# =========================
 async def handle_editing(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
     group_id: int
 ):
-    """Handle editing an existing message"""
     try:
         frontend_data = EditingMessageRequest(**data)
 
@@ -245,20 +241,15 @@ async def handle_editing(
         await websocket.send_json({"error": "Failed to edit message"})
 
 
-# =========================
-# REPLY TO MESSAGE
-# =========================
 async def handle_replying(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
     group_id: int
 ):
-    """Handle replying to a message"""
     try:
         frontend_data = ReplyingMessageRequest(**data)
 
-        # Create new reply message
         new_message = Messages(
             user_id=frontend_data.replied_by_id,
             group_id=frontend_data.group_id,
@@ -270,7 +261,6 @@ async def handle_replying(
         session.add(new_message)
         await session.flush()
 
-        # Create reply relationship
         new_reply = Replying(
             message_id=new_message.id,
             group_id=frontend_data.group_id,
@@ -287,18 +277,20 @@ async def handle_replying(
             "message_id": new_message.id
         })
 
-        # 🔔 Notify original sender
+        # Notify original sender and commit
         try:
+            replier_name = await get_username_by_id(session, frontend_data.replied_by_id)
             await create_notification(
                 CreateNotificationRequest(
                     user_id=frontend_data.replied_to_id,
-                    username="System",  # You may want to fetch the actual username
+                    username=replier_name or "System",
                     title="New Reply",
-                    message="Someone replied to your message",
+                    message=f"{replier_name or 'Someone'} replied to your message",
                     type="reply"
                 ),
                 session
             )
+            await session.commit()
         except Exception as e:
             print(f"Error creating reply notification: {e}")
 
@@ -307,45 +299,29 @@ async def handle_replying(
         await websocket.send_json({"error": "Failed to send reply"})
 
 
-# =========================
-# DELETE MESSAGE
-# =========================
-async def get_is_reply_by_message_id(message_id: int, session: AsyncSession) -> bool:
-    """Check if a message is a reply"""
-    result = await session.execute(
-        select(Messages).where(Messages.id == message_id)
-    )
-    message = result.scalar_one_or_none()
-    return message.is_reply if message else False
-
-
 async def handle_deleting(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
     group_id: int
 ):
-    """Handle deleting a message"""
     try:
         frontend_data = DeletingMessageRequest(**data)
 
-        is_reply = await get_is_reply_by_message_id(
-            frontend_data.delete_message_id,
-            session
-        )
-
-        # Delete reply relationship if it exists
-        if is_reply:
-            await session.execute(
-                delete(Replying).where(
-                    Replying.message_id == frontend_data.delete_message_id
+        # Delete references in Replying table to prevent Foreign Key constraints
+        await session.execute(
+            delete(Replying).where(
+                or_(
+                    Replying.message_id == frontend_data.delete_message_id,
+                    Replying.replied_message_id == frontend_data.delete_message_id
                 )
             )
+        )
 
-        # Delete the message
         result = await session.execute(
             delete(Messages).where(
-                Messages.id == frontend_data.delete_message_id
+                Messages.id == frontend_data.delete_message_id,
+                Messages.user_id == frontend_data.user_id
             )
         )
 
@@ -358,7 +334,7 @@ async def handle_deleting(
             })
         else:
             await websocket.send_json({
-                "error": "Message not found"
+                "error": "Message not found or unauthorized"
             })
 
     except Exception as e:
@@ -366,33 +342,16 @@ async def handle_deleting(
         await websocket.send_json({"error": "Failed to delete message"})
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ====================================================================================================================================================================
-# DIRECT MESSAGE
-# ====================================================================================================================================================================
+# ====================================================================================================
+# DIRECT MESSAGES
+# ====================================================================================================
 async def handle_direct_message(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    sender_id: int,
+    sender_id: str,
     direct_connection_manager: DirectConnectionManager
 ):
-    """Handle sending a new message to a user"""
     try:
         frontend_data = StoreDirectMessageRequest(**data)
 
@@ -400,22 +359,22 @@ async def handle_direct_message(
             await websocket.send_json({"error": "Invalid user"})
             return
 
-        # Create new message
         direct_message = DirectMessages(
             sender_id=frontend_data.sender_id,
             receiver_id=frontend_data.receiver_id,
             content=frontend_data.content,
-            message_type=MessageType(frontend_data.type)
+            message_type=MessageType(frontend_data.type),
+            is_reply=False
         )
 
         session.add(direct_message)
         await session.commit()
         await session.refresh(direct_message)
 
-        # Broadcast to all connected clients
+        # Deliver frame to connected receiver
         await direct_connection_manager.send_to_user(frontend_data.receiver_id, direct_message)
 
-        # 🔔 Notify other members
+        # Notify receiver and commit
         user_name = await get_username_by_id(session, frontend_data.sender_id)
         try:
             await create_notification(
@@ -425,31 +384,40 @@ async def handle_direct_message(
                     title="New Message",
                     message=f"New message from {user_name}",
                     type="message"
-                    ),
-                    session
-                    )
+                ),
+                session
+            )
+            await session.commit()
         except Exception as e:
             print(f"Error creating notification for user {frontend_data.receiver_id}: {e}")
 
     except Exception as e:
-        print(f"Error in : {e}")
+        print(f"Error in handle_direct_message: {e}")
         await websocket.send_json({"error": "Failed to send message"})
 
 
-# =========================
-# LOAD HISTORY
-# =========================
 async def handle_direct_messages_history(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    sender_id: int
+    sender_id: str
 ):
-    """Load message history for the group"""
     try:
         frontend_data = LoadDirectMessageRequest(**data)
 
-        query = select(DirectMessages).where(DirectMessages.receiver_id == frontend_data.receiver_id)
+        # Query messages between both participants (sent and received)
+        query = select(DirectMessages).where(
+            or_(
+                and_(
+                    DirectMessages.sender_id == sender_id,
+                    DirectMessages.receiver_id == frontend_data.receiver_id
+                ),
+                and_(
+                    DirectMessages.sender_id == frontend_data.receiver_id,
+                    DirectMessages.receiver_id == sender_id
+                )
+            )
+        )
 
         if frontend_data.last_message_id:
             query = query.where(DirectMessages.id < frontend_data.last_message_id)
@@ -464,7 +432,7 @@ async def handle_direct_messages_history(
                 sender_id=m.sender_id,
                 receiver_id=m.receiver_id,
                 content=m.content,
-                type=m.message_type
+                type=str(m.message_type.value if hasattr(m.message_type, "value") else m.message_type)
             )
             for m in reversed(messages)
         ]
@@ -476,20 +444,16 @@ async def handle_direct_messages_history(
         })
 
     except Exception as e:
-        print(f"Error in handle_history: {e}")
+        print(f"Error in handle_direct_messages_history: {e}")
         await websocket.send_json({"error": "Failed to load history"})
 
 
-# =========================
-# EDIT MESSAGE
-# =========================
 async def handle_direct_message_editing(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    sender_id: int
+    sender_id: str
 ):
-    """Handle editing an existing message"""
     try:
         frontend_data = EditingDirectMessageRequest(**data)
 
@@ -497,8 +461,7 @@ async def handle_direct_message_editing(
             update(DirectMessages)
             .where(
                 DirectMessages.id == frontend_data.message_id,
-                DirectMessages.sender_id == frontend_data.sender_id,
-                DirectMessages.receiver_id == frontend_data.user_id
+                DirectMessages.sender_id == sender_id
             )
             .values(
                 content=frontend_data.edited_content,
@@ -520,24 +483,52 @@ async def handle_direct_message_editing(
             })
 
     except Exception as e:
-        print(f"Error in handle_editing: {e}")
+        print(f"Error in handle_direct_message_editing: {e}")
         await websocket.send_json({"error": "Failed to edit message"})
 
 
-# =========================
-# REPLY TO MESSAGE
-# =========================
+async def get_conversations(user_id: str, session: AsyncSession) -> list[dict]:
+    friends_result = await session.execute(
+        select(Users).join(Friends, Friends.friend_id == Users.user_id)
+        .where(Friends.user_id == user_id)
+    )
+    friends = friends_result.scalars().all()
+
+    conversations = []
+    for friend in friends:
+        msg_result = await session.execute(
+            select(DirectMessages)
+            .where(
+                or_(
+                    and_(DirectMessages.sender_id == user_id, DirectMessages.receiver_id == friend.user_id),
+                    and_(DirectMessages.sender_id == friend.user_id, DirectMessages.receiver_id == user_id),
+                )
+            )
+            .order_by(desc(DirectMessages.created_at))
+            .limit(1)
+        )
+        last_msg = msg_result.scalars().first()
+
+        conversations.append({
+            "friend_id": friend.user_id,
+            "username": friend.username,
+            "latest_message_preview": last_msg.content if last_msg else None,
+            "latest_message_time": last_msg.created_at if last_msg else None,
+        })
+
+    conversations.sort(key=lambda c: c["latest_message_time"] or datetime.min, reverse=True)
+    return conversations
+
+    
 async def handle_direct_message_replying(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    sender_id: int
+    sender_id: str
 ):
-    """Handle replying to a message"""
     try:
         frontend_data = ReplyingDirectMessageRequest(**data)
 
-        # Create new reply message
         new_message = DirectMessages(
             sender_id=frontend_data.replied_by_id,
             receiver_id=frontend_data.receiver_id,
@@ -549,7 +540,6 @@ async def handle_direct_message_replying(
         session.add(new_message)
         await session.flush()
 
-        # Create reply relationship
         new_reply = DirectMessagesReplying(
             message_id=new_message.id,
             replied_message_id=frontend_data.replied_message_id,
@@ -578,53 +568,37 @@ async def handle_direct_message_replying(
                 ),
                 session
             )
+            await session.commit()
         except Exception as e:
             print(f"Error creating reply notification: {e}")
 
     except Exception as e:
-        print(f"Error in handle_replying: {e}")
+        print(f"Error in handle_direct_message_replying: {e}")
         await websocket.send_json({"error": "Failed to send reply"})
-
-
-# =========================
-# DELETE MESSAGE
-# =========================
-async def get_is_reply_by_direct_message_id(message_id: int, session: AsyncSession) -> bool:
-    """Check if a message is a reply"""
-    result = await session.execute(
-        select(DirectMessages).where(DirectMessages.id == message_id)
-    )
-    message = result.scalar_one_or_none()
-    return message.is_reply if message else False
 
 
 async def handle_direct_message_deleting(
     data: dict,
     session: AsyncSession,
     websocket: WebSocket,
-    sender_id: int
+    sender_id: str
 ):
-    """Handle deleting a message"""
     try:
-        frontend_data = DeletingMessageRequest(**data)
+        frontend_data = DeletingDirectMessageRequest(**data)
 
-        is_reply = await get_is_reply_by_direct_message_id(
-            frontend_data.delete_message_id,
-            session
-        )
-
-        # Delete reply relationship if it exists
-        if is_reply and frontend_data.user_id == sender_id:
-            await session.execute(
-                delete(DirectMessagesReplying).where(
-                    DirectMessagesReplying.message_id == frontend_data.delete_message_id
+        await session.execute(
+            delete(DirectMessagesReplying).where(
+                or_(
+                    DirectMessagesReplying.message_id == frontend_data.delete_message_id,
+                    DirectMessagesReplying.replied_message_id == frontend_data.delete_message_id
                 )
             )
+        )
 
-        # Delete the message
         result = await session.execute(
             delete(DirectMessages).where(
-                DirectMessages.id == frontend_data.delete_message_id
+                DirectMessages.id == frontend_data.delete_message_id,
+                DirectMessages.sender_id == sender_id
             )
         )
 
@@ -637,10 +611,9 @@ async def handle_direct_message_deleting(
             })
         else:
             await websocket.send_json({
-                "error": "Message not found"
+                "error": "Message not found or unauthorized"
             })
 
     except Exception as e:
-        print(f"Error in handle_deleting: {e}")
+        print(f"Error in handle_direct_message_deleting: {e}")
         await websocket.send_json({"error": "Failed to delete message"})
-
