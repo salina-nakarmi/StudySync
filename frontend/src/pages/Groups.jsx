@@ -42,11 +42,15 @@ export default function Groups() {
   // State
   const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
+  const [viewMode, setViewMode] = useState("mine"); // "mine" | "discover"
+  const [publicGroups, setPublicGroups] = useState([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [joiningGroupId, setJoiningGroupId] = useState(null);
   const [activeTab, setActiveTab] = useState("Resources");
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
- const [resources, setResources] = useState([]); // Group resources
+  const [resources, setResources] = useState([]); // Group resources
   const [personalResources, setPersonalResources] = useState([]); // ADD THIS
   const [resourceFilter, setResourceFilter] = useState("all"); // ADD THIS
   const [addResourceModalOpen, setAddResourceModalOpen] = useState(false);
@@ -102,6 +106,30 @@ export default function Groups() {
     }
   }, [getToken, navigate, setError, setGroups, setLoading]);
 
+  const loadPublicGroups = useCallback(async () => {
+    try {
+      setDiscoverLoading(true);
+      const token = await getToken();
+      const data = await groupService.getPublicGroups(token); // needs backend support
+      setPublicGroups(data);
+    } catch (err) {
+      console.error("Error loading public groups:", err);
+      setPublicGroups([]);
+    } finally {
+      setDiscoverLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    if (!activeGroup && viewMode === "discover") {
+      loadPublicGroups();
+    }
+  }, [activeGroup, viewMode, loadPublicGroups]);
+
+  const joinedGroupIds = new Set(groups.map((g) => g.id));
+  const discoverableGroups = publicGroups.filter((g) => !joinedGroupIds.has(g.id));
+
+
   const loadGroupDetails = useCallback(async (groupId) => {
     try {
       const token = await getToken();
@@ -111,6 +139,25 @@ export default function Groups() {
       console.error("Error loading group details:", err);
     }
   }, [getToken, setActiveGroup]);
+
+  const handleQuickJoinGroup = async (groupId, e) => {
+    e?.stopPropagation();
+    try {
+      setJoiningGroupId(groupId);
+      setError(null);
+      const token = await getToken();
+      await groupService.joinGroup(token, groupId); // no invite code needed for public groups
+      await loadGroups();
+      setPublicGroups((prev) => prev.filter((g) => g.id !== groupId));
+      if (activeGroup?.id === groupId) {
+        loadGroupDetails(groupId);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setJoiningGroupId(null);
+    }
+  };
 
   const loadGroupResources = useCallback(async (groupId) => {
     try {
@@ -145,7 +192,11 @@ export default function Groups() {
     return Number.isNaN(parsedTimestamp.getTime()) ? Date.now() : parsedTimestamp.getTime();
   };
 
-  const handleNewMessage = (message) => {
+  // Use refs to avoid stale closures in WebSocket callbacks
+  const handleNewMessageRef = useRef(null);
+  const handleHistoryLoadedRef = useRef(null);
+
+  const handleNewMessage = useCallback((message) => {
     const createdAt = getMessageTimestamp(message);
     const isSelfMessage = message.sender_id === user?.id;
 
@@ -171,10 +222,9 @@ export default function Groups() {
         }));
       }
     }
+  }, [user?.id]);
 
-  };
-
-  const handleHistoryLoaded = (history) => {
+  const handleHistoryLoaded = useCallback((history) => {
     const formattedMessages = history.map((msg) => ({
       id: `${msg.sender_id}-${Date.now()}-${Math.random()}`,
       sender_id: msg.sender_id,
@@ -186,15 +236,32 @@ export default function Groups() {
     }));
 
     setChatMessages(formattedMessages);
+  }, [user?.id]);
 
-  };
+  // Keep refs in sync with latest callbacks
+  useEffect(() => {
+    handleNewMessageRef.current = handleNewMessage;
+  }, [handleNewMessage]);
+
+  useEffect(() => {
+    handleHistoryLoadedRef.current = handleHistoryLoaded;
+  }, [handleHistoryLoaded]);
+
+  // Wrapper callbacks that use refs to call latest versions
+  const onNewMessageWrapper = useCallback((message) => {
+    handleNewMessageRef.current?.(message);
+  }, []);
+
+  const onHistoryLoadedWrapper = useCallback((history) => {
+    handleHistoryLoadedRef.current?.(history);
+  }, []);
 
   const { isConnected } = useGroupChat(
     activeGroup?.id,
     user?.id,
     getToken,
-    handleNewMessage,
-    handleHistoryLoaded
+    onNewMessageWrapper,
+    onHistoryLoadedWrapper
   );
 
   const getMemberUsername = (userId) => {
@@ -397,6 +464,27 @@ export default function Groups() {
             )}
           </div>
 
+          {!activeGroup && (
+            <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+              <button
+                onClick={() => setViewMode("mine")}
+                className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
+                  viewMode === "mine" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                My Groups
+              </button>
+              <button
+                onClick={() => setViewMode("discover")}
+                className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
+                  viewMode === "discover" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                Discover Public Groups
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {error}
@@ -406,13 +494,49 @@ export default function Groups() {
           {!activeGroup ? (
             /* GROUP GRID VIEW */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groups.length === 0 ? (
+              {viewMode === "mine" ? (
+                groups.length === 0 ? (
+                  <div className="col-span-full text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                    <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">You haven't joined any groups yet.</p>
+                  </div>
+                ) : (
+                  groups.map((group) => (
+                    <div
+                      key={group.id}
+                      onClick={() => setActiveGroup(group)}
+                      className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-lg transition cursor-pointer flex flex-col h-full"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                          <UsersIcon className="w-6 h-6 text-gray-600" />
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 px-2 py-1 rounded text-gray-600">
+                          {group.group_type}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-gray-900 mb-1">{group.group_name}</h3>
+                      <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
+                        {group.description || "No description provided."}
+                      </p>
+                      <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
+                        <span>{group.member_count} Members</span>
+                        <span className="text-[#2C76BA] font-medium">View Group →</span>
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : discoverLoading ? (
+                <div className="col-span-full flex justify-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-[#2C76BA]"></div>
+                </div>
+              ) : discoverableGroups.length === 0 ? (
                 <div className="col-span-full text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                   <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">You haven't joined any groups yet.</p>
+                  <p className="text-gray-500">No new public groups to discover right now.</p>
                 </div>
               ) : (
-                groups.map((group) => (
+                discoverableGroups.map((group) => (
                   <div
                     key={group.id}
                     onClick={() => setActiveGroup(group)}
@@ -430,10 +554,17 @@ export default function Groups() {
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
                       {group.description || "No description provided."}
                     </p>
-                    <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
+                    <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500 mb-3">
                       <span>{group.member_count} Members</span>
-                      <span className="text-[#2C76BA] font-medium">View Group →</span>
+                      <span className="capitalize">{group.group_type?.replace("_", " ")}</span>
                     </div>
+                    <button
+                      onClick={(e) => handleQuickJoinGroup(group.id, e)}
+                      disabled={joiningGroupId === group.id}
+                      className="w-full py-2 text-sm font-bold text-white bg-[#2C76BA] rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                      {joiningGroupId === group.id ? "Joining..." : "Join Group"}
+                    </button>
                   </div>
                 ))
               )}
