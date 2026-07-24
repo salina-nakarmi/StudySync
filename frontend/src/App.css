@@ -33,10 +33,85 @@
   }
 }
 
-.card {
+/* .card {
   padding: 2em;
 }
 
 .read-the-docs {
   color: #888;
 }
+.cm-feed-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 300px;
+  gap: 0;
+  align-items: start;
+}
+.cm-feed-main {
+  padding-right: 32px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cm-feed-sidebar-wrap {
+  padding-left: 32px;
+}
+@media (max-width: 768px) {
+  .cm-feed-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .cm-feed-main {
+    padding-right: 0;
+    border-right: none;
+  }
+  .cm-feed-sidebar-wrap {
+    padding-left: 0;
+  }
+}
+
+/* ── Base (desktop/laptop) — sidebar stays on the right, unchanged ── */
+/* .cm-feed-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 300px;
+  gap: 0;
+  align-items: start;
+}
+.cm-feed-main {
+  padding-right: 32px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cm-feed-sidebar-wrap {
+  padding-left: 32px;
+}
+.cm-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 96px;
+}
+
+/* ── Mobile only — sidebar drops below, spacing tightened ── */
+/* @media (max-width: 768px) {
+  .cm-feed-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .cm-feed-main {
+    padding-right: 0;
+    border-right: none;
+    gap: 16px;
+  }
+  .cm-feed-sidebar-wrap {
+    padding-left: 0;
+  }
+  .cm-sidebar {
+    position: static;
+    top: auto;
+    gap: 12px;
+  } */
+/* } */ 

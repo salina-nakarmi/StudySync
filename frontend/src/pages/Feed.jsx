@@ -144,7 +144,7 @@ const injectStyles = () => {
       border: 1px solid #e2e8f0; border-radius: 14px; padding: 8px 12px; background: #fff;
     }
     .cm-thread-input {
-      flex: 1; border: none; background: transparent; font-size: 13px;
+      flex: 1; min-width: 0; border: none; background: transparent; font-size: 13px;
       outline: none; color: #334155;
     }
     .cm-author-trigger {
@@ -174,6 +174,70 @@ const injectStyles = () => {
     .cm-friend-checkbox-tick {
       width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid currentColor;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    /* ── Resource post block ── */
+    .cm-resource-grid {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 14px;
+    }
+    .cm-resource-thumb {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      border-radius: 14px; padding: 16px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+    }
+
+    /* ── Sidebar ── */
+    .cm-sidebar {
+      display: flex; flex-direction: column; gap: 16px;
+      position: sticky; top: 96px;
+    }
+    .cm-sidebar-card {
+      background: #fff; border: 1px solid #e8eaed;
+      border-radius: 20px; padding: 24px; overflow: hidden;
+    }
+
+    /* ── Mobile responsiveness ── */
+    @media (max-width: 768px) {
+      .cm-sidebar {
+        position: static;
+        top: auto;
+      }
+    }
+    @media (max-width: 640px) {
+      .cm-card {
+        padding: 18px;
+        border-radius: 16px;
+      }
+      .cm-sidebar-card {
+        padding: 18px;
+        border-radius: 16px;
+      }
+      .cm-resource-grid {
+        grid-template-columns: 1fr;
+      }
+      .cm-resource-thumb {
+        flex-direction: row;
+        justify-content: flex-start;
+        padding: 12px 14px;
+      }
+      .cm-dialog {
+        padding: 22px;
+      }
+      .cm-btn, .cm-reaction {
+        padding: 7px 12px;
+        font-size: 12.5px;
+      }
+    }
+    @media (max-width: 400px) {
+      .cm-card {
+        padding: 14px;
+      }
+      .cm-sidebar-card {
+        padding: 14px;
+      }
     }
   `;
   document.head.appendChild(el);
@@ -335,9 +399,9 @@ const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
       >
         {getInitials(getAuthorName(comment.author))}
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
               {getAuthorName(comment.author)}
             </span>
@@ -357,7 +421,7 @@ const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
             </button>
           )}
         </div>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.6, wordBreak: "break-word" }}>
           {comment.text}
         </p>
       </div>
@@ -370,13 +434,13 @@ const CommentItem = ({ comment, currentUserId, onDeleteComment }) => (
             key={reply.id}
             style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 12px" }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
                 {getAuthorName(reply.author)}
               </span>
               <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatRelativeTime(reply.created_at)}</span>
             </div>
-            <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>{reply.text}</p>
+            <p style={{ margin: 0, fontSize: 12, color: "#475569", wordBreak: "break-word" }}>{reply.text}</p>
           </div>
         ))}
       </div>
@@ -462,7 +526,7 @@ const DiscussionSection = ({
               />
               <button
                 className="cm-btn cm-btn-dark"
-                style={{ padding: "6px 14px" }}
+                style={{ padding: "6px 14px", flexShrink: 0 }}
                 onClick={() => onSendReply(post.id, replyDraft)}
                 disabled={isSendingReply || !replyDraft.trim()}
               >
@@ -483,18 +547,12 @@ const ResourceBlock = ({ post, onToggleReaction }) => {
   const fileLabel = resource?.resource_type?.toUpperCase() || "FILE";
 
   return (
-    <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "140px 1fr", gap: 14 }}>
-      <div
-        style={{
-          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
-          borderRadius: 14, padding: 16, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", gap: 10,
-        }}
-      >
+    <div className="cm-resource-grid" style={{ marginTop: 16 }}>
+      <div className="cm-resource-thumb">
         <DocumentTextIcon style={{ width: 36, height: 36, color: "rgba(255,255,255,0.9)" }} />
         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em" }}>{fileLabel}</span>
       </div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
           {resource?.total_pages && (
             <span style={{ background: "#f1f5f9", color: "#475569", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999 }}>
@@ -502,7 +560,7 @@ const ResourceBlock = ({ post, onToggleReaction }) => {
             </span>
           )}
         </div>
-        <p style={{ margin: "0 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
+        <p style={{ margin: "0 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6, wordBreak: "break-word" }}>{post.text}</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <button
             className="cm-btn cm-btn-dark"
@@ -529,7 +587,7 @@ const QuestionBlock = ({ post, postComments, onToggleDiscussion, onToggleReactio
       <span style={{ fontSize: 11, fontWeight: 600, color: "#d97706", letterSpacing: "0.08em", textTransform: "uppercase" }}>
         Question
       </span>
-      <p style={{ margin: "8px 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6 }}>{post.text}</p>
+      <p style={{ margin: "8px 0 12px", fontSize: 14, color: "#334155", lineHeight: 1.6, wordBreak: "break-word" }}>{post.text}</p>
 
       {previewAnswers.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
@@ -539,13 +597,13 @@ const QuestionBlock = ({ post, postComments, onToggleDiscussion, onToggleReactio
           {previewAnswers.map((answer) => (
             <div key={answer.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 14px" }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>{getAuthorName(answer.author)} </span>
-              <span style={{ fontSize: 13, color: "#475569" }}>{answer.text}</span>
+              <span style={{ fontSize: 13, color: "#475569", wordBreak: "break-word" }}>{answer.text}</span>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="cm-btn cm-btn-dark" onClick={() => onToggleDiscussion(post.id)}>
           <ChatBubbleLeftRightIcon style={{ width: 14, height: 14 }} />
           Answer
@@ -572,13 +630,13 @@ const LinkBlock = ({ post, onToggleReaction }) => {
         >
           <LinkIcon style={{ width: 20, height: 20, color: "#fff" }} />
         </div>
-        <div>
-          <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{data.link_title}</p>
-          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#059669" }}>{data.link_url}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>{data.link_snippet}</p>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#0f172a", wordBreak: "break-word" }}>{data.link_title}</p>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#059669", wordBreak: "break-word" }}>{data.link_url}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6, wordBreak: "break-word" }}>{data.link_snippet}</p>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
         <button
           className="cm-btn cm-btn-dark"
           onClick={() => {
@@ -607,12 +665,12 @@ const AssignmentBlock = ({ post, onToggleDiscussion }) => (
       >
         <DocumentTextIcon style={{ width: 20, height: 20, color: "#fff" }} />
       </div>
-      <div>
-        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{post.title}</p>
-        <p style={{ margin: 0, fontSize: 13, color: "#4c1d95", lineHeight: 1.6 }}>{post.text}</p>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#0f172a", wordBreak: "break-word" }}>{post.title}</p>
+        <p style={{ margin: 0, fontSize: 13, color: "#4c1d95", lineHeight: 1.6, wordBreak: "break-word" }}>{post.text}</p>
       </div>
     </div>
-    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+    <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
       <button className="cm-btn cm-btn-dark" onClick={() => onToggleDiscussion(post.id)}>
         Comment
       </button>
@@ -647,7 +705,7 @@ const PostCard = ({
   >
     <PostHeader post={post} currentUserId={currentUserId} onDeletePost={onDeletePost} onOpenProfile={onOpenProfile} />
     <div style={{ marginTop: 16 }}>
-      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>
+      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4, wordBreak: "break-word" }}>
         {post.title}
       </p>
     </div>
@@ -692,8 +750,8 @@ const PostCard = ({
 
 /* ── Sidebar ── */
 const Sidebar = ({ recentUploads, topContributors }) => (
-  <aside style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 96 }}>
-    <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 20, padding: 24, overflow: "hidden" }}>
+  <aside className="cm-sidebar">
+    <div className="cm-sidebar-card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
           Recent Uploads
@@ -709,7 +767,7 @@ const Sidebar = ({ recentUploads, topContributors }) => (
               key={item.post_id}
               style={{ padding: "12px 0", borderBottom: i < recentUploads.length - 1 ? "1px solid #f1f5f9" : "none" }}
             >
-              <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{item.title}</p>
+              <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 600, color: "#1e293b", wordBreak: "break-word" }}>{item.title}</p>
               <p style={{ margin: 0, fontSize: 11, color: "#94a3b8" }}>{item.meta}</p>
             </div>
           ))
@@ -717,7 +775,7 @@ const Sidebar = ({ recentUploads, topContributors }) => (
       </div>
     </div>
 
-    <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 20, padding: 24 }}>
+    <div className="cm-sidebar-card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
           Top Contributors
@@ -736,13 +794,34 @@ const Sidebar = ({ recentUploads, topContributors }) => (
                 padding: "10px 14px", borderRadius: 12,
                 background: c.rank === 1 ? "#0f172a" : "#fff",
                 border: c.rank === 1 ? "none" : "1px solid #e2e8f0",
+                gap: 10,
               }}
             >
-              <div>
-                <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600, color: c.rank === 1 ? "#fff" : "#1e293b" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p
+                  style={{
+                    margin: "0 0 2px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: c.rank === 1 ? "#fff" : "#1e293b",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={c.username}
+                >
                   {c.username}
                 </p>
-                <p style={{ margin: 0, fontSize: 11, color: c.rank === 1 ? "rgba(255,255,255,0.55)" : "#94a3b8" }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    color: c.rank === 1 ? "rgba(255,255,255,0.55)" : "#94a3b8",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {c.contributions} contribution{c.contributions !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -750,6 +829,7 @@ const Sidebar = ({ recentUploads, topContributors }) => (
                 className="cm-avatar"
                 style={{
                   width: 34, height: 34, fontSize: 12,
+                  flexShrink: 0,
                   background: c.rank === 1 ? "rgba(255,255,255,0.15)" : avatarColor(c.username),
                 }}
               >
@@ -800,7 +880,7 @@ const UserProfileDialog = ({
   } else if (isSendingRequest) {
     buttonLabel = "Sending...";
   }
-
+  
   return (
     <div className="cm-dialog-overlay" onMouseDown={handleOverlayClick}>
       <div className="cm-dialog">
@@ -827,9 +907,9 @@ const UserProfileDialog = ({
                 {getInitials(name)}
               </div>
               <div style={{ textAlign: "center" }}>
-                <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{name}</p>
+                <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>{name}</p>
                 {profile?.username && (
-                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>@{profile.username}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8", wordBreak: "break-word" }}>@{profile.username}</p>
                 )}
               </div>
 
@@ -868,6 +948,7 @@ const UserProfileDialog = ({
     </div>
   );
 };
+
 
 /* ─── Main Component ─── */
 const Communities = () => {

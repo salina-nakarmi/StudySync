@@ -2,7 +2,9 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from "react";
 
-const API_BASE = "http://localhost:8000/api";
+const RAW_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = RAW_API_URL.replace(/\/$/, "");
+const API_PREFIX = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
 
 // ============================================================================
 // CORE API HOOK
@@ -25,7 +27,7 @@ export const useApi = () => {
     }
 
     const response = await fetch(
-      `http://localhost:8000/api/${endpoint}`,
+      `${API_PREFIX}/${endpoint}`,
       {
         ...options,
         headers: {

@@ -5,6 +5,12 @@ import {
   ChatBubbleLeftRightIcon,
   UserIcon,
   UserGroupIcon,
+  HomeIcon,
+  BookOpenIcon,
+  ChartBarIcon,
+  UsersIcon,
+  GlobeAltIcon,
+  Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 import NotificationPanel from "../pages/NotificationPanel"; // make sure this exists
 
@@ -34,6 +40,19 @@ const Navbar = () => {
   // "Friends" removed from here — it's icon-only now (see UserGroupIcon button below),
   // not a text pill in the nav bar or mobile bottom nav.
   const navItems = ["Dashboard", "Resources", "Progress Tracking", "Groups", "Communities", "Projects"];
+
+  // Icon map used ONLY by the mobile bottom nav — text labels don't fit that
+  // width, so small screens get icon buttons instead (same pattern already
+  // used for Friends / Bell / Messages / Profile above).
+  const navIcons = {
+    Dashboard: HomeIcon,
+    Resources: BookOpenIcon,
+    "Progress Tracking": ChartBarIcon,
+    Groups: UsersIcon,
+    Communities: GlobeAltIcon,
+    Projects: Squares2X2Icon,
+  };
+
   const navigate = useNavigate();
   const isMessagesActive = location.pathname === "/messages";
   const isFriendsActive = location.pathname === "/friends";
@@ -60,16 +79,16 @@ const Navbar = () => {
     navigate("/friends", { state: { tab: "requests" } });
   };
 
-  const NavButton = ({ item }) => {
+  const NavButton = ({ item, compact = false }) => {
     const isActive = activeTab === item;
     return (
       <button
         onClick={() => handleNavClick(item)}
-        className={`relative px-4 py-2 rounded-full transition-all text-sm font-medium ${
+        className={`relative rounded-full transition-all font-medium whitespace-nowrap shrink-0 ${
           isActive
             ? "bg-gray-800 text-white shadow-md hover:bg-gray-900"
             : "text-gray-700 hover:bg-gray-100"
-        }`}
+        } ${compact ? "px-2.5 py-1.5 text-[11px] lg:text-[13px]" : "px-4 py-2 text-sm"}`}
       >
         {item}
       </button>
@@ -83,15 +102,24 @@ const Navbar = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 shrink-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg sm:text-xl">S</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 tracking-tight">StudySync</span>
+              <span className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">StudySync</span>
+            </div>
+
+            {/* Tablet Nav */}
+            <div className="hidden md:flex lg:hidden flex-1 justify-center mx-4 min-w-0">
+              <div className="flex max-w-full overflow-x-auto no-scrollbar space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
+                {navItems.map((item) => (
+                  <NavButton key={item} item={item} compact />
+                ))}
+              </div>
             </div>
 
             {/* Desktop Nav */}
-            <div className="hidden md:flex flex-1 justify-center mx-10">
+            <div className="hidden lg:flex flex-1 justify-center mx-10">
               <div className="flex space-x-1 p-1 bg-gray-100 rounded-full border border-gray-200">
                 {navItems.map((item) => (
                   <NavButton key={item} item={item} />
@@ -100,7 +128,7 @@ const Navbar = () => {
             </div>
 
             {/* Icons */}
-            <div className="flex items-center space-x-2 z-50 relative">
+            <div className="flex items-center space-x-1 sm:space-x-2 z-50 relative shrink-0">
               {/* Friends Icon — sole entry point into the Friends page
                   (list, requests, and sent tabs all live inside Friends.jsx) */}
               <button
@@ -161,49 +189,41 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* FLOATING MOBILE BOTTOM NAV */}
-      <div className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-60 w-[90%] max-w-100">
-        <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-full px-4 py-3 flex items-center justify-around shadow-2xl">
-          {/* Home Icon */}
-          <button
-            onClick={() => handleNavClick("Dashboard")}
-            className={`p-2 rounded-full transition-colors ${
-              activeTab === "Dashboard" ? "bg-gray-100 text-black" : "text-gray-400"
-            }`}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              />
-            </svg>
-          </button>
-
-          {navItems.filter(item => item !== "Dashboard").map((item) => (
-            <button
-              key={item}
-              onClick={() => handleNavClick(item)}
-              className={`relative text-[12px] font-medium transition-all px-2 ${
-                activeTab === item ? "text-black scale-105" : "text-gray-400"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
+      {/* FLOATING MOBILE BOTTOM NAV — icon-only, so nothing wraps or overflows
+          regardless of screen width. Labels are still available via
+          aria-label/title for accessibility and long-press tooltips. */}
+      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm px-2">
+        <div className="bg-white/90 backdrop-blur-md border border-gray-200 rounded-full px-2 py-2 flex items-center justify-between shadow-2xl">
+          {navItems.map((item) => {
+            const Icon = navIcons[item];
+            const isActive = activeTab === item;
+            return (
+              <button
+                key={item}
+                onClick={() => handleNavClick(item)}
+                aria-label={item}
+                title={item}
+                className={`flex items-center justify-center p-2.5 rounded-full transition-all shrink-0 ${
+                  isActive ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+              </button>
+            );
+          })}
 
           {/* Friends Icon — mobile bottom nav gets the icon too, not a text label */}
           <button
             onClick={goToFriendRequests}
-            className={`relative p-1 rounded-full transition-all ${
-              isFriendsActive ? "text-black scale-105" : "text-gray-400"
+            className={`relative flex items-center justify-center p-2.5 rounded-full transition-all shrink-0 ${
+              isFriendsActive ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"
             }`}
             aria-label="Friends"
+            title="Friends"
           >
-            <UserGroupIcon className="w-6 h-6" />
+            <UserGroupIcon className="w-5 h-5" />
             {pendingRequestCount > 0 && (
-              <span className="absolute -top-2 -right-1 min-w-[15px] h-[15px] px-1 flex items-center justify-center bg-blue-600 text-white text-[9px] font-bold rounded-full border border-white">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center bg-blue-600 text-white text-[9px] font-bold rounded-full border border-white">
                 {pendingRequestCount > 9 ? "9+" : pendingRequestCount}
               </span>
             )}

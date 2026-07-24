@@ -39,6 +39,7 @@ export default function Dashboard() {
 
   const loading = !isLoaded || dashboardLoading || streakLoading || sessionsLoading;
   const error = dashboardError || streakError;
+  const errorMessage = error instanceof Error ? error.message : error ? String(error) : "Something went wrong.";
 
   if (!isSignedIn) return <RedirectToSignIn />;
 
@@ -60,7 +61,7 @@ export default function Dashboard() {
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-8 max-w-md text-center">
           <div className="text-5xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-red-800 mb-2">Oops! Something went wrong</h2>
-          <p className="text-red-600 mb-6">{error}</p>
+          <p className="text-red-600 mb-6">{errorMessage}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"

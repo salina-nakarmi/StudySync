@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 /**
  * Custom hook to manage WebSocket connection for group chat
@@ -15,7 +15,20 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
   const reconnectAttemptsRef = useRef(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
 
-  const connect = async () => {
+  // Use refs for callbacks to avoid stale closures
+  const onNewMessageRef = useRef(onNewMessage);
+  const onHistoryLoadedRef = useRef(onHistoryLoaded);
+
+  // Keep refs in sync with latest callbacks
+  useEffect(() => {
+    onNewMessageRef.current = onNewMessage;
+  }, [onNewMessage]);
+
+  useEffect(() => {
+    onHistoryLoadedRef.current = onHistoryLoaded;
+  }, [onHistoryLoaded]);
+
+  const connect = useCallback(async () => {
     if (!groupId || !userId) return;
 
     try {
@@ -25,11 +38,12 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
       if (wsRef.current) {
         wsRef.current.close();
       }
-// ✅ CORRECT
+
       const wsUrl = `ws://localhost:8000/api/${userId}/${groupId}/ws?token=${token}`;  
-      console.log('Connecting to:', wsUrl); // Debug log
+      console.log('Connecting to:', wsUrl);
     
       const ws = new WebSocket(wsUrl);
+      
       ws.onopen = () => {
         console.log(`✅ Connected to group ${groupId}`);
         setIsConnected(true);
@@ -55,11 +69,11 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
             return;
           }
 
-          // Handle different message types
+          // Handle different message types using refs to avoid stale closures
           if (data.action === 'new_message') {
-            onNewMessage?.(data.message);
+            onNewMessageRef.current?.(data.message);
           } else if (data.action === 'load_history') {
-            onHistoryLoaded?.(data.history);
+            onHistoryLoadedRef.current?.(data.history);
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
@@ -91,9 +105,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     } catch (error) {
       console.error('Failed to connect WebSocket:', error);
     }
-  };
+  }, [groupId, userId, getToken]); // Only depend on stable values, not callbacks
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
@@ -104,9 +118,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }
     
     setIsConnected(false);
-  };
+  }, []);
 
-  const sendMessage = (content, type = 'text') => {
+  const sendMessage = useCallback((content, type = 'text') => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected');
       return false;
@@ -123,9 +137,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }));
 
     return true;
-  };
+  }, [groupId, userId]);
 
-  const loadMoreHistory = (lastMessageId) => {
+  const loadMoreHistory = useCallback((lastMessageId) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected');
       return false;
@@ -141,9 +155,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }));
 
     return true;
-  };
+  }, [groupId, userId]);
 
-  const editMessage = (messageId, editedContent, editedType) => {
+  const editMessage = useCallback((messageId, editedContent, editedType) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected');
       return false;
@@ -161,9 +175,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }));
 
     return true;
-  };
+  }, [groupId, userId]);
 
-  const replyToMessage = (repliedMessageId, repliedToId, replyContent, replyContentType = 'text') => {
+  const replyToMessage = useCallback((repliedMessageId, repliedToId, replyContent, replyContentType = 'text') => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected');
       return false;
@@ -182,9 +196,9 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }));
 
     return true;
-  };
+  }, [groupId, userId]);
 
-  const deleteMessage = (messageId) => {
+  const deleteMessage = useCallback((messageId) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected');
       return false;
@@ -200,7 +214,7 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     }));
 
     return true;
-  };
+  }, [groupId, userId]);
 
   // Connect when groupId or userId changes
   useEffect(() => {
@@ -211,7 +225,7 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
     return () => {
       disconnect();
     };
-  }, [groupId, userId]);
+  }, [groupId, userId, connect, disconnect]);
 
   return {
     isConnected,
