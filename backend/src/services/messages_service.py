@@ -1,7 +1,8 @@
 import logging
 from typing import List, Dict
 from datetime import datetime
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
+from websockets.exceptions import InvalidState
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, or_, and_, desc
 
@@ -33,6 +34,19 @@ from ..services.notification_service import create_notification
 from ..schemas.notifications import CreateNotificationRequest
 
 logger = logging.getLogger(__name__)
+
+
+# =========================
+# WEBSOCKET HELPER
+# =========================
+async def safe_websocket_send(websocket: WebSocket, payload: dict):
+    """Helper to prevent WebSocketDisconnect crashes when client closes connection."""
+    try:
+        await websocket.send_json(payload)
+    except (WebSocketDisconnect, InvalidState, RuntimeError):
+        # Client disconnected while message was sending
+        pass
+
 
 # =========================
 # CONNECTION MANAGERS
@@ -69,7 +83,7 @@ class ConnectionManager:
             dead_connections = []
             for connection in self.active_connections[group_id]:
                 try:
-                    await connection.send_json(payload)
+                    await safe_websocket_send(connection, payload)
                 except Exception as e:
                     logger.error(f"Error broadcasting to group connection: {e}")
                     dead_connections.append(connection)
@@ -110,7 +124,7 @@ class DirectConnectionManager:
         for uid in (sender_id, receiver_id):
             if uid in self.active_connections:
                 try:
-                    await self.active_connections[uid].send_json(payload)
+                    await safe_websocket_send(self.active_connections[uid], payload)
                     logger.info(f"[DirectConnectionManager] Delivered message frame to user {uid}")
                 except Exception as e:
                     logger.error(f"[DirectConnectionManager] Error sending frame to user {uid}: {e}")
@@ -134,7 +148,7 @@ async def handle_broadcast(
         frontend_data = StoreMessageRequest(**data)
 
         if frontend_data.group_id != group_id:
-            await websocket.send_json({"error": "Invalid group context"})
+            await safe_websocket_send(websocket, {"error": "Invalid group context"})
             return
 
         message = Messages(
@@ -173,7 +187,7 @@ async def handle_broadcast(
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_broadcast: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to send message", "details": str(e)})
+        await safe_websocket_send(websocket, {"error": "Failed to send message", "details": str(e)})
 
 
 async def handle_history(
@@ -205,7 +219,7 @@ async def handle_history(
             for m in reversed(messages)
         ]
 
-        await websocket.send_json({
+        await safe_websocket_send(websocket, {
             "action": "load_history",
             "type": "history",
             "messages": [msg.model_dump() for msg in response_data]
@@ -213,7 +227,7 @@ async def handle_history(
 
     except Exception as e:
         logger.error(f"Error in handle_history: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to load history"})
+        await safe_websocket_send(websocket, {"error": "Failed to load history"})
 
 
 async def handle_editing(
@@ -241,17 +255,17 @@ async def handle_editing(
         await session.commit()
 
         if result.rowcount > 0:
-            await websocket.send_json({
+            await safe_websocket_send(websocket, {
                 "action": "message_edited",
                 "message_id": frontend_data.message_id
             })
         else:
-            await websocket.send_json({"error": "Message not found or unauthorized"})
+            await safe_websocket_send(websocket, {"error": "Message not found or unauthorized"})
 
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_editing: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to edit message"})
+        await safe_websocket_send(websocket, {"error": "Failed to edit message"})
 
 
 async def handle_replying(
@@ -285,7 +299,7 @@ async def handle_replying(
         session.add(new_reply)
         await session.commit()
 
-        await websocket.send_json({
+        await safe_websocket_send(websocket, {
             "action": "reply_sent",
             "message_id": new_message.id
         })
@@ -309,7 +323,7 @@ async def handle_replying(
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_replying: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to send reply"})
+        await safe_websocket_send(websocket, {"error": "Failed to send reply"})
 
 
 async def handle_deleting(
@@ -340,17 +354,17 @@ async def handle_deleting(
         await session.commit()
 
         if result.rowcount > 0:
-            await websocket.send_json({
+            await safe_websocket_send(websocket, {
                 "action": "message_deleted",
                 "message_id": frontend_data.delete_message_id
             })
         else:
-            await websocket.send_json({"error": "Message not found or unauthorized"})
+            await safe_websocket_send(websocket, {"error": "Message not found or unauthorized"})
 
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_deleting: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to delete message"})
+        await safe_websocket_send(websocket, {"error": "Failed to delete message"})
 
 
 # ====================================================================================================
@@ -367,7 +381,7 @@ async def handle_direct_message(
         frontend_data = StoreDirectMessageRequest(**data)
 
         if frontend_data.sender_id != sender_id:
-            await websocket.send_json({"error": "Unauthorized sender ID mismatch"})
+            await safe_websocket_send(websocket, {"error": "Unauthorized sender ID mismatch"})
             return
 
         # Enum safety check and conversion
@@ -417,7 +431,7 @@ async def handle_direct_message(
     except Exception as e:
         await session.rollback()
         logger.error(f"Failed inside handle_direct_message: {e}", exc_info=True)
-        await websocket.send_json({
+        await safe_websocket_send(websocket, {
             "error": "Failed to store or deliver direct message",
             "details": str(e)
         })
@@ -463,7 +477,7 @@ async def handle_direct_messages_history(
             for m in reversed(messages)
         ]
 
-        await websocket.send_json({
+        await safe_websocket_send(websocket, {
             "action": "load_history",
             "type": "history",
             "messages": [msg.model_dump() for msg in response_data]
@@ -471,7 +485,7 @@ async def handle_direct_messages_history(
 
     except Exception as e:
         logger.error(f"Error in handle_direct_messages_history: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to load history"})
+        await safe_websocket_send(websocket, {"error": "Failed to load history"})
 
 
 async def handle_direct_message_editing(
@@ -499,17 +513,17 @@ async def handle_direct_message_editing(
         await session.commit()
 
         if result.rowcount > 0:
-            await websocket.send_json({
+            await safe_websocket_send(websocket, {
                 "action": "message_edited",
                 "message_id": frontend_data.message_id
             })
         else:
-            await websocket.send_json({"error": "Message not found or unauthorized"})
+            await safe_websocket_send(websocket, {"error": "Message not found or unauthorized"})
 
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_direct_message_editing: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to edit message"})
+        await safe_websocket_send(websocket, {"error": "Failed to edit message"})
 
 
 async def get_conversations(user_id: str, session: AsyncSession) -> list[dict]:
@@ -575,7 +589,7 @@ async def handle_direct_message_replying(
         session.add(new_reply)
         await session.commit()
 
-        await websocket.send_json({
+        await safe_websocket_send(websocket, {
             "action": "reply_sent",
             "message_id": new_message.id
         })
@@ -600,7 +614,7 @@ async def handle_direct_message_replying(
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_direct_message_replying: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to send reply"})
+        await safe_websocket_send(websocket, {"error": "Failed to send reply"})
 
 
 async def handle_direct_message_deleting(
@@ -631,14 +645,14 @@ async def handle_direct_message_deleting(
         await session.commit()
 
         if result.rowcount > 0:
-            await websocket.send_json({
+            await safe_websocket_send(websocket, {
                 "action": "message_deleted",
                 "message_id": frontend_data.delete_message_id
             })
         else:
-            await websocket.send_json({"error": "Message not found or unauthorized"})
+            await safe_websocket_send(websocket, {"error": "Message not found or unauthorized"})
 
     except Exception as e:
         await session.rollback()
         logger.error(f"Error in handle_direct_message_deleting: {e}", exc_info=True)
-        await websocket.send_json({"error": "Failed to delete message"})
+        await safe_websocket_send(websocket, {"error": "Failed to delete message"})

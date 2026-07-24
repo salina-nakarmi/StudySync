@@ -6,8 +6,6 @@ from .routes.project import projects, team_members, tasks, time_logs, invitation
 import os
 from dotenv import load_dotenv
 
-# from .services import socket_services
-
 app = FastAPI(
     title="StudySync API",
     description="Backend API for StudySync Application",
@@ -50,6 +48,7 @@ app.include_router(invitations.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")
 app.include_router(friends.router, prefix="/api")
 app.include_router(messages.chat_router, prefix = "/api")
+
 
 
 @app.get("/")

@@ -380,9 +380,10 @@ export default function Messages() {
 
   const fetchLiveKitToken = async (roomName) => {
     const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-    // TODO: confirm this matches your actual token-issuing route.
-    const res = await axios.get(`${apiBase}/api/livekit/token`, {
-      params: { room: roomName, identity: myUserId, name: user?.fullName || myUserId },
+    const res = await axios.post(`${apiBase}/api/audio-video-call/get_token`, {
+      room_name: roomName,
+      user_id: myUserId,
+      display_name: user?.fullName || myUserId,
     });
     return res.data.token;
   };

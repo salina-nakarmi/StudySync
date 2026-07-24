@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from ..schemas.audio_video_call import KickParticipant, TokenRequest, RoomCreateRequest, MuteParticipant
 from livekit.api import AccessToken, VideoGrants
 import os 
+import traceback
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,21 +26,34 @@ async def get_token(request: TokenRequest):
             raise HTTPException(status_code=400, detail="room_name and user_id are required")
         
         if not API_KEY or not API_SECRET:
+            print("❌ LIVEKIT Error: API_KEY or API_SECRET is missing from environment variables.")
             raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
         
-        token = AccessToken(API_KEY, API_SECRET)
-        token.identity = user_id
-        token.name = display_name
-        token.add_grant(VideoGrants(
+        # Define video permissions
+        grant = VideoGrants(
             room_join=True,
             room=room_name,
             can_publish=True,
             can_subscribe=True,
-        ))
+        )
+
+        # AccessToken only takes api_key/api_secret in the constructor in this
+        # installed version of livekit-api — identity/name/grants must be set
+        # via builder methods, not passed as kwargs.
+        token = (
+            AccessToken(api_key=API_KEY, api_secret=API_SECRET)
+            .with_identity(user_id)
+            .with_name(display_name)
+            .with_grants(grant)
+        )
         
         return {"token": token.to_jwt()}
     
+    except HTTPException:
+        raise
     except Exception as e:
+        print("❌ Error generating LiveKit token:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -56,6 +70,8 @@ async def create_room(req: RoomCreateRequest):
             "max_participants": req.max_participants or 0,
             "empty_timeout": 60
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -68,6 +84,8 @@ async def kick_participant(req: KickParticipant):
             raise HTTPException(status_code=400, detail="room_name and participant are required")
         
         return {"message": f"Participant '{req.participant}' has been kicked from room '{req.room_name}'"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -77,6 +95,8 @@ async def list_rooms():
     """List all active rooms"""
     try:
         return {"rooms": [], "status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -89,6 +109,8 @@ async def end_call(room_name: str):
             raise HTTPException(status_code=400, detail="room_name is required")
         
         return {"message": f"Room '{room_name}' has been ended successfully", "status": "deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -101,6 +123,8 @@ async def delete_room(room_name: str):
             raise HTTPException(status_code=400, detail="room_name is required")
         
         return {"message": f"Room '{room_name}' has been deleted successfully", "status": "deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -113,6 +137,8 @@ async def list_participants(room_name: str):
             raise HTTPException(status_code=400, detail="room_name is required")
         
         return {"participants": [], "room": room_name}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -129,5 +155,7 @@ async def mute_participant(req: MuteParticipant):
             "room": req.room_name,
             "muted": req.mute
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
