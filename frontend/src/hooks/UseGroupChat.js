@@ -39,8 +39,8 @@ export const useGroupChat = (groupId, userId, getToken, onNewMessage, onHistoryL
         wsRef.current.close();
       }
 
-      const wsUrl = `ws://localhost:8000/api/${userId}/${groupId}/ws?token=${token}`;  
-      console.log('Connecting to:', wsUrl);
+     const wsUrl = `ws://localhost:8000/api/ws/group/${userId}/${groupId}?token=${encodeURIComponent(token)}`;
+     console.log('Connecting to:', wsUrl);
     
       const ws = new WebSocket(wsUrl);
       

@@ -36,8 +36,6 @@ export default function Groups() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const navigate = useNavigate();
-  const directChatPanelOpenRef = useRef(true);
-  const activeDirectChatIdRef = useRef(null);
 
   // State
   const [groups, setGroups] = useState([]);
@@ -57,11 +55,14 @@ export default function Groups() {
   const [submitting, setSubmitting] = useState(false);
   const [isJoinMode, setIsJoinMode] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
-  const [directChatPanelOpen, setDirectChatPanelOpen] = useState(true);
-  const [activeDirectChatId, setActiveDirectChatId] = useState(null);
-  const [unreadByContact, setUnreadByContact] = useState({});
+  const [isGroupChatOpen, setIsGroupChatOpen] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [resourceProgress, setResourceProgress] = useState({}); // { [resourceId]: { percent, status } }
   const latestSeqRef = useRef(0);
+  const messagesEndRef = useRef(null);
+  const isGroupChatOpenRef = useRef(false);
   const [viewingResource, setViewingResource] = useState(null);
   const [formData, setFormData] = useState({
     group_name: "",
@@ -129,7 +130,6 @@ export default function Groups() {
   const joinedGroupIds = new Set(groups.map((g) => g.id));
   const discoverableGroups = publicGroups.filter((g) => !joinedGroupIds.has(g.id));
 
-
   const loadGroupDetails = useCallback(async (groupId) => {
     try {
       const token = await getToken();
@@ -175,28 +175,18 @@ export default function Groups() {
     return member?.username || member?.full_name || member?.name || "Unknown User";
   };
 
-  const getMemberAvatarUrl = (member) => {
-    return (
-      member?.profileImageUrl ||
-      member?.avatar ||
-      member?.image_url ||
-      member?.photo_url ||
-      member?.profile_image_url ||
-      null
-    );
-  };
-
   const getMessageTimestamp = (message) => {
     const rawTimestamp = message?.created_at || message?.timestamp || message?.sent_at || message?.time;
     const parsedTimestamp = rawTimestamp ? new Date(rawTimestamp) : new Date();
     return Number.isNaN(parsedTimestamp.getTime()) ? Date.now() : parsedTimestamp.getTime();
   };
 
-  // Use refs to avoid stale closures in WebSocket callbacks
-  const handleNewMessageRef = useRef(null);
-  const handleHistoryLoadedRef = useRef(null);
+  const getMemberUsername = (userId) => {
+    const member = activeGroup?.members?.find((m) => m.user_id === userId);
+    return getMemberDisplayName(member);
+  };
 
-  const handleNewMessage = useCallback((message) => {
+  const handleNewMessage = (message) => {
     const createdAt = getMessageTimestamp(message);
     const isSelfMessage = message.sender_id === user?.id;
 
@@ -210,22 +200,13 @@ export default function Groups() {
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }]);
 
-    if (!isSelfMessage) {
-      const isFocusedContact =
-        directChatPanelOpenRef.current &&
-        activeDirectChatIdRef.current === message.sender_id;
-
-      if (!isFocusedContact) {
-        setUnreadByContact((prev) => ({
-          ...prev,
-          [message.sender_id]: (prev[message.sender_id] || 0) + 1,
-        }));
-      }
+    if (!isSelfMessage && !isGroupChatOpenRef.current) {
+      setUnreadCount((prev) => prev + 1);
     }
-  }, [user?.id]);
+  };
 
-  const handleHistoryLoaded = useCallback((history) => {
-    const formattedMessages = history.map((msg) => ({
+  const handleHistoryLoaded = (history) => {
+    const formattedMessages = (history || []).map((msg) => ({
       id: `${msg.sender_id}-${Date.now()}-${Math.random()}`,
       sender_id: msg.sender_id,
       sender: msg.sender_id === user?.id ? "You" : getMemberUsername(msg.sender_id),
@@ -236,81 +217,26 @@ export default function Groups() {
     }));
 
     setChatMessages(formattedMessages);
-  }, [user?.id]);
+  };
 
-  // Keep refs in sync with latest callbacks
-  useEffect(() => {
-    handleNewMessageRef.current = handleNewMessage;
-  }, [handleNewMessage]);
-
-  useEffect(() => {
-    handleHistoryLoadedRef.current = handleHistoryLoaded;
-  }, [handleHistoryLoaded]);
-
-  // Wrapper callbacks that use refs to call latest versions
-  const onNewMessageWrapper = useCallback((message) => {
-    handleNewMessageRef.current?.(message);
-  }, []);
-
-  const onHistoryLoadedWrapper = useCallback((history) => {
-    handleHistoryLoadedRef.current?.(history);
-  }, []);
-
-  const { isConnected } = useGroupChat(
+  const { isConnected, sendMessage } = useGroupChat(
     activeGroup?.id,
     user?.id,
     getToken,
-    onNewMessageWrapper,
-    onHistoryLoadedWrapper
+    handleNewMessage,
+    handleHistoryLoaded
   );
 
-  const getMemberUsername = (userId) => {
-    const member = activeGroup?.members?.find(m => m.user_id === userId);
-    return getMemberDisplayName(member);
-  };
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    if (!messageInput.trim()) return;
 
-  const getContactSummary = (memberId) => {
-    const member = activeGroup?.members?.find((item) => item.user_id === memberId);
-    const memberMessages = chatMessages.filter((msg) => msg.sender_id === memberId);
-    const latestMessage = memberMessages[memberMessages.length - 1] || null;
-
-    return {
-      member,
-      unreadCount: unreadByContact[memberId] || 0,
-      latestMessage,
-      avatarUrl: getMemberAvatarUrl(member),
-      displayName: getMemberDisplayName(member),
-      isActiveNow: latestMessage ? Date.now() - latestMessage.createdAt < 5 * 60 * 1000 : false,
-    };
-  };
-
-  const directChatContacts = (activeGroup?.members || [])
-    .filter((member) => member.user_id !== user?.id)
-    .map((member) => getContactSummary(member.user_id))
-    .sort((left, right) => {
-      if (right.unreadCount !== left.unreadCount) {
-        return right.unreadCount - left.unreadCount;
-      }
-
-      const rightTime = right.latestMessage?.createdAt || 0;
-      const leftTime = left.latestMessage?.createdAt || 0;
-      return rightTime - leftTime;
-    });
-
-  const activeGroupId = activeGroup?.id;
-  const firstDirectChatMemberId = activeGroup?.members?.find((member) => member.user_id !== user?.id)?.user_id || null;
-
-  const markContactAsRead = (memberId) => {
-    setUnreadByContact((prev) => ({
-      ...prev,
-      [memberId]: 0,
-    }));
-  };
-
-  const openDirectChat = (memberId) => {
-    setActiveDirectChatId(memberId);
-    setDirectChatPanelOpen(true);
-    markContactAsRead(memberId);
+    setSendingMessage(true);
+    const success = sendMessage(messageInput.trim(), "text");
+    if (success) {
+      setMessageInput("");
+    }
+    setSendingMessage(false);
   };
 
   const currentMember = activeGroup?.members?.find(
@@ -329,32 +255,39 @@ export default function Groups() {
   }, [isSignedIn, loadGroups, navigate]);
 
   useEffect(() => {
-    if (activeGroupId) {
-      loadGroupDetails(activeGroupId);
+    if (activeGroup?.id) {
+      loadGroupDetails(activeGroup.id);
       if (activeTab === "Resources") {
-        loadGroupResources(activeGroupId);
+        loadGroupResources(activeGroup.id);
       }
     }
-  }, [activeGroupId, activeTab, loadGroupDetails, loadGroupResources]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup?.id, activeTab, loadGroupDetails, loadGroupResources]);
 
   // Clear chat when switching groups
   useEffect(() => {
-    if (activeGroupId) {
+    if (activeGroup?.id) {
       setChatMessages([]);
-      setUnreadByContact({});
-      setActiveDirectChatId(firstDirectChatMemberId);
-      setDirectChatPanelOpen(true);
+      setUnreadCount(0);
+      setIsGroupChatOpen(false);
     }
-  }, [activeGroupId, firstDirectChatMemberId, user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup?.id]);
 
   useEffect(() => {
-    directChatPanelOpenRef.current = directChatPanelOpen;
-  }, [directChatPanelOpen]);
+    isGroupChatOpenRef.current = isGroupChatOpen;
+    if (isGroupChatOpen) {
+      setUnreadCount(0);
+    }
+  }, [isGroupChatOpen]);
 
+  // Auto-scroll chat to the latest message
   useEffect(() => {
-    activeDirectChatIdRef.current = activeDirectChatId;
-  }, [activeDirectChatId]);
- 
+    if (isGroupChatOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isGroupChatOpen]);
+
   //resource tracking realted
   const progressTimeoutRef = useRef(null);
 
@@ -571,92 +504,8 @@ export default function Groups() {
             </div>
           ) : (
             /* ACTIVE GROUP DETAIL VIEW */
-            <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] items-start">
-              <div className="lg:sticky lg:top-28 h-fit rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">Active chats</p>
-                    <p className="text-[10px] text-gray-500">Group members only</p>
-                  </div>
-                  <button
-                    onClick={() => setDirectChatPanelOpen((prev) => !prev)}
-                    className="text-xs font-bold text-gray-400 hover:text-gray-600"
-                  >
-                    {directChatPanelOpen ? "Collapse" : "Expand"}
-                  </button>
-                </div>
+            <div className="flex flex-col gap-6">
 
-                {directChatPanelOpen ? (
-                  <div className="min-h-0 max-h-[calc(100vh-14rem)] overflow-y-auto bg-white px-3 py-3">
-                    {directChatContacts.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-400">
-                        No other group members yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {directChatContacts.map((contact) => {
-                          const isSelected = activeDirectChatId === contact.member?.user_id;
-
-                          return (
-                            <button
-                              key={contact.member?.user_id}
-                              onClick={() => openDirectChat(contact.member?.user_id)}
-                              className={`w-full rounded-xl border px-3 py-2.5 text-left transition flex items-center gap-3 ${
-                                isSelected
-                                  ? "border-[#2C76BA] bg-blue-50/60"
-                                  : "border-gray-100 bg-gray-50 hover:border-blue-200 hover:bg-blue-50/40"
-                              }`}
-                            >
-                              <div className="relative shrink-0">
-                                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white">
-                                  {contact.avatarUrl ? (
-                                    <img
-                                      src={contact.avatarUrl}
-                                      alt={contact.displayName}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="text-sm font-bold text-gray-500">
-                                      {contact.displayName.charAt(0).toUpperCase()}
-                                    </span>
-                                  )}
-                                </div>
-                                {contact.isActiveNow && (
-                                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500"></span>
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="truncate text-sm font-bold text-gray-900">{contact.displayName}</p>
-                                  {contact.unreadCount > 0 && (
-                                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[#2C76BA] px-2 py-0.5 text-[10px] font-bold text-white">
-                                      {contact.unreadCount}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${contact.isActiveNow ? "bg-green-500" : "bg-gray-300"}`}></span>
-                                  <span>{contact.isActiveNow ? "Active now" : "Recently active"}</span>
-                                  {contact.latestMessage && (
-                                    <span className="text-gray-300">•</span>
-                                  )}
-                                  {contact.latestMessage && (
-                                    <span>{new Date(contact.latestMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="min-w-0 flex flex-col gap-6">
-              
               {/* Header Card */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 relative">
                 <button 
@@ -838,7 +687,7 @@ export default function Groups() {
                               <div className="flex items-center gap-3">
                                 <button
                                   onClick={() => {
-                                    if (isPdfResource(res)) {                        // ✅ Correct detection
+                                    if (isPdfResource(res)) {
                                       console.log("📄 Opening PDF in internal viewer:", res.title);
                                       setViewingResource(res);
                                     } else {
@@ -889,7 +738,6 @@ export default function Groups() {
                     <p className="text-gray-400 font-medium">Leaderboard rankings are being calculated... 🏆</p>
                   </div>
                 )}
-              </div>
               </div>
             </div>
           )}
@@ -983,9 +831,7 @@ export default function Groups() {
                   <XMarkIcon className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
-              
-              
-              
+
               {/* PDF Viewer Component */}
               <PDFViewerWithControls
                 resource={viewingResource}
@@ -994,7 +840,7 @@ export default function Groups() {
               
               {/* Footer */}
               <div className="p-4 border-t border-gray-200 bg-white flex justify-between items-center">
-                <a                                                  // ✅ Proper opening tag
+                <a
                   href={viewingResource.url}
                   download
                   className="text-xs font-bold text-gray-600 hover:text-gray-900 hover:underline transition"
@@ -1009,6 +855,121 @@ export default function Groups() {
           </div>
         )}
 
+        {/* ===== FLOATING GROUP CHAT (Facebook-style) ===== */}
+        {activeGroup && (
+          <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
+            {/* Chat Window (when open) */}
+            {isGroupChatOpen && (
+              <div className="mb-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                {/* Chat Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-[#2C76BA] text-white">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <UsersIcon className="w-5 h-5" />
+                      {isConnected && (
+                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-400 animate-pulse"></span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{activeGroup.group_name}</p>
+                      <p className="text-[10px] text-blue-100">
+                        {isConnected ? `${activeGroup.member_count} members • Live` : "Disconnected"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsGroupChatOpen(false)}
+                    className="p-1 hover:bg-white/20 rounded-lg transition"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Messages Area */}
+                <div className="h-72 overflow-y-auto p-3 space-y-2 bg-gray-50">
+                  {chatMessages.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 text-xs">
+                      <p>No messages yet.</p>
+                      <p className="mt-1">Say hello to the group!</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, index) => {
+                      const isSelf = msg.sender_id === user?.id;
+                      const showSender = index === 0 || chatMessages[index - 1]?.sender_id !== msg.sender_id;
+                      return (
+                        <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[85%] ${isSelf ? "items-end" : "items-start"} flex flex-col`}>
+                            {showSender && !isSelf && (
+                              <span className="text-[10px] text-gray-500 mb-0.5 ml-1">{msg.sender}</span>
+                            )}
+                            <div className={`px-3 py-1.5 text-xs rounded-2xl ${
+                              isSelf 
+                                ? "bg-[#2C76BA] text-white rounded-br-md" 
+                                : "bg-white text-gray-800 rounded-bl-md shadow-sm border border-gray-100"
+                            }`}>
+                              <p>{msg.text}</p>
+                            </div>
+                            <span className={`text-[9px] text-gray-400 mt-0.5 ${isSelf ? "mr-1" : "ml-1"}`}>
+                              {msg.time}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input Area */}
+                <div className="p-2 border-t border-gray-100 bg-white">
+                  <form onSubmit={handleSendMessage} className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#2C76BA] focus:border-transparent outline-none transition"
+                      disabled={!isConnected || sendingMessage}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!messageInput.trim() || !isConnected || sendingMessage}
+                      className="px-3 py-1.5 bg-[#2C76BA] text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
+                  </form>
+                  {!isConnected && (
+                    <p className="text-[9px] text-red-500 mt-1 text-center">Disconnected</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Toggle Button (when closed) */}
+            {!isGroupChatOpen && (
+              <button
+                onClick={() => setIsGroupChatOpen(true)}
+                className="flex items-center gap-2 px-4 py-3 bg-[#2C76BA] text-white rounded-full shadow-lg hover:bg-blue-700 transition hover:shadow-xl"
+              >
+                <div className="relative">
+                  <UsersIcon className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm font-bold">Group Chat</span>
+                {isConnected && (
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                )}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </>
   );
