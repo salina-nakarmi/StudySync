@@ -20,14 +20,19 @@ import {
   UserPlusIcon,
   PlusIcon,
   XMarkIcon,
+  PhoneXMarkIcon,
+  VideoCameraSlashIcon,
 } from "@heroicons/react/24/outline";
 import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
+import { Room, RoomEvent, Track } from "livekit-client";
 import Navbar from "../components/Navbar";
 
 const PRIMARY_BLUE = "#2C76BA";
 const QUICK_REPLIES = ["I'm on it.", "Let's do a call.", "Sending the file now.", "Voice note coming up."];
 const INITIAL_GROUPS = [];
+// TODO: point this at your actual LiveKit server URL (e.g. wss://your-project.livekit.cloud)
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || "";
 
 export default function Messages() {
   const { user } = useUser();
@@ -52,12 +57,27 @@ export default function Messages() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
 
-  // Derive if active screen is a group context
-  const isGroup = typeof selectedFriendId === "string" && selectedFriendId.startsWith("group-");
+  // Call state
+  const [activeCall, setActiveCall] = useState(null); // { roomName, kind: 'audio' | 'video', status: 'connecting' | 'connected' }
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [camEnabled, setCamEnabled] = useState(true);
+  const [remoteParticipants, setRemoteParticipants] = useState([]); // [{ sid, identity, videoTrack, audioTrack }]
+
+  // Derive if active screen is a group context.
+  // Real, backend-persisted groups use "group-<id>"; groups created client-side
+  // only (no backend group-creation endpoint exists yet) use "local-group-<ts>"
+  // so the two never collide.
+  const isGroup =
+    typeof selectedFriendId === "string" &&
+    (selectedFriendId.startsWith("group-") || selectedFriendId.startsWith("local-group-"));
+  const isBackendGroup = typeof selectedFriendId === "string" && selectedFriendId.startsWith("group-");
+  const numericGroupId = isBackendGroup ? parseInt(selectedFriendId.replace("group-", ""), 10) : null;
 
   // Persistent WebSocket Reference
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const livekitRoomRef = useRef(null);
+  const localVideoRef = useRef(null);
 
   // --- 1. FETCH CONVERSATIONS & ALL FRIENDS ---
   useEffect(() => {
@@ -123,19 +143,63 @@ export default function Messages() {
     fetchChatData();
   }, [myUserId]);
 
-  // --- 2. WEBSOCKET MESSAGE SYNC PIPELINE ---
+  // --- 1b. FETCH JOINED GROUPS ---
   useEffect(() => {
-    if (!selectedFriendId || !myUserId || isGroup) return;
+    const fetchGroups = async () => {
+      if (!myUserId) return;
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const res = await axios.get(`${apiBase}/api/groups`, {
+          params: { only_joined: true },
+        });
+
+        // NOTE: adjust these field names to match whatever your /api/groups
+        // response actually returns (checked against Groups model: group_name, etc).
+        const backendGroups = (res.data || []).map((g) => ({
+          id: `group-${g.id}`,
+          rawId: g.id,
+          name: g.group_name || g.name || "Group",
+          type: "group",
+          members: g.members || [],
+          avatar: (g.group_name || g.name || "GR").slice(0, 2).toUpperCase(),
+          avatarColor: "bg-indigo-100 text-indigo-700",
+          preview: g.latest_message_preview || "No messages yet",
+          lastSeen: g.latest_message_time || null,
+        }));
+
+        // Keep any local-only groups (created client-side, not yet backed by
+        // a real group on the server) and replace the backend-sourced ones.
+        setGroups((prev) => [...backendGroups, ...prev.filter((g) => g.id.startsWith("local-group-"))]);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      }
+    };
+
+    fetchGroups();
+  }, [myUserId]);
+
+  // --- 2. WEBSOCKET MESSAGE SYNC PIPELINE (DMs + real groups) ---
+  useEffect(() => {
+    if (!selectedFriendId || !myUserId) return;
+    // Local-only groups have no backend counterpart to connect to.
+    if (isGroup && !isBackendGroup) return;
 
     const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
     const wsBase = apiBase.replace(/^http/, "ws");
-    const wsUrl = `${wsBase}/api/ws/dm/${myUserId}/${selectedFriendId}`;
+    const wsUrl = isBackendGroup
+      ? `${wsBase}/api/ws/group/${myUserId}/${numericGroupId}`
+      : `${wsBase}/api/ws/dm/${myUserId}/${selectedFriendId}`;
 
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
     ws.onopen = () => {
-      console.log(`Connected to live DM sync node: friend_${selectedFriendId}`);
+      console.log(`Connected to live sync node: ${wsUrl}`);
+      // Unlike the DM endpoint, the group endpoint doesn't auto-send history
+      // on connect, so we ask for it explicitly.
+      if (isBackendGroup) {
+        ws.send(JSON.stringify({ action: "load_history", payload: { group_id: numericGroupId } }));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -147,18 +211,33 @@ export default function Messages() {
         } else if (data.type === "message") {
           setChatMessages((prev) => [...prev, data.message]);
 
-          setConversations((prevList) => {
-            const index = prevList.findIndex((c) => c.friend_id === selectedFriendId);
-            if (index === -1) return prevList;
-            const updated = [...prevList];
-            updated[index] = {
-              ...updated[index],
-              latest_message_preview: data.message.content,
-              latest_message_time: data.message.created_at || new Date().toISOString(),
-            };
-            const [movedItem] = updated.splice(index, 1);
-            return [movedItem, ...updated];
-          });
+          if (isBackendGroup) {
+            setGroups((prevList) => {
+              const index = prevList.findIndex((g) => g.id === selectedFriendId);
+              if (index === -1) return prevList;
+              const updated = [...prevList];
+              updated[index] = {
+                ...updated[index],
+                preview: data.message.content,
+                lastSeen: data.message.created_at || new Date().toISOString(),
+              };
+              const [movedItem] = updated.splice(index, 1);
+              return [movedItem, ...updated];
+            });
+          } else {
+            setConversations((prevList) => {
+              const index = prevList.findIndex((c) => c.friend_id === selectedFriendId);
+              if (index === -1) return prevList;
+              const updated = [...prevList];
+              updated[index] = {
+                ...updated[index],
+                latest_message_preview: data.message.content,
+                latest_message_time: data.message.created_at || new Date().toISOString(),
+              };
+              const [movedItem] = updated.splice(index, 1);
+              return [movedItem, ...updated];
+            });
+          }
         }
       } catch (err) {
         console.error("Error parsing incoming socket frame:", err);
@@ -166,12 +245,21 @@ export default function Messages() {
     };
 
     ws.onerror = (error) => console.error("WebSocket Error:", error);
-    ws.onclose = () => console.log("Disconnected from live DM sync node.");
+    ws.onclose = () => console.log("Disconnected from live sync node.");
 
     return () => {
       ws.close();
     };
-  }, [selectedFriendId, myUserId, isGroup]);
+  }, [selectedFriendId, myUserId, isGroup, isBackendGroup, numericGroupId]);
+
+  // --- CLEANUP ANY ACTIVE CALL ON UNMOUNT ---
+  useEffect(() => {
+    return () => {
+      if (livekitRoomRef.current) {
+        livekitRoomRef.current.disconnect();
+      }
+    };
+  }, []);
 
   // --- 3. AUTO SCROLL TO BOTTOM ---
   useEffect(() => {
@@ -232,7 +320,9 @@ export default function Messages() {
       return;
     }
 
-    if (isGroup) {
+    // Local-only groups (client-side only, no backend group yet) still fall
+    // back to an optimistic in-memory message.
+    if (isGroup && !isBackendGroup) {
       const localMsg = {
         sender_id: myUserId,
         content: text || `Shared file: ${uploadedFile?.name}`,
@@ -249,13 +339,16 @@ export default function Messages() {
       return;
     }
 
-    const payload = {
-      action: "send_message",
-      payload: {
-        receiver_id: selectedFriendId,
-        content: text || `Shared file: ${uploadedFile?.name}`,
-      },
-    };
+    const messageContent = text || `Shared file: ${uploadedFile?.name}`;
+    const payload = isBackendGroup
+      ? {
+          action: "send_message",
+          payload: { group_id: numericGroupId, content: messageContent, type: "text" },
+        }
+      : {
+          action: "send_message",
+          payload: { receiver_id: selectedFriendId, content: messageContent, type: "text" },
+        };
 
     socketRef.current.send(JSON.stringify(payload));
     setDraftMessage("");
@@ -263,10 +356,8 @@ export default function Messages() {
     setSelectedMessageMenuIndex(null);
   };
 
-  const handleCallAction = (type) => pushBanner(`${type} coordination requires WebRTC integration layer.`);
-
   const handleVoiceMessage = () => {
-    if (isGroup) {
+    if (isGroup && !isBackendGroup) {
       setChatMessages((prev) => [
         ...prev,
         { sender_id: myUserId, content: "Voice message", created_at: new Date().toISOString() },
@@ -274,12 +365,135 @@ export default function Messages() {
       return;
     }
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-    socketRef.current.send(
-      JSON.stringify({
-        action: "send_message",
-        payload: { receiver_id: selectedFriendId, content: "Voice message" },
-      })
-    );
+    const payload = isBackendGroup
+      ? { action: "send_message", payload: { group_id: numericGroupId, content: "Voice message", type: "text" } }
+      : { action: "send_message", payload: { receiver_id: selectedFriendId, content: "Voice message", type: "text" } };
+    socketRef.current.send(JSON.stringify(payload));
+  };
+
+  // --- CALLING (LiveKit) ---
+  const getCallRoomName = () => {
+    if (isBackendGroup) return `group-${numericGroupId}`;
+    if (!isGroup && selectedFriendId) return `dm-${[myUserId, selectedFriendId].sort().join("-")}`;
+    return null; // local-only groups have nothing to call into yet
+  };
+
+  const fetchLiveKitToken = async (roomName) => {
+    const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+    // TODO: confirm this matches your actual token-issuing route.
+    const res = await axios.get(`${apiBase}/api/livekit/token`, {
+      params: { room: roomName, identity: myUserId, name: user?.fullName || myUserId },
+    });
+    return res.data.token;
+  };
+
+  const attachRemoteTrack = (participant, track) => {
+    setRemoteParticipants((prev) => {
+      const existing = prev.find((p) => p.sid === participant.sid);
+      const field = track.kind === Track.Kind.Video ? "videoTrack" : "audioTrack";
+      if (existing) {
+        return prev.map((p) => (p.sid === participant.sid ? { ...p, [field]: track } : p));
+      }
+      return [
+        ...prev,
+        {
+          sid: participant.sid,
+          identity: participant.identity,
+          videoTrack: track.kind === Track.Kind.Video ? track : null,
+          audioTrack: track.kind === Track.Kind.Audio ? track : null,
+        },
+      ];
+    });
+  };
+
+  const endCallCleanup = () => {
+    livekitRoomRef.current = null;
+    setActiveCall(null);
+    setRemoteParticipants([]);
+    setMicEnabled(true);
+    setCamEnabled(true);
+  };
+
+  const startCall = async (kind) => {
+    if (activeCall) {
+      pushBanner("You're already in a call.");
+      return;
+    }
+    const roomName = getCallRoomName();
+    if (!roomName) {
+      pushBanner("This group isn't backed by the server yet, so it can't be called.");
+      return;
+    }
+    if (!LIVEKIT_URL) {
+      pushBanner("LiveKit URL isn't configured (set VITE_LIVEKIT_URL).");
+      return;
+    }
+
+    setActiveCall({ roomName, kind, status: "connecting" });
+
+    try {
+      const token = await fetchLiveKitToken(roomName);
+      const room = new Room({ adaptiveStream: true, dynacast: true });
+      livekitRoomRef.current = room;
+
+      room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+        attachRemoteTrack(participant, track);
+      });
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach().forEach((el) => el.remove());
+      });
+      room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+        setRemoteParticipants((prev) => prev.filter((p) => p.sid !== participant.sid));
+      });
+      room.on(RoomEvent.Disconnected, () => {
+        endCallCleanup();
+      });
+
+      await room.connect(LIVEKIT_URL, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      if (kind === "video") {
+        await room.localParticipant.setCameraEnabled(true);
+        const camPub = Array.from(room.localParticipant.videoTrackPublications.values())[0];
+        if (camPub?.track && localVideoRef.current) {
+          camPub.track.attach(localVideoRef.current);
+        }
+      }
+
+      setMicEnabled(true);
+      setCamEnabled(kind === "video");
+      setActiveCall({ roomName, kind, status: "connected" });
+    } catch (error) {
+      console.error("Failed to start call:", error);
+      pushBanner("Could not start the call. Check your LiveKit setup.");
+      livekitRoomRef.current = null;
+      setActiveCall(null);
+    }
+  };
+
+  const endCall = () => {
+    if (livekitRoomRef.current) {
+      livekitRoomRef.current.disconnect();
+    }
+    endCallCleanup();
+  };
+
+  const toggleMic = async () => {
+    if (!livekitRoomRef.current) return;
+    const next = !micEnabled;
+    await livekitRoomRef.current.localParticipant.setMicrophoneEnabled(next);
+    setMicEnabled(next);
+  };
+
+  const toggleCam = async () => {
+    if (!livekitRoomRef.current) return;
+    const next = !camEnabled;
+    await livekitRoomRef.current.localParticipant.setCameraEnabled(next);
+    setCamEnabled(next);
+    if (next) {
+      const camPub = Array.from(livekitRoomRef.current.localParticipant.videoTrackPublications.values())[0];
+      if (camPub?.track && localVideoRef.current) camPub.track.attach(localVideoRef.current);
+    }
   };
 
   const handleDeleteMessage = () => {
@@ -327,7 +541,7 @@ export default function Messages() {
       );
       pushBanner(`${memberName} added to ${selectedFriend?.name}.`);
     } else if (selectedFriend) {
-      const id = `group-${Date.now()}`;
+      const id = `local-group-${Date.now()}`;
       const newGroup = {
         id,
         name: `${selectedFriend.username}, ${memberName}`,
@@ -347,7 +561,7 @@ export default function Messages() {
   };
 
   const handleCreateGroup = (name, memberNames) => {
-    const id = `group-${Date.now()}`;
+    const id = `local-group-${Date.now()}`;
     const newGroup = {
       id,
       name,
@@ -484,14 +698,18 @@ export default function Messages() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleCallAction("Voice call")}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
+                      onClick={() => startCall("audio")}
+                      disabled={(isGroup && !isBackendGroup) || !!activeCall}
+                      title={isGroup && !isBackendGroup ? "This group isn't backed by the server yet" : "Start voice call"}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <PhoneIcon className="h-3.5 w-3.5" /> Call
                     </button>
                     <button
-                      onClick={() => handleCallAction("Video call")}
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-white hover:opacity-90 transition"
+                      onClick={() => startCall("video")}
+                      disabled={(isGroup && !isBackendGroup) || !!activeCall}
+                      title={isGroup && !isBackendGroup ? "This group isn't backed by the server yet" : "Start video call"}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ backgroundColor: PRIMARY_BLUE }}
                     >
                       <VideoCameraIcon className="h-3.5 w-3.5" /> Video
@@ -653,6 +871,139 @@ export default function Messages() {
           onClose={() => setShowCreateGroup(false)}
         />
       )}
+
+      {activeCall && (
+        <CallOverlay
+          activeCall={activeCall}
+          remoteParticipants={remoteParticipants}
+          localVideoRef={localVideoRef}
+          micEnabled={micEnabled}
+          camEnabled={camEnabled}
+          onToggleMic={toggleMic}
+          onToggleCam={toggleCam}
+          onEndCall={endCall}
+          title={selectedFriend?.username || selectedFriend?.name || "Call"}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- CALL OVERLAY ---
+function CallOverlay({
+  activeCall,
+  remoteParticipants,
+  localVideoRef,
+  micEnabled,
+  camEnabled,
+  onToggleMic,
+  onToggleCam,
+  onEndCall,
+  title,
+}) {
+  const tileCount = Math.max(1, Math.min(remoteParticipants.length + 1, 4));
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-gray-950 flex flex-col">
+      <div className="flex items-center justify-between px-6 py-4 text-white">
+        <div>
+          <p className="text-sm text-gray-400">{activeCall.status === "connecting" ? "Connecting…" : "In call"}</p>
+          <h3 className="text-lg font-bold">{title}</h3>
+        </div>
+      </div>
+
+      <div
+        className="flex-1 grid gap-3 p-4"
+        style={{ gridTemplateColumns: `repeat(${tileCount}, minmax(0, 1fr))` }}
+      >
+        {activeCall.kind === "video" && (
+          <div className="relative rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center">
+            <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+            <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded-full">You</span>
+          </div>
+        )}
+
+        {remoteParticipants.map((p) => (
+          <RemoteTile key={p.sid} participant={p} showVideo={activeCall.kind === "video"} />
+        ))}
+
+        {remoteParticipants.length === 0 && activeCall.status === "connected" && (
+          <div className="flex items-center justify-center text-gray-500 text-sm rounded-2xl border border-dashed border-gray-700">
+            Waiting for others to join…
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-center gap-4 py-6">
+        <button
+          onClick={onToggleMic}
+          className={`h-12 w-12 rounded-full flex items-center justify-center transition ${
+            micEnabled ? "bg-gray-800 text-white" : "bg-red-600 text-white"
+          }`}
+          title={micEnabled ? "Mute" : "Unmute"}
+        >
+          <MicrophoneIcon className="h-5 w-5" />
+        </button>
+
+        {activeCall.kind === "video" && (
+          <button
+            onClick={onToggleCam}
+            className={`h-12 w-12 rounded-full flex items-center justify-center transition ${
+              camEnabled ? "bg-gray-800 text-white" : "bg-red-600 text-white"
+            }`}
+            title={camEnabled ? "Turn camera off" : "Turn camera on"}
+          >
+            {camEnabled ? <VideoCameraIcon className="h-5 w-5" /> : <VideoCameraSlashIcon className="h-5 w-5" />}
+          </button>
+        )}
+
+        <button
+          onClick={onEndCall}
+          className="h-12 w-12 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition"
+          title="Leave call"
+        >
+          <PhoneXMarkIcon className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RemoteTile({ participant, showVideo }) {
+  const videoRef = useRef(null);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    if (showVideo && participant.videoTrack && videoRef.current) {
+      participant.videoTrack.attach(videoRef.current);
+    }
+    return () => {
+      if (participant.videoTrack) participant.videoTrack.detach();
+    };
+  }, [participant.videoTrack, showVideo]);
+
+  useEffect(() => {
+    if (participant.audioTrack && audioRef.current) {
+      participant.audioTrack.attach(audioRef.current);
+    }
+    return () => {
+      if (participant.audioTrack) participant.audioTrack.detach();
+    };
+  }, [participant.audioTrack]);
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center">
+      {showVideo ? (
+        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      ) : (
+        <div className="h-16 w-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
+          {(participant.identity || "?").slice(0, 2).toUpperCase()}
+        </div>
+      )}
+      <audio ref={audioRef} autoPlay />
+      <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded-full">
+        {participant.identity}
+      </span>
     </div>
   );
 }
